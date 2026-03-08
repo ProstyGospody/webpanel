@@ -49,6 +49,9 @@ obfs:
 	}
 
 	uri := h.buildHy2URI(account)
+	if !strings.HasPrefix(uri, "hy2://") {
+		t.Fatalf("uri must use hy2 scheme for client import compatibility: %s", uri)
+	}
 	if !strings.Contains(uri, "pinSHA256=pin-value") {
 		t.Fatalf("uri must include pinSHA256: %s", uri)
 	}

@@ -223,7 +223,7 @@ func (h *Handler) buildHy2URI(account repository.Hy2AccountWithClient) string {
 		fragment = account.Hy2Identity
 	}
 
-	base := "hysteria2://" + url.PathEscape(account.AuthPayload) + "@" + params.Server + ":" + strconv.Itoa(params.Port) + "/"
+	base := "hy2://" + url.PathEscape(account.AuthPayload) + "@" + params.Server + ":" + strconv.Itoa(params.Port) + "/"
 	if encodedQuery := query.Encode(); encodedQuery != "" {
 		base += "?" + encodedQuery
 	}
