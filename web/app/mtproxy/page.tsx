@@ -36,10 +36,18 @@ export default function MTProxyPage() {
   const [editingID, setEditingID] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [currentLink, setCurrentLink] = useState("");
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const sortedClients = useMemo(() => {
     return [...clients].sort((a, b) => a.name.localeCompare(b.name));
   }, [clients]);
+
+  function markCopied(key: string) {
+    setCopiedKey(key);
+    window.setTimeout(() => {
+      setCopiedKey((current) => (current === key ? null : current));
+    }, 1500);
+  }
 
   async function load() {
     const [secretResp, overviewResp, clientsResp] = await Promise.all([
@@ -145,10 +153,11 @@ export default function MTProxyPage() {
     }
   }
 
-  async function copySecret(value: string) {
+  async function copyValue(value: string, key: string) {
     try {
       await copyToClipboard(value);
-      push("Скопировано", "success");
+      markCopied(key);
+      push("Copied", "success");
     } catch {
       push("Failed to copy", "error");
     }
@@ -159,8 +168,7 @@ export default function MTProxyPage() {
       const payload = await apiFetch<MTSecretPayload>(`/api/mtproxy/secrets/${id}`);
       setCurrentLink(payload.tg_link);
       if (copy) {
-        await copyToClipboard(payload.tg_link);
-        push("Скопировано", "success");
+        await copyValue(payload.tg_link, `tg-${id}`);
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to load Telegram link";
@@ -221,7 +229,9 @@ export default function MTProxyPage() {
           <div className="text-sm font-medium">tg://proxy link</div>
           <textarea className="input min-h-16 font-mono text-xs" readOnly value={currentLink} />
           <div className="flex gap-2">
-            <button className="btn btn-primary" onClick={() => copySecret(currentLink)}>Copy link</button>
+            <button className="btn btn-primary" onClick={() => copyValue(currentLink, "current-link")}>
+              {copiedKey === "current-link" ? "Copied" : "Copy link"}
+            </button>
             <button className="btn btn-muted" onClick={() => setCurrentLink("")}>Hide</button>
           </div>
         </div>
@@ -261,8 +271,12 @@ export default function MTProxyPage() {
                 </td>
                 <td>{formatDate(item.last_seen_at)}</td>
                 <td className="space-x-2">
-                  <button className="btn btn-muted" onClick={() => copySecret(item.secret)}>Copy secret</button>
-                  <button className="btn btn-muted" onClick={() => loadLink(item.id, true)}>Copy tg://</button>
+                  <button className="btn btn-muted" onClick={() => copyValue(item.secret, `secret-${item.id}`)}>
+                    {copiedKey === `secret-${item.id}` ? "Copied" : "Copy secret"}
+                  </button>
+                  <button className="btn btn-muted" onClick={() => loadLink(item.id, true)}>
+                    {copiedKey === `tg-${item.id}` ? "Copied" : "Copy tg://"}
+                  </button>
                   <button className="btn btn-muted" onClick={() => loadLink(item.id)}>Show tg://</button>
                   <button className="btn btn-muted" onClick={() => startEdit(item)}>Edit</button>
                   <button className="btn btn-danger" onClick={() => removeSecret(item.id)}>Delete</button>

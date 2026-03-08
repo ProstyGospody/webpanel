@@ -112,6 +112,28 @@ func (h *Handler) DisableClient(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) setClientState(w http.ResponseWriter, r *http.Request, enabled bool) {
 	id := chi.URLParam(r, "id")
+
+	if !enabled {
+		enabledSecrets, err := h.repo.ListEnabledMTProxySecrets(r.Context())
+		if err != nil {
+			render.Error(w, http.StatusInternalServerError, "failed to verify mtproxy runtime impact")
+			return
+		}
+		if len(enabledSecrets) > 0 {
+			onlyThisClient := true
+			for _, secret := range enabledSecrets {
+				if secret.ClientID != id {
+					onlyThisClient = false
+					break
+				}
+			}
+			if onlyThisClient {
+				render.Error(w, http.StatusBadRequest, "cannot disable this client because it would remove the last enabled mtproxy secret")
+				return
+			}
+		}
+	}
+
 	if err := h.repo.SetClientActive(r.Context(), id, enabled); err != nil {
 		if repository.IsNotFound(err) {
 			render.Error(w, http.StatusNotFound, "client not found")

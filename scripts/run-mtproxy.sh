@@ -8,16 +8,31 @@ MTPROXY_SECRETS_FILE="${MTPROXY_SECRETS_FILE:-/etc/proxy-panel/mtproxy/secrets.l
 MTPROXY_FALLBACK_SECRET="${MTPROXY_FALLBACK_SECRET:-}"
 MTPROXY_WORKDIR="${MTPROXY_WORKDIR:-/var/lib/mtproxy}"
 MTPROXY_ENABLE_HTTP_STATS="${MTPROXY_ENABLE_HTTP_STATS:-true}"
+MTPROXY_ASSET_MAX_AGE_SECONDS="${MTPROXY_ASSET_MAX_AGE_SECONDS:-86400}"
 
 mkdir -p "${MTPROXY_WORKDIR}"
 
-if [[ ! -f "${MTPROXY_WORKDIR}/proxy-secret" ]]; then
-  curl -fsSL "https://core.telegram.org/getProxySecret" -o "${MTPROXY_WORKDIR}/proxy-secret"
-fi
+fetch_if_stale() {
+  local path="$1"
+  local url="$2"
 
-if [[ ! -f "${MTPROXY_WORKDIR}/proxy-multi.conf" ]]; then
-  curl -fsSL "https://core.telegram.org/getProxyConfig" -o "${MTPROXY_WORKDIR}/proxy-multi.conf"
-fi
+  if [[ -f "${path}" ]]; then
+    local now
+    local updated
+    now="$(date +%s)"
+    updated="$(stat -c %Y "${path}" 2>/dev/null || echo 0)"
+    if [[ $((now - updated)) -lt ${MTPROXY_ASSET_MAX_AGE_SECONDS} ]]; then
+      return
+    fi
+  fi
+
+  local tmp_path="${path}.tmp"
+  curl -fsSL "${url}" -o "${tmp_path}"
+  mv -f "${tmp_path}" "${path}"
+}
+
+fetch_if_stale "${MTPROXY_WORKDIR}/proxy-secret" "https://core.telegram.org/getProxySecret"
+fetch_if_stale "${MTPROXY_WORKDIR}/proxy-multi.conf" "https://core.telegram.org/getProxyConfig"
 
 primary_secret=""
 if [[ -f "${MTPROXY_SECRETS_FILE}" ]]; then

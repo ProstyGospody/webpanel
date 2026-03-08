@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
@@ -27,6 +27,7 @@ type Hy2ConfigValidation = {
     primary_domain?: string;
     sni?: string;
     insecure?: boolean;
+    pin_sha256?: string;
     obfs_type?: string;
     obfs_password?: string;
     alpn?: string[];
@@ -44,6 +45,7 @@ type Hy2ClientParams = {
   port?: number;
   sni?: string;
   insecure?: boolean;
+  pin_sha256?: string;
   obfs_type?: string;
   obfs_password?: string;
   alpn?: string[];
@@ -72,6 +74,7 @@ export default function HysteriaPage() {
   const [currentURI, setCurrentURI] = useState("");
   const [currentURITitle, setCurrentURITitle] = useState("");
   const [currentClientParams, setCurrentClientParams] = useState<Hy2ClientParams | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const [configPath, setConfigPath] = useState("");
   const [configText, setConfigText] = useState("");
@@ -82,6 +85,13 @@ export default function HysteriaPage() {
   const sortedClients = useMemo(() => {
     return [...clients].sort((a, b) => a.name.localeCompare(b.name));
   }, [clients]);
+
+  function markCopied(key: string) {
+    setCopiedKey(key);
+    window.setTimeout(() => {
+      setCopiedKey((current) => (current === key ? null : current));
+    }, 1500);
+  }
 
   async function loadAll() {
     const [accountResp, overviewResp, clientsResp, configResp] = await Promise.all([
@@ -202,7 +212,7 @@ export default function HysteriaPage() {
         method: "POST",
         body: toJSONBody({}),
       });
-      push("Kicked", "success");
+      push("Session kicked", "success");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to kick session";
       setError(msg);
@@ -225,10 +235,11 @@ export default function HysteriaPage() {
     }
   }
 
-  async function copyURI(uri: string) {
+  async function copyURI(uri: string, key: string) {
     try {
       await copyToClipboard(uri);
-      push("РЎРєРѕРїРёСЂРѕРІР°РЅРѕ", "success");
+      markCopied(key);
+      push("Copied", "success");
     } catch {
       push("Failed to copy", "error");
     }
@@ -257,7 +268,7 @@ export default function HysteriaPage() {
         body: toJSONBody({ content: configText }),
       });
       setConfigValidation(payload.validation);
-      push("РЎРѕС…СЂР°РЅРµРЅРѕ", "success");
+      push("Saved", "success");
       await loadAll();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to save config";
@@ -278,7 +289,7 @@ export default function HysteriaPage() {
         method: "POST",
         body: toJSONBody({}),
       });
-      push("РџСЂРёРјРµРЅРµРЅРѕ", "success");
+      push("Applied", "success");
       await loadAll();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to apply config";
@@ -448,6 +459,7 @@ export default function HysteriaPage() {
                   <div>auth: {configValidation.summary.auth_type || "-"}</div>
                   <div>sni: {configValidation.summary.sni || "-"}</div>
                   <div>domain: {configValidation.summary.primary_domain || "-"}</div>
+                  <div>pinSHA256: {configValidation.summary.pin_sha256 || "-"}</div>
                   <div>obfs: {configValidation.summary.obfs_type || "-"}</div>
                 </div>
               </div>
@@ -471,12 +483,13 @@ export default function HysteriaPage() {
                 <div>port: {currentClientParams.port || "-"}</div>
                 <div>sni: {currentClientParams.sni || "-"}</div>
                 <div>insecure: {currentClientParams.insecure ? "true" : "false"}</div>
+                <div>pinSHA256: {currentClientParams.pin_sha256 || "-"}</div>
                 <div>obfs: {currentClientParams.obfs_type || "-"}</div>
                 <div>alpn: {(currentClientParams.alpn || []).join(", ") || "-"}</div>
               </div>
             )}
             <div className="flex flex-wrap gap-2">
-              <button className="btn btn-primary" onClick={() => copyURI(currentURI)}>Copy URI</button>
+              <button className="btn btn-primary" onClick={() => copyURI(currentURI, "uri")}>{copiedKey === "uri" ? "Copied" : "Copy URI"}</button>
               <button className="btn btn-muted" onClick={() => setShowQRCode((prev) => !prev)}>{showQRCode ? "Hide QR" : "Show QR"}</button>
             </div>
             {showQRCode && currentURI && (
@@ -492,4 +505,3 @@ export default function HysteriaPage() {
     </div>
   );
 }
-

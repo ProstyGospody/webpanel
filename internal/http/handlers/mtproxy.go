@@ -190,6 +190,28 @@ func (h *Handler) UpdateMTProxySecret(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) DeleteMTProxySecret(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
+	current, err := h.repo.GetMTProxySecret(r.Context(), id)
+	if err != nil {
+		if repository.IsNotFound(err) {
+			render.Error(w, http.StatusNotFound, "mtproxy secret not found")
+			return
+		}
+		render.Error(w, http.StatusInternalServerError, "failed to load mtproxy secret")
+		return
+	}
+
+	if current.IsEnabled {
+		enabledCount, countErr := h.repo.CountEnabledMTProxySecrets(r.Context())
+		if countErr != nil {
+			render.Error(w, http.StatusInternalServerError, "failed to verify active mtproxy secret")
+			return
+		}
+		if enabledCount <= 1 {
+			render.Error(w, http.StatusBadRequest, "cannot delete the last enabled mtproxy secret; enable another secret first")
+			return
+		}
+	}
+
 	if err := h.repo.DeleteMTProxySecret(r.Context(), id); err != nil {
 		if repository.IsNotFound(err) {
 			render.Error(w, http.StatusNotFound, "mtproxy secret not found")
@@ -216,6 +238,28 @@ func (h *Handler) DisableMTProxySecret(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) setMTProxySecretState(w http.ResponseWriter, r *http.Request, enabled bool) {
 	id := chi.URLParam(r, "id")
+	current, err := h.repo.GetMTProxySecret(r.Context(), id)
+	if err != nil {
+		if repository.IsNotFound(err) {
+			render.Error(w, http.StatusNotFound, "mtproxy secret not found")
+			return
+		}
+		render.Error(w, http.StatusInternalServerError, "failed to load mtproxy secret")
+		return
+	}
+
+	if !enabled && current.IsEnabled {
+		enabledCount, countErr := h.repo.CountEnabledMTProxySecrets(r.Context())
+		if countErr != nil {
+			render.Error(w, http.StatusInternalServerError, "failed to verify active mtproxy secret")
+			return
+		}
+		if enabledCount <= 1 {
+			render.Error(w, http.StatusBadRequest, "cannot disable the last enabled mtproxy secret; enable another secret first")
+			return
+		}
+	}
+
 	if err := h.repo.SetMTProxySecretEnabled(r.Context(), id, enabled); err != nil {
 		if repository.IsNotFound(err) {
 			render.Error(w, http.StatusNotFound, "mtproxy secret not found")

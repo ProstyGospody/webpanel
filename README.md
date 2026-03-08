@@ -49,7 +49,7 @@ sudo bash ./deploy/install.sh --reconfigure
 - ACME email
 - Hysteria public domain
 - MTProxy public host/IP
-- MTProxy FakeTLS domain (used in tg:// links)
+- MTProxy legacy TLS domain (optional, compatibility only)
 - Initial admin email
 - Initial admin password (empty input -> generated)
 

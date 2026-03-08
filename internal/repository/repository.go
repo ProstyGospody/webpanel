@@ -717,6 +717,15 @@ ORDER BY created_at DESC`
 	return out, rows.Err()
 }
 
+func (r *Repository) CountEnabledMTProxySecrets(ctx context.Context) (int64, error) {
+	var count int64
+	err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM mtproxy_secrets WHERE is_enabled = true`).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 func (r *Repository) InsertMTProxySnapshot(ctx context.Context, snapshot MTProxySnapshot) error {
 	const q = `
 INSERT INTO mtproxy_stats_snapshots (connections_total, users_total, raw_stats_json, snapshot_at)

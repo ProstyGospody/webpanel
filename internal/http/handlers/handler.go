@@ -208,14 +208,14 @@ func (h *Handler) buildHy2URI(account repository.Hy2AccountWithClient) string {
 	if params.Insecure {
 		query.Set("insecure", "1")
 	}
+	if strings.TrimSpace(params.PinSHA256) != "" {
+		query.Set("pinSHA256", strings.TrimSpace(params.PinSHA256))
+	}
 	if strings.TrimSpace(params.ObfsType) != "" {
 		query.Set("obfs", strings.TrimSpace(params.ObfsType))
 	}
 	if strings.TrimSpace(params.ObfsPassword) != "" {
 		query.Set("obfs-password", strings.TrimSpace(params.ObfsPassword))
-	}
-	if len(params.ALPN) > 0 {
-		query.Set("alpn", strings.Join(params.ALPN, ","))
 	}
 
 	fragment := account.ClientName
@@ -223,15 +223,20 @@ func (h *Handler) buildHy2URI(account repository.Hy2AccountWithClient) string {
 		fragment = account.Hy2Identity
 	}
 
-	encodedQuery := query.Encode()
-	credential := url.QueryEscape(account.AuthPayload)
-	return "hysteria2://" + credential + "@" + params.Server + ":" + strconv.Itoa(params.Port) + "/?" + encodedQuery + "#" + url.QueryEscape(fragment)
+	base := "hysteria2://" + url.PathEscape(account.AuthPayload) + "@" + params.Server + ":" + strconv.Itoa(params.Port) + "/"
+	if encodedQuery := query.Encode(); encodedQuery != "" {
+		base += "?" + encodedQuery
+	}
+	return base + "#" + url.QueryEscape(fragment)
 }
 
 func (h *Handler) buildMTProxyLink(secret string) string {
 	host := services.NormalizeHost(h.cfg.MTProxyPublicHost)
 	if host == "" {
 		host = services.NormalizeHost(h.cfg.PanelPublicHost)
+	}
+	if host == "" {
+		host = "127.0.0.1"
 	}
 	secretForLink := services.BuildTelegramMTProxySecret(secret, host, h.cfg.MTProxyTLSDomain)
 	return "tg://proxy?server=" + url.QueryEscape(host) + "&port=" + strconv.Itoa(h.cfg.MTProxyPort) + "&secret=" + url.QueryEscape(secretForLink)

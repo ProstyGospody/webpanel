@@ -18,6 +18,7 @@ type Hy2ConfigSummary struct {
 	PrimaryDomain         string   `json:"primary_domain,omitempty"`
 	SNI                   string   `json:"sni,omitempty"`
 	Insecure              bool     `json:"insecure"`
+	PinSHA256             string   `json:"pin_sha256,omitempty"`
 	ObfsType              string   `json:"obfs_type,omitempty"`
 	ObfsPassword          string   `json:"obfs_password,omitempty"`
 	ALPN                  []string `json:"alpn,omitempty"`
@@ -37,6 +38,7 @@ type Hy2ClientParams struct {
 	Port         int      `json:"port"`
 	SNI          string   `json:"sni"`
 	Insecure     bool     `json:"insecure"`
+	PinSHA256    string   `json:"pin_sha256,omitempty"`
 	ObfsType     string   `json:"obfs_type,omitempty"`
 	ObfsPassword string   `json:"obfs_password,omitempty"`
 	ALPN         []string `json:"alpn,omitempty"`
@@ -88,7 +90,7 @@ func (m *HysteriaConfigManager) Parse(content string) Hy2ConfigSummary {
 			if item == "" {
 				continue
 			}
-			switch framePath(frames) {
+			switch strings.ToLower(framePath(frames)) {
 			case "acme.domains":
 				if summary.PrimaryDomain == "" {
 					summary.PrimaryDomain = NormalizeHost(item)
@@ -108,6 +110,7 @@ func (m *HysteriaConfigManager) Parse(content string) Hy2ConfigSummary {
 		if len(frames) > 0 {
 			path = framePath(frames) + "." + key
 		}
+		pathLower := strings.ToLower(path)
 
 		if value == "" {
 			frames = append(frames, yamlFrame{Indent: indent, Key: key})
@@ -115,7 +118,7 @@ func (m *HysteriaConfigManager) Parse(content string) Hy2ConfigSummary {
 		}
 
 		parsed := cleanScalar(value)
-		switch path {
+		switch pathLower {
 		case "listen":
 			summary.Listen = parsed
 			if port, ok := parseListenPort(parsed); ok {
@@ -129,13 +132,15 @@ func (m *HysteriaConfigManager) Parse(content string) Hy2ConfigSummary {
 			summary.SNI = NormalizeHost(parsed)
 		case "tls.insecure":
 			summary.Insecure = parseYAMLBool(parsed)
+		case "tls.pinsha256":
+			summary.PinSHA256 = parsed
 		case "obfs.type":
 			summary.ObfsType = parsed
 		case "obfs.password":
 			summary.ObfsPassword = parsed
-		case "trafficStats.listen":
+		case "trafficstats.listen":
 			summary.TrafficStatsListen = parsed
-		case "trafficStats.secret":
+		case "trafficstats.secret":
 			summary.HasTrafficStatsSecret = parsed != ""
 		case "acme.domains":
 			if summary.PrimaryDomain == "" {
@@ -252,6 +257,7 @@ func (m *HysteriaConfigManager) ClientParams(content string, fallbackHost string
 		Port:         port,
 		SNI:          sni,
 		Insecure:     summary.Insecure,
+		PinSHA256:    summary.PinSHA256,
 		ObfsType:     summary.ObfsType,
 		ObfsPassword: summary.ObfsPassword,
 		ALPN:         summary.ALPN,

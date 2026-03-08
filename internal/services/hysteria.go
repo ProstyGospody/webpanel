@@ -76,7 +76,7 @@ func (c *HysteriaClient) FetchOnline(ctx context.Context) (map[string]int, error
 }
 
 func (c *HysteriaClient) Kick(ctx context.Context, identity string) error {
-	body := map[string]string{"id": identity}
+	body := []string{identity}
 	encoded, _ := json.Marshal(body)
 	url := c.BaseURL + "/kick"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(encoded))
@@ -85,7 +85,7 @@ func (c *HysteriaClient) Kick(ctx context.Context, identity string) error {
 	}
 	req.Header.Set("Content-Type", "application/json")
 	if c.Secret != "" {
-		req.Header.Set("Authorization", "Bearer "+c.Secret)
+		req.Header.Set("Authorization", c.Secret)
 	}
 
 	resp, err := c.Client.Do(req)
@@ -107,7 +107,7 @@ func (c *HysteriaClient) getJSON(ctx context.Context, path string) (map[string]a
 		return nil, err
 	}
 	if c.Secret != "" {
-		req.Header.Set("Authorization", "Bearer "+c.Secret)
+		req.Header.Set("Authorization", c.Secret)
 	}
 
 	resp, err := c.Client.Do(req)
@@ -177,4 +177,3 @@ func toInt64(v any) (int64, bool) {
 	}
 	return 0, false
 }
-

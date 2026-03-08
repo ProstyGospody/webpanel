@@ -1,7 +1,6 @@
 package services
 
 import (
-	"encoding/hex"
 	"fmt"
 	"net"
 	"net/url"
@@ -28,21 +27,13 @@ func NormalizeMTProxySecret(input string) (string, error) {
 	return secret, nil
 }
 
-func BuildTelegramMTProxySecret(runtimeSecret string, publicHost string, tlsDomain string) string {
+func BuildTelegramMTProxySecret(runtimeSecret string, _ string, _ string) string {
 	normalized, err := NormalizeMTProxySecret(runtimeSecret)
 	if err != nil {
 		return strings.TrimSpace(runtimeSecret)
 	}
 
-	domain := NormalizeHost(tlsDomain)
-	if domain == "" {
-		domain = NormalizeHost(publicHost)
-	}
-	if domain == "" || net.ParseIP(domain) != nil {
-		return normalized
-	}
-
-	return "dd" + normalized + hex.EncodeToString([]byte(domain))
+	return "dd" + normalized
 }
 
 func NormalizeHost(raw string) string {

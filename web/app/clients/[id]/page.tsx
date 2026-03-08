@@ -7,6 +7,7 @@ import { apiFetch, toJSONBody } from "@/lib/api";
 import { copyToClipboard, formatDate } from "@/lib/format";
 import type { Client, Hy2Account, MTProxySecret } from "@/lib/types";
 import { StatusBadge } from "@/components/ui";
+import { useToast } from "@/components/toast-provider";
 
 type ClientPayload = {
   client: Client;
@@ -15,6 +16,7 @@ type ClientPayload = {
 };
 
 export default function ClientDetailsPage() {
+  const { push } = useToast();
   const params = useParams<{ id: string }>();
   const clientID = params.id;
 
@@ -32,8 +34,12 @@ export default function ClientDetailsPage() {
     if (!clientID) {
       return;
     }
-    load().catch((err: unknown) => setError(err instanceof Error ? err.message : "Failed to load client"));
-  }, [clientID]);
+    load().catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : "Failed to load client";
+      setError(msg);
+      push(msg, "error");
+    });
+  }, [clientID, push]);
 
   async function updateClient(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -50,8 +56,11 @@ export default function ClientDetailsPage() {
         }),
       });
       await load();
+      push("Saved", "success");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update client");
+      const msg = err instanceof Error ? err.message : "Failed to update client";
+      setError(msg);
+      push(msg, "error");
     }
   }
 
@@ -59,53 +68,104 @@ export default function ClientDetailsPage() {
     if (!enabled && !confirm("Disable this client? Active accesses will be revoked.")) {
       return;
     }
-    const endpoint = enabled ? "enable" : "disable";
-    await apiFetch(`/api/clients/${clientID}/${endpoint}`, {
-      method: "POST",
-      body: toJSONBody({}),
-    });
-    await load();
+    try {
+      const endpoint = enabled ? "enable" : "disable";
+      await apiFetch(`/api/clients/${clientID}/${endpoint}`, {
+        method: "POST",
+        body: toJSONBody({}),
+      });
+      await load();
+      push(enabled ? "Client enabled" : "Client disabled", "success");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to update client status";
+      setError(msg);
+      push(msg, "error");
+    }
   }
 
   async function createHy2() {
-    await apiFetch("/api/hy2/accounts", {
-      method: "POST",
-      body: toJSONBody({ client_id: clientID }),
-    });
-    await load();
+    try {
+      await apiFetch("/api/hy2/accounts", {
+        method: "POST",
+        body: toJSONBody({ client_id: clientID }),
+      });
+      await load();
+      push("Hysteria access created", "success");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to create Hysteria account";
+      setError(msg);
+      push(msg, "error");
+    }
   }
 
   async function createSecret() {
-    await apiFetch("/api/mtproxy/secrets", {
-      method: "POST",
-      body: toJSONBody({ client_id: clientID }),
-    });
-    await load();
+    try {
+      await apiFetch("/api/mtproxy/secrets", {
+        method: "POST",
+        body: toJSONBody({ client_id: clientID }),
+      });
+      await load();
+      push("MTProxy secret created", "success");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to create MTProxy secret";
+      setError(msg);
+      push(msg, "error");
+    }
   }
 
   async function toggleHy2(id: string, enabled: boolean) {
     if (!enabled && !confirm("Disable this Hysteria account?")) {
       return;
     }
-    const endpoint = enabled ? "enable" : "disable";
-    await apiFetch(`/api/hy2/accounts/${id}/${endpoint}`, { method: "POST", body: toJSONBody({}) });
-    await load();
+    try {
+      const endpoint = enabled ? "enable" : "disable";
+      await apiFetch(`/api/hy2/accounts/${id}/${endpoint}`, { method: "POST", body: toJSONBody({}) });
+      await load();
+      push(enabled ? "Enabled" : "Disabled", "success");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to toggle Hysteria account";
+      setError(msg);
+      push(msg, "error");
+    }
   }
 
   async function kickHy2(id: string) {
     if (!confirm("Kick active Hysteria sessions for this account?")) {
       return;
     }
-    await apiFetch(`/api/hy2/accounts/${id}/kick`, { method: "POST", body: toJSONBody({}) });
+    try {
+      await apiFetch(`/api/hy2/accounts/${id}/kick`, { method: "POST", body: toJSONBody({}) });
+      push("Sessions kicked", "success");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to kick Hysteria sessions";
+      setError(msg);
+      push(msg, "error");
+    }
   }
 
   async function toggleSecret(id: string, enabled: boolean) {
     if (!enabled && !confirm("Disable this MTProxy secret?")) {
       return;
     }
-    const endpoint = enabled ? "enable" : "disable";
-    await apiFetch(`/api/mtproxy/secrets/${id}/${endpoint}`, { method: "POST", body: toJSONBody({}) });
-    await load();
+    try {
+      const endpoint = enabled ? "enable" : "disable";
+      await apiFetch(`/api/mtproxy/secrets/${id}/${endpoint}`, { method: "POST", body: toJSONBody({}) });
+      await load();
+      push(enabled ? "Enabled" : "Disabled", "success");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to toggle MTProxy secret";
+      setError(msg);
+      push(msg, "error");
+    }
+  }
+
+  async function copyValue(value: string) {
+    try {
+      await copyToClipboard(value);
+      push("Copied", "success");
+    } catch {
+      push("Failed to copy", "error");
+    }
   }
 
   if (!payload) {
@@ -180,7 +240,7 @@ export default function ClientDetailsPage() {
                 </td>
                 <td>{formatDate(account.last_seen_at)}</td>
                 <td className="space-x-2">
-                  <button className="btn btn-muted" onClick={() => copyToClipboard(account.auth_payload)}>
+                  <button className="btn btn-muted" onClick={() => copyValue(account.auth_payload)}>
                     Copy credential
                   </button>
                   <button className="btn btn-muted" onClick={() => kickHy2(account.id)}>
@@ -234,7 +294,7 @@ export default function ClientDetailsPage() {
                 </td>
                 <td>{formatDate(secret.last_seen_at)}</td>
                 <td className="space-x-2">
-                  <button className="btn btn-muted" onClick={() => copyToClipboard(secret.secret)}>
+                  <button className="btn btn-muted" onClick={() => copyValue(secret.secret)}>
                     Copy
                   </button>
                   {secret.is_enabled ? (
@@ -255,6 +315,3 @@ export default function ClientDetailsPage() {
     </div>
   );
 }
-
-
-
