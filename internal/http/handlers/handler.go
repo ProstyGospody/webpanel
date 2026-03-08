@@ -183,7 +183,11 @@ func (h *Handler) buildMTProxyLink(secret string) string {
 }
 
 func parseInternalAuth(r *http.Request) string {
-	token := strings.TrimSpace(r.Header.Get("X-Internal-Token"))
+	token := strings.TrimSpace(r.URL.Query().Get("token"))
+	if token != "" {
+		return token
+	}
+	token = strings.TrimSpace(r.Header.Get("X-Internal-Token"))
 	if token != "" {
 		return token
 	}
@@ -224,4 +228,3 @@ func generateHy2Identity() string {
 	}
 	return "hy2-" + raw
 }
-

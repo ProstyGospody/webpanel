@@ -467,21 +467,17 @@ render_runtime_configs() {
   cat > "${HY2_DIR}/server.yaml" <<EOF
 listen: :${HY2_PORT}
 
-tls:
-  type: acme
-  acme:
-    domains:
-      - ${HY2_DOMAIN}
-    email: ${PANEL_ACME_EMAIL}
+acme:
+  domains:
+    - ${HY2_DOMAIN}
+  email: ${PANEL_ACME_EMAIL}
+  type: http
 
 auth:
   type: http
   http:
-    url: http://127.0.0.1:${PANEL_API_PORT}/internal/hy2/auth
-    timeout: 5s
+    url: http://127.0.0.1:${PANEL_API_PORT}/internal/hy2/auth?token=${INTERNAL_AUTH_TOKEN}
     insecure: true
-    headers:
-      X-Internal-Token: ${INTERNAL_AUTH_TOKEN}
 
 trafficStats:
   listen: 127.0.0.1:${HY2_STATS_PORT}
@@ -635,6 +631,7 @@ main() {
 }
 
 main "$@"
+
 
 
 
