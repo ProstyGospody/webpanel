@@ -48,4 +48,3 @@ if [[ "${MTPROXY_ENABLE_HTTP_STATS}" == "true" ]]; then
 fi
 
 exec "${MTPROXY_BINARY_PATH}" "${args[@]}"
-

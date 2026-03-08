@@ -40,13 +40,13 @@ func (m *MTProxyRuntimeManager) Sync(ctx context.Context, forceRestart bool) err
 		return err
 	}
 
-	lines := make([]string, 0, len(secrets))
-	for _, secret := range secrets {
-		lines = append(lines, strings.TrimSpace(secret.Secret))
+	primarySecret := ""
+	if len(secrets) > 0 {
+		primarySecret = strings.TrimSpace(secrets[0].Secret)
 	}
-	content := strings.Join(lines, "\n")
-	if content != "" {
-		content += "\n"
+	content := ""
+	if primarySecret != "" {
+		content = primarySecret + "\n"
 	}
 
 	checksum := sha256.Sum256([]byte(content))
@@ -75,4 +75,3 @@ func (m *MTProxyRuntimeManager) Sync(ctx context.Context, forceRestart bool) err
 	}
 	return nil
 }
-

@@ -49,6 +49,7 @@ sudo bash ./deploy/install.sh --reconfigure
 - ACME email
 - Hysteria public domain
 - MTProxy public host/IP
+- MTProxy FakeTLS domain (used in tg:// links)
 - Initial admin email
 - Initial admin password (empty input -> generated)
 
@@ -112,4 +113,3 @@ The script syncs repo to `/opt/proxy-panel/current`, rebuilds binaries, keeps ge
 - [Architecture](./docs/architecture.md)
 - [Deploy details](./docs/deploy.md)
 - [Operations](./docs/operations.md)
-

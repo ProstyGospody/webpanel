@@ -10,7 +10,7 @@ import type { Admin } from "@/lib/types";
 const nav = [
   { href: "/", label: "Dashboard" },
   { href: "/clients", label: "Clients" },
-  { href: "/hysteria", label: "Hysteria" },
+  { href: "/hysteria", label: "Hysteria 2" },
   { href: "/mtproxy", label: "MTProxy" },
   { href: "/services", label: "Services" },
   { href: "/audit", label: "Audit" },
@@ -107,4 +107,3 @@ export function AppShell({ children }: PropsWithChildren) {
     </div>
   );
 }
-

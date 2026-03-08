@@ -22,6 +22,7 @@ PostgreSQL is local-only and not exposed externally.
 - MTProxy stats endpoint is loopback-only (`127.0.0.1:${MTPROXY_STATS_PORT}`)
 - `panel-api` background scheduler polls Hysteria/MTProxy stats and service states
 - `panel-api` writes service snapshots and traffic snapshots to PostgreSQL
+- Hysteria runtime config source of truth: `${HY2_CONFIG_PATH}` (default `/etc/proxy-panel/hysteria/server.yaml`)
 
 ## Database model
 
@@ -59,7 +60,8 @@ Implemented in-process scheduler (`internal/scheduler`):
 - Service health polling
 - MTProxy runtime secret sync and conditional restart
 
-## Known MTProxy runtime limitation
+## MTProxy runtime mode
 
-The panel supports multiple secrets in DB and admin model. The runtime wrapper uses the first enabled secret for native MTProxy startup, which is the stable operational default for official MTProxy binary behavior.
-
+- Runtime uses one active secret at a time.
+- When a secret is enabled via panel API/UI, it becomes runtime-active and other secrets are auto-disabled.
+- `tg://proxy` links are generated from runtime secret and FakeTLS domain (`MTPROXY_TLS_DOMAIN`).

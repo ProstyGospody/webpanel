@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { apiFetch, toJSONBody } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import type { ServiceState } from "@/lib/types";
+import { useToast } from "@/components/toast-provider";
 
 type ServiceDetails = {
   name: string;
@@ -14,6 +15,7 @@ type ServiceDetails = {
 };
 
 export default function ServicesPage() {
+  const { push } = useToast();
   const [services, setServices] = useState<ServiceState[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [details, setDetails] = useState<ServiceDetails | null>(null);
@@ -31,19 +33,30 @@ export default function ServicesPage() {
   }
 
   useEffect(() => {
-    loadServices().catch((err: unknown) => setError(err instanceof Error ? err.message : "Failed to load services"));
-  }, []);
+    loadServices().catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : "Failed to load services";
+      setError(msg);
+      push(msg, "error");
+    });
+  }, [push]);
 
   async function runAction(name: string, action: "restart" | "reload") {
     if (!confirm(`Run ${action} for ${name}?`)) {
       return;
     }
-    await apiFetch(`/api/services/${name}/${action}`, {
-      method: "POST",
-      body: toJSONBody({}),
-    });
-    await loadServices();
-    await loadService(name);
+    try {
+      await apiFetch(`/api/services/${name}/${action}`, {
+        method: "POST",
+        body: toJSONBody({}),
+      });
+      await loadServices();
+      await loadService(name);
+      push(action === "restart" ? "Service restarted" : "Service reloaded", "success");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : `Failed to ${action} service`;
+      setError(msg);
+      push(msg, "error");
+    }
   }
 
   return (
@@ -82,12 +95,8 @@ export default function ServicesPage() {
                     <td>{service.status}</td>
                     <td>{formatDate(service.last_check_at)}</td>
                     <td className="space-x-2">
-                      <button className="btn btn-muted" onClick={() => runAction(name, "reload")}>
-                        Reload
-                      </button>
-                      <button className="btn btn-danger" onClick={() => runAction(name, "restart")}>
-                        Restart
-                      </button>
+                      <button className="btn btn-muted" onClick={() => runAction(name, "reload")}>Reload</button>
+                      <button className="btn btn-danger" onClick={() => runAction(name, "restart")}>Restart</button>
                     </td>
                   </tr>
                 );
@@ -116,4 +125,3 @@ export default function ServicesPage() {
     </div>
   );
 }
-

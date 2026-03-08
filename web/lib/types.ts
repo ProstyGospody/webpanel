@@ -23,6 +23,9 @@ export type Hy2Account = {
   last_seen_at?: string | null;
   client_name?: string;
   client_active?: boolean;
+  last_tx_bytes?: number;
+  last_rx_bytes?: number;
+  online_count?: number;
 };
 
 export type MTProxySecret = {
@@ -34,6 +37,7 @@ export type MTProxySecret = {
   last_seen_at?: string | null;
   client_name?: string;
   client_active?: boolean;
+  is_runtime_active?: boolean;
 };
 
 export type ServiceState = {
@@ -54,4 +58,3 @@ export type AuditLog = {
   payload_json: string;
   created_at: string;
 };
-

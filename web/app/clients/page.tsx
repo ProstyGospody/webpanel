@@ -7,8 +7,10 @@ import { apiFetch, toJSONBody } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import type { Client } from "@/lib/types";
 import { StatusBadge } from "@/components/ui";
+import { useToast } from "@/components/toast-provider";
 
 export default function ClientsPage() {
+  const { push } = useToast();
   const [clients, setClients] = useState<Client[]>([]);
   const [search, setSearch] = useState("");
   const [name, setName] = useState("");
@@ -23,8 +25,12 @@ export default function ClientsPage() {
   }
 
   useEffect(() => {
-    loadClients().catch((err: unknown) => setError(err instanceof Error ? err.message : "Failed to load clients"));
-  }, []);
+    loadClients().catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : "Failed to load clients";
+      setError(msg);
+      push(msg, "error");
+    });
+  }, [push]);
 
   const filtered = useMemo(() => clients, [clients]);
 
@@ -44,8 +50,11 @@ export default function ClientsPage() {
       setEmail("");
       setNote("");
       await loadClients(search);
+      push("Created", "success");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create client");
+      const msg = err instanceof Error ? err.message : "Failed to create client";
+      setError(msg);
+      push(msg, "error");
     }
   }
 
@@ -53,12 +62,19 @@ export default function ClientsPage() {
     if (!enabled && !confirm("Disable this client? Active accesses will be revoked.")) {
       return;
     }
-    const endpoint = enabled ? "enable" : "disable";
-    await apiFetch<{ ok: boolean }>(`/api/clients/${clientID}/${endpoint}`, {
-      method: "POST",
-      body: toJSONBody({}),
-    });
-    await loadClients(search);
+    try {
+      const endpoint = enabled ? "enable" : "disable";
+      await apiFetch<{ ok: boolean }>(`/api/clients/${clientID}/${endpoint}`, {
+        method: "POST",
+        body: toJSONBody({}),
+      });
+      await loadClients(search);
+      push(enabled ? "Enabled" : "Disabled", "success");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to update client";
+      setError(msg);
+      push(msg, "error");
+    }
   }
 
   async function onSearchSubmit(event: FormEvent) {
@@ -148,6 +164,3 @@ export default function ClientsPage() {
     </div>
   );
 }
-
-
-

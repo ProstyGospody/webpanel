@@ -47,6 +47,9 @@ type Hy2AccountWithClient struct {
 	Hy2Account
 	ClientName   string `json:"client_name"`
 	ClientActive bool   `json:"client_active"`
+	LastTxBytes  int64  `json:"last_tx_bytes"`
+	LastRxBytes  int64  `json:"last_rx_bytes"`
+	OnlineCount  int    `json:"online_count"`
 }
 
 type Hy2Snapshot struct {
@@ -71,8 +74,9 @@ type MTProxySecret struct {
 
 type MTProxySecretWithClient struct {
 	MTProxySecret
-	ClientName   string `json:"client_name"`
-	ClientActive bool   `json:"client_active"`
+	ClientName    string `json:"client_name"`
+	ClientActive  bool   `json:"client_active"`
+	RuntimeActive bool   `json:"is_runtime_active"`
 }
 
 type MTProxySnapshot struct {
@@ -115,4 +119,3 @@ type MTProxyOverview struct {
 	ConnectionsTotal *int64 `json:"connections_total"`
 	UsersTotal       *int64 `json:"users_total"`
 }
-

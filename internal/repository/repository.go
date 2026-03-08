@@ -2,14 +2,15 @@ package repository
 
 import (
 	"context"
-	"errors"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -200,18 +201,22 @@ RETURNING id::text, name, email, note, is_active, created_at, updated_at`
 }
 
 func (r *Repository) SetClientActive(ctx context.Context, id string, active bool) error {
-	_, err := r.pool.Exec(ctx, `UPDATE clients SET is_active = $2, updated_at = NOW() WHERE id = $1::uuid`, id, active)
+	result, err := r.pool.Exec(ctx, `UPDATE clients SET is_active = $2, updated_at = NOW() WHERE id = $1::uuid`, id, active)
 	if err != nil {
 		return err
 	}
+	if result.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
 	if !active {
-		_, err = r.pool.Exec(ctx, `UPDATE hy2_accounts SET is_enabled = false, updated_at = NOW() WHERE client_id = $1::uuid`, id)
-		if err != nil {
+		if _, err := r.pool.Exec(ctx, `UPDATE hy2_accounts SET is_enabled = false, updated_at = NOW() WHERE client_id = $1::uuid`, id); err != nil {
 			return err
 		}
-		_, err = r.pool.Exec(ctx, `UPDATE mtproxy_secrets SET is_enabled = false, updated_at = NOW() WHERE client_id = $1::uuid`, id)
+		if _, err := r.pool.Exec(ctx, `UPDATE mtproxy_secrets SET is_enabled = false, updated_at = NOW() WHERE client_id = $1::uuid`, id); err != nil {
+			return err
+		}
 	}
-	return err
+	return nil
 }
 
 func (r *Repository) CreateHy2Account(ctx context.Context, clientID string, authPayload string, identity string) (Hy2Account, error) {
@@ -238,9 +243,19 @@ SELECT
 	h.created_at,
 	h.updated_at,
 	c.name,
-	c.is_active
+	c.is_active,
+	COALESCE(s.tx_bytes, 0),
+	COALESCE(s.rx_bytes, 0),
+	COALESCE(s.online_count, 0)
 FROM hy2_accounts h
 JOIN clients c ON c.id = h.client_id
+LEFT JOIN LATERAL (
+	SELECT tx_bytes, rx_bytes, online_count
+	FROM hy2_traffic_snapshots hs
+	WHERE hs.hy2_account_id = h.id
+	ORDER BY hs.snapshot_at DESC
+	LIMIT 1
+) s ON TRUE
 ORDER BY h.created_at DESC
 LIMIT $1 OFFSET $2`
 	rows, err := r.pool.Query(ctx, q, limit, offset)
@@ -263,6 +278,9 @@ LIMIT $1 OFFSET $2`
 			&item.UpdatedAt,
 			&item.ClientName,
 			&item.ClientActive,
+			&item.LastTxBytes,
+			&item.LastRxBytes,
+			&item.OnlineCount,
 		); err != nil {
 			return nil, err
 		}
@@ -283,9 +301,19 @@ SELECT
 	h.created_at,
 	h.updated_at,
 	c.name,
-	c.is_active
+	c.is_active,
+	COALESCE(s.tx_bytes, 0),
+	COALESCE(s.rx_bytes, 0),
+	COALESCE(s.online_count, 0)
 FROM hy2_accounts h
 JOIN clients c ON c.id = h.client_id
+LEFT JOIN LATERAL (
+	SELECT tx_bytes, rx_bytes, online_count
+	FROM hy2_traffic_snapshots hs
+	WHERE hs.hy2_account_id = h.id
+	ORDER BY hs.snapshot_at DESC
+	LIMIT 1
+) s ON TRUE
 WHERE h.id = $1::uuid`
 	var out Hy2AccountWithClient
 	err := r.pool.QueryRow(ctx, q, id).Scan(
@@ -299,8 +327,72 @@ WHERE h.id = $1::uuid`
 		&out.UpdatedAt,
 		&out.ClientName,
 		&out.ClientActive,
+		&out.LastTxBytes,
+		&out.LastRxBytes,
+		&out.OnlineCount,
 	)
 	return out, err
+}
+
+func (r *Repository) UpdateHy2Account(ctx context.Context, id string, authPayload string, identity string) (Hy2AccountWithClient, error) {
+	const q = `
+WITH updated AS (
+	UPDATE hy2_accounts
+	SET auth_payload = $2, hy2_identity = $3, updated_at = NOW()
+	WHERE id = $1::uuid
+	RETURNING id, client_id, auth_payload, hy2_identity, is_enabled, last_seen_at, created_at, updated_at
+)
+SELECT
+	h.id::text,
+	h.client_id::text,
+	h.auth_payload,
+	h.hy2_identity,
+	h.is_enabled,
+	h.last_seen_at,
+	h.created_at,
+	h.updated_at,
+	c.name,
+	c.is_active,
+	COALESCE(s.tx_bytes, 0),
+	COALESCE(s.rx_bytes, 0),
+	COALESCE(s.online_count, 0)
+FROM updated h
+JOIN clients c ON c.id = h.client_id
+LEFT JOIN LATERAL (
+	SELECT tx_bytes, rx_bytes, online_count
+	FROM hy2_traffic_snapshots hs
+	WHERE hs.hy2_account_id = h.id
+	ORDER BY hs.snapshot_at DESC
+	LIMIT 1
+) s ON TRUE`
+	var out Hy2AccountWithClient
+	err := r.pool.QueryRow(ctx, q, id, strings.TrimSpace(authPayload), strings.TrimSpace(identity)).Scan(
+		&out.ID,
+		&out.ClientID,
+		&out.AuthPayload,
+		&out.Hy2Identity,
+		&out.IsEnabled,
+		&out.LastSeenAt,
+		&out.CreatedAt,
+		&out.UpdatedAt,
+		&out.ClientName,
+		&out.ClientActive,
+		&out.LastTxBytes,
+		&out.LastRxBytes,
+		&out.OnlineCount,
+	)
+	return out, err
+}
+
+func (r *Repository) DeleteHy2Account(ctx context.Context, id string) error {
+	result, err := r.pool.Exec(ctx, `DELETE FROM hy2_accounts WHERE id = $1::uuid`, id)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return nil
 }
 
 func (r *Repository) GetHy2AccountByAuthPayload(ctx context.Context, authPayload string) (Hy2AccountWithClient, error) {
@@ -315,9 +407,19 @@ SELECT
 	h.created_at,
 	h.updated_at,
 	c.name,
-	c.is_active
+	c.is_active,
+	COALESCE(s.tx_bytes, 0),
+	COALESCE(s.rx_bytes, 0),
+	COALESCE(s.online_count, 0)
 FROM hy2_accounts h
 JOIN clients c ON c.id = h.client_id
+LEFT JOIN LATERAL (
+	SELECT tx_bytes, rx_bytes, online_count
+	FROM hy2_traffic_snapshots hs
+	WHERE hs.hy2_account_id = h.id
+	ORDER BY hs.snapshot_at DESC
+	LIMIT 1
+) s ON TRUE
 WHERE h.auth_payload = $1`
 	var out Hy2AccountWithClient
 	err := r.pool.QueryRow(ctx, q, strings.TrimSpace(authPayload)).Scan(
@@ -331,13 +433,22 @@ WHERE h.auth_payload = $1`
 		&out.UpdatedAt,
 		&out.ClientName,
 		&out.ClientActive,
+		&out.LastTxBytes,
+		&out.LastRxBytes,
+		&out.OnlineCount,
 	)
 	return out, err
 }
 
 func (r *Repository) SetHy2AccountEnabled(ctx context.Context, id string, enabled bool) error {
-	_, err := r.pool.Exec(ctx, `UPDATE hy2_accounts SET is_enabled = $2, updated_at = NOW() WHERE id = $1::uuid`, id, enabled)
-	return err
+	result, err := r.pool.Exec(ctx, `UPDATE hy2_accounts SET is_enabled = $2, updated_at = NOW() WHERE id = $1::uuid`, id, enabled)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return nil
 }
 
 func (r *Repository) TouchHy2AccountLastSeen(ctx context.Context, id string, seenAt time.Time) error {
@@ -511,9 +622,68 @@ WHERE s.id = $1::uuid`
 	return out, err
 }
 
-func (r *Repository) SetMTProxySecretEnabled(ctx context.Context, id string, enabled bool) error {
-	_, err := r.pool.Exec(ctx, `UPDATE mtproxy_secrets SET is_enabled = $2, updated_at = NOW() WHERE id = $1::uuid`, id, enabled)
+func (r *Repository) UpdateMTProxySecret(ctx context.Context, id string, secret string, label *string) (MTProxySecretWithClient, error) {
+	const q = `
+WITH updated AS (
+	UPDATE mtproxy_secrets
+	SET secret = $2, label = $3, updated_at = NOW()
+	WHERE id = $1::uuid
+	RETURNING id, client_id, secret, label, is_enabled, created_at, updated_at, last_seen_at
+)
+SELECT
+	s.id::text,
+	s.client_id::text,
+	s.secret,
+	s.label,
+	s.is_enabled,
+	s.created_at,
+	s.updated_at,
+	s.last_seen_at,
+	c.name,
+	c.is_active
+FROM updated s
+JOIN clients c ON c.id = s.client_id`
+	var out MTProxySecretWithClient
+	err := r.pool.QueryRow(ctx, q, id, strings.TrimSpace(secret), nullablePointer(label)).Scan(
+		&out.ID,
+		&out.ClientID,
+		&out.Secret,
+		&out.Label,
+		&out.IsEnabled,
+		&out.CreatedAt,
+		&out.UpdatedAt,
+		&out.LastSeenAt,
+		&out.ClientName,
+		&out.ClientActive,
+	)
+	return out, err
+}
+
+func (r *Repository) DeleteMTProxySecret(ctx context.Context, id string) error {
+	result, err := r.pool.Exec(ctx, `DELETE FROM mtproxy_secrets WHERE id = $1::uuid`, id)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return nil
+}
+
+func (r *Repository) DisableOtherMTProxySecrets(ctx context.Context, keepID string) error {
+	_, err := r.pool.Exec(ctx, `UPDATE mtproxy_secrets SET is_enabled = false, updated_at = NOW() WHERE id <> $1::uuid AND is_enabled = true`, keepID)
 	return err
+}
+
+func (r *Repository) SetMTProxySecretEnabled(ctx context.Context, id string, enabled bool) error {
+	result, err := r.pool.Exec(ctx, `UPDATE mtproxy_secrets SET is_enabled = $2, updated_at = NOW() WHERE id = $1::uuid`, id, enabled)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return nil
 }
 
 func (r *Repository) ListEnabledMTProxySecrets(ctx context.Context) ([]MTProxySecret, error) {
@@ -521,7 +691,7 @@ func (r *Repository) ListEnabledMTProxySecrets(ctx context.Context) ([]MTProxySe
 SELECT id::text, client_id::text, secret, label, is_enabled, created_at, updated_at, last_seen_at
 FROM mtproxy_secrets
 WHERE is_enabled = true
-ORDER BY created_at ASC`
+ORDER BY created_at DESC`
 	rows, err := r.pool.Query(ctx, q)
 	if err != nil {
 		return nil, err
@@ -765,6 +935,14 @@ func IsNotFound(err error) bool {
 	return errors.Is(err, pgx.ErrNoRows)
 }
 
+func IsUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "23505"
+	}
+	return false
+}
+
 func nullablePointer(value *string) any {
 	if value == nil {
 		return nil
@@ -797,9 +975,3 @@ func nullableUUIDPointer(value *string) any {
 	}
 	return trimmed
 }
-
-
-
-
-
-

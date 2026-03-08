@@ -18,14 +18,15 @@ import (
 )
 
 type Handler struct {
-	cfg            config.Config
-	logger         *slog.Logger
-	repo           *repository.Repository
-	rateLimiter    *middleware.LoginRateLimiter
-	hy2Client      *services.HysteriaClient
-	mtProxyClient  *services.MTProxyClient
-	serviceManager *services.ServiceManager
-	runtimeManager *services.MTProxyRuntimeManager
+	cfg              config.Config
+	logger           *slog.Logger
+	repo             *repository.Repository
+	rateLimiter      *middleware.LoginRateLimiter
+	hy2Client        *services.HysteriaClient
+	mtProxyClient    *services.MTProxyClient
+	serviceManager   *services.ServiceManager
+	runtimeManager   *services.MTProxyRuntimeManager
+	hy2ConfigManager *services.HysteriaConfigManager
 }
 
 func New(
@@ -37,16 +38,18 @@ func New(
 	mtProxyClient *services.MTProxyClient,
 	serviceManager *services.ServiceManager,
 	runtimeManager *services.MTProxyRuntimeManager,
+	hy2ConfigManager *services.HysteriaConfigManager,
 ) *Handler {
 	return &Handler{
-		cfg:            cfg,
-		logger:         logger,
-		repo:           repo,
-		rateLimiter:    rateLimiter,
-		hy2Client:      hy2Client,
-		mtProxyClient:  mtProxyClient,
-		serviceManager: serviceManager,
-		runtimeManager: runtimeManager,
+		cfg:              cfg,
+		logger:           logger,
+		repo:             repo,
+		rateLimiter:      rateLimiter,
+		hy2Client:        hy2Client,
+		mtProxyClient:    mtProxyClient,
+		serviceManager:   serviceManager,
+		runtimeManager:   runtimeManager,
+		hy2ConfigManager: hy2ConfigManager,
 	}
 }
 
@@ -164,22 +167,74 @@ func (h *Handler) audit(r *http.Request, action string, entityType string, entit
 }
 
 func (h *Handler) buildHy2URI(account repository.Hy2AccountWithClient) string {
-	host := h.cfg.Hy2Domain
-	if host == "" {
-		host = h.cfg.PanelPublicHost
+	params := services.Hy2ClientParams{
+		Server:   services.NormalizeHost(h.cfg.Hy2Domain),
+		Port:     h.cfg.Hy2Port,
+		SNI:      services.NormalizeHost(h.cfg.Hy2Domain),
+		Insecure: false,
 	}
-	query := "sni=" + url.QueryEscape(host)
-	fragment := url.QueryEscape(account.ClientName)
+	if params.Server == "" {
+		params.Server = services.NormalizeHost(h.cfg.PanelPublicHost)
+	}
+	if params.SNI == "" {
+		params.SNI = params.Server
+	}
+
+	if h.hy2ConfigManager != nil {
+		if content, err := h.hy2ConfigManager.Read(); err == nil {
+			parsed := h.hy2ConfigManager.ClientParams(content, h.cfg.Hy2Domain, h.cfg.Hy2Port)
+			if parsed.Server != "" {
+				params = parsed
+			}
+		} else {
+			h.logger.Debug("failed to read hysteria config for uri", "error", err)
+		}
+	}
+
+	if params.Server == "" {
+		params.Server = services.NormalizeHost(h.cfg.PanelPublicHost)
+	}
+	if params.Port <= 0 {
+		params.Port = h.cfg.Hy2Port
+	}
+	if params.SNI == "" {
+		params.SNI = params.Server
+	}
+
+	query := url.Values{}
+	if params.SNI != "" {
+		query.Set("sni", params.SNI)
+	}
+	if params.Insecure {
+		query.Set("insecure", "1")
+	}
+	if strings.TrimSpace(params.ObfsType) != "" {
+		query.Set("obfs", strings.TrimSpace(params.ObfsType))
+	}
+	if strings.TrimSpace(params.ObfsPassword) != "" {
+		query.Set("obfs-password", strings.TrimSpace(params.ObfsPassword))
+	}
+	if len(params.ALPN) > 0 {
+		query.Set("alpn", strings.Join(params.ALPN, ","))
+	}
+
+	fragment := account.ClientName
+	if strings.TrimSpace(fragment) == "" {
+		fragment = account.Hy2Identity
+	}
+
+	encodedQuery := query.Encode()
 	credential := url.QueryEscape(account.AuthPayload)
-	return "hysteria2://" + credential + "@" + host + ":" + strconv.Itoa(h.cfg.Hy2Port) + "?" + query + "#" + fragment
+	return "hysteria2://" + credential + "@" + params.Server + ":" + strconv.Itoa(params.Port) + "/?" + encodedQuery + "#" + url.QueryEscape(fragment)
 }
 
 func (h *Handler) buildMTProxyLink(secret string) string {
-	host := h.cfg.MTProxyPublicHost
+	host := services.NormalizeHost(h.cfg.MTProxyPublicHost)
 	if host == "" {
-		host = h.cfg.PanelPublicHost
+		host = services.NormalizeHost(h.cfg.PanelPublicHost)
 	}
-	return "tg://proxy?server=" + url.QueryEscape(host) + "&port=" + strconv.Itoa(h.cfg.MTProxyPort) + "&secret=" + url.QueryEscape(secret)
+	secretForLink := services.BuildTelegramMTProxySecret(secret, host, h.cfg.MTProxyTLSDomain)
+	return "tg://proxy?server=" + url.QueryEscape(host) + "&port=" + strconv.Itoa(h.cfg.MTProxyPort) + "&secret=" + url.QueryEscape(secretForLink)
 }
 
 func parseInternalAuth(r *http.Request) string {

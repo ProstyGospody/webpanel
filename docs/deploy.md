@@ -34,6 +34,7 @@ The installer asks for:
 - `PANEL_ACME_EMAIL`
 - `HY2_DOMAIN`
 - `MTPROXY_PUBLIC_HOST`
+- `MTPROXY_TLS_DOMAIN`
 - `INITIAL_ADMIN_EMAIL`
 - `INITIAL_ADMIN_PASSWORD` (blank => generated)
 
@@ -72,4 +73,3 @@ This checks service status, API health/readiness, and admin login flow.
 11. Sudoers + systemd install
 12. DB migrations + admin bootstrap
 13. Service start + smoke checks
-

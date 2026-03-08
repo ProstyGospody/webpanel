@@ -113,6 +113,10 @@ func (h *Handler) DisableClient(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) setClientState(w http.ResponseWriter, r *http.Request, enabled bool) {
 	id := chi.URLParam(r, "id")
 	if err := h.repo.SetClientActive(r.Context(), id, enabled); err != nil {
+		if repository.IsNotFound(err) {
+			render.Error(w, http.StatusNotFound, "client not found")
+			return
+		}
 		render.Error(w, http.StatusInternalServerError, "failed to update client status")
 		return
 	}
@@ -123,4 +127,3 @@ func (h *Handler) setClientState(w http.ResponseWriter, r *http.Request, enabled
 	h.audit(r, action, "client", &id, map[string]any{"is_active": enabled})
 	render.JSON(w, http.StatusOK, map[string]any{"ok": true, "is_active": enabled})
 }
-

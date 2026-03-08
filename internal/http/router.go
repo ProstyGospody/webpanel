@@ -55,19 +55,27 @@ func NewRouter(
 
 			secured.Get("/hy2/accounts", h.ListHy2Accounts)
 			secured.Post("/hy2/accounts", h.CreateHy2Account)
+			secured.Get("/hy2/accounts/{id}", h.GetHy2Account)
+			secured.Patch("/hy2/accounts/{id}", h.UpdateHy2Account)
+			secured.Delete("/hy2/accounts/{id}", h.DeleteHy2Account)
 			secured.Post("/hy2/accounts/{id}/enable", h.EnableHy2Account)
 			secured.Post("/hy2/accounts/{id}/disable", h.DisableHy2Account)
-			secured.Get("/hy2/accounts/{id}", h.GetHy2Account)
 			secured.Get("/hy2/accounts/{id}/uri", h.Hy2AccountURI)
 			secured.Post("/hy2/accounts/{id}/kick", h.KickHy2Account)
 			secured.Get("/hy2/stats/overview", h.Hy2StatsOverview)
 			secured.Get("/hy2/stats/history", h.Hy2StatsHistory)
+			secured.Get("/hy2/config", h.GetHy2Config)
+			secured.Post("/hy2/config/validate", h.ValidateHy2Config)
+			secured.Put("/hy2/config", h.SaveHy2Config)
+			secured.Post("/hy2/config/apply", h.ApplyHy2Config)
 
 			secured.Get("/mtproxy/secrets", h.ListMTProxySecrets)
 			secured.Post("/mtproxy/secrets", h.CreateMTProxySecret)
+			secured.Get("/mtproxy/secrets/{id}", h.GetMTProxySecret)
+			secured.Patch("/mtproxy/secrets/{id}", h.UpdateMTProxySecret)
+			secured.Delete("/mtproxy/secrets/{id}", h.DeleteMTProxySecret)
 			secured.Post("/mtproxy/secrets/{id}/enable", h.EnableMTProxySecret)
 			secured.Post("/mtproxy/secrets/{id}/disable", h.DisableMTProxySecret)
-			secured.Get("/mtproxy/secrets/{id}", h.GetMTProxySecret)
 			secured.Get("/mtproxy/stats/overview", h.MTProxyStatsOverview)
 
 			secured.Get("/services", h.ListServices)
@@ -81,4 +89,3 @@ func NewRouter(
 
 	return r
 }
-

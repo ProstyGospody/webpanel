@@ -160,6 +160,7 @@ create_system_users() {
   id -u mtproxy >/dev/null 2>&1 || useradd --system --home /var/lib/mtproxy --shell /usr/sbin/nologin mtproxy
 
   usermod -a -G proxy-panel mtproxy || true
+  usermod -a -G proxy-panel hysteria || true
 }
 
 prepare_directories() {
@@ -172,8 +173,8 @@ prepare_directories() {
   chown -R hysteria:hysteria /var/lib/hysteria
   chown -R mtproxy:mtproxy /var/lib/mtproxy
 
-  chown root:hysteria "${HY2_DIR}"
-  chmod 750 "${HY2_DIR}"
+  chown root:proxy-panel "${HY2_DIR}"
+  chmod 770 "${HY2_DIR}"
   chown root:proxy-panel "${MTPROXY_DIR}"
   chmod 770 "${MTPROXY_DIR}"
 }
@@ -274,6 +275,11 @@ collect_configuration() {
   prompt_value MTPROXY_PUBLIC_HOST "MTProxy public host/IP" "${MTPROXY_PUBLIC_HOST:-${PANEL_PUBLIC_HOST}}"
   prompt_value MTPROXY_PORT "MTProxy TCP port" "${MTPROXY_PORT:-443}"
   prompt_value MTPROXY_STATS_PORT "MTProxy local stats port" "${MTPROXY_STATS_PORT:-3129}"
+  if [[ "${MTPROXY_PUBLIC_HOST}" =~ [A-Za-z] ]]; then
+    prompt_value MTPROXY_TLS_DOMAIN "MTProxy FakeTLS domain for tg:// links" "${MTPROXY_TLS_DOMAIN:-${MTPROXY_PUBLIC_HOST}}"
+  else
+    prompt_value MTPROXY_TLS_DOMAIN "MTProxy FakeTLS domain for tg:// links" "${MTPROXY_TLS_DOMAIN:-www.cloudflare.com}"
+  fi
 
   prompt_value INITIAL_ADMIN_EMAIL "Initial admin email" "${INITIAL_ADMIN_EMAIL:-admin@${PANEL_PUBLIC_HOST}}"
   prompt_password INITIAL_ADMIN_PASSWORD "Initial admin password"
@@ -322,6 +328,7 @@ collect_configuration() {
   MTPROXY_SECRETS_PATH="${MTPROXY_DIR}/secrets.list"
   MTPROXY_BINARY_PATH="/usr/local/bin/mtproto-proxy"
   HY2_BINARY_PATH="/usr/local/bin/hysteria"
+  HY2_CONFIG_PATH="${HY2_DIR}/server.yaml"
 
   AUTO_MIGRATE="false"
 }
@@ -357,12 +364,14 @@ INTERNAL_AUTH_TOKEN=${INTERNAL_AUTH_TOKEN}
 
 HY2_DOMAIN=${HY2_DOMAIN}
 HY2_PORT=${HY2_PORT}
+HY2_CONFIG_PATH=${HY2_CONFIG_PATH}
 HY2_STATS_PORT=${HY2_STATS_PORT}
 HY2_STATS_URL=${HY2_STATS_URL}
 HY2_STATS_SECRET=${HY2_STATS_SECRET}
 HY2_POLL_INTERVAL=${HY2_POLL_INTERVAL}
 
 MTPROXY_PUBLIC_HOST=${MTPROXY_PUBLIC_HOST}
+MTPROXY_TLS_DOMAIN=${MTPROXY_TLS_DOMAIN}
 MTPROXY_PORT=${MTPROXY_PORT}
 MTPROXY_STATS_PORT=${MTPROXY_STATS_PORT}
 MTPROXY_STATS_URL=${MTPROXY_STATS_URL}
@@ -489,8 +498,8 @@ masquerade:
     url: https://www.cloudflare.com
     rewriteHost: true
 EOF
-  chown root:hysteria "${HY2_DIR}/server.yaml"
-  chmod 0640 "${HY2_DIR}/server.yaml"
+  chown root:proxy-panel "${HY2_DIR}/server.yaml"
+  chmod 0660 "${HY2_DIR}/server.yaml"
 
   cat > "${MTPROXY_DIR}/runtime.env" <<EOF
 MTPROXY_PORT=${MTPROXY_PORT}
@@ -631,8 +640,3 @@ main() {
 }
 
 main "$@"
-
-
-
-
-

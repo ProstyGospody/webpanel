@@ -10,8 +10,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"proxy-panel/internal/config"
-	"proxy-panel/internal/http/handlers"
 	httpserver "proxy-panel/internal/http"
+	"proxy-panel/internal/http/handlers"
 	"proxy-panel/internal/http/middleware"
 	"proxy-panel/internal/repository"
 	"proxy-panel/internal/scheduler"
@@ -35,8 +35,9 @@ func NewServer(cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, repo 
 	mtProxyClient := services.NewMTProxyClient(cfg.MTProxyStatsURL, cfg.MTProxyStatsToken)
 	serviceManager := services.NewServiceManager(cfg.SystemctlPath, cfg.SudoPath, cfg.JournalctlPath, cfg.ManagedServices)
 	runtimeManager := services.NewMTProxyRuntimeManager(repo, cfg.MTProxySecretsPath, "mtproxy", serviceManager)
+	hy2ConfigManager := services.NewHysteriaConfigManager(cfg.Hy2ConfigPath)
 
-	h := handlers.New(cfg, logger, repo, rateLimiter, hy2Client, mtProxyClient, serviceManager, runtimeManager)
+	h := handlers.New(cfg, logger, repo, rateLimiter, hy2Client, mtProxyClient, serviceManager, runtimeManager, hy2ConfigManager)
 	router := httpserver.NewRouter(cfg, logger, repo, h)
 
 	httpSrv := &http.Server{
@@ -85,5 +86,3 @@ func (s *Server) Shutdown(ctx context.Context) error {
 func (s *Server) SyncMTProxy(ctx context.Context, force bool) error {
 	return s.runtimeManager.Sync(ctx, force)
 }
-
-

@@ -24,6 +24,18 @@ export function formatDate(value?: string | null): string {
 }
 
 export async function copyToClipboard(text: string): Promise<void> {
-  await navigator.clipboard.writeText(text);
-}
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
 
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "true");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand("copy");
+  document.body.removeChild(textarea);
+}

@@ -24,11 +24,13 @@ type Config struct {
 	InternalAuthToken   string
 	Hy2Domain           string
 	Hy2Port             int
+	Hy2ConfigPath       string
 	Hy2StatsURL         string
 	Hy2StatsSecret      string
 	Hy2PollInterval     time.Duration
 	MTProxyPublicHost   string
 	MTProxyPort         int
+	MTProxyTLSDomain    string
 	MTProxyStatsURL     string
 	MTProxyStatsToken   string
 	MTProxyPollInterval time.Duration
@@ -62,11 +64,13 @@ func Load() (Config, error) {
 		InternalAuthToken:   getEnv("INTERNAL_AUTH_TOKEN", ""),
 		Hy2Domain:           getEnv("HY2_DOMAIN", ""),
 		Hy2Port:             getEnvInt("HY2_PORT", 443),
+		Hy2ConfigPath:       getEnv("HY2_CONFIG_PATH", "/etc/proxy-panel/hysteria/server.yaml"),
 		Hy2StatsURL:         strings.TrimRight(getEnv("HY2_STATS_URL", "http://127.0.0.1:8999"), "/"),
 		Hy2StatsSecret:      getEnv("HY2_STATS_SECRET", ""),
 		Hy2PollInterval:     getEnvDuration("HY2_POLL_INTERVAL", 1*time.Minute),
 		MTProxyPublicHost:   getEnv("MTPROXY_PUBLIC_HOST", ""),
 		MTProxyPort:         getEnvInt("MTPROXY_PORT", 443),
+		MTProxyTLSDomain:    getEnv("MTPROXY_TLS_DOMAIN", ""),
 		MTProxyStatsURL:     strings.TrimRight(getEnv("MTPROXY_STATS_URL", "http://127.0.0.1:3129"), "/"),
 		MTProxyStatsToken:   getEnv("MTPROXY_STATS_TOKEN", ""),
 		MTProxyPollInterval: getEnvDuration("MTPROXY_POLL_INTERVAL", 1*time.Minute),
@@ -157,4 +161,3 @@ func getEnvDuration(key string, fallback time.Duration) time.Duration {
 	}
 	return parsed
 }
-

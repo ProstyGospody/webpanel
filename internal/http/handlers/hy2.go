@@ -11,10 +11,16 @@ import (
 	"proxy-panel/internal/http/render"
 	"proxy-panel/internal/repository"
 	"proxy-panel/internal/security"
+	"proxy-panel/internal/services"
 )
 
 type createHy2AccountRequest struct {
 	ClientID    string  `json:"client_id"`
+	AuthPayload *string `json:"auth_payload"`
+	Hy2Identity *string `json:"hy2_identity"`
+}
+
+type updateHy2AccountRequest struct {
 	AuthPayload *string `json:"auth_payload"`
 	Hy2Identity *string `json:"hy2_identity"`
 }
@@ -67,6 +73,10 @@ func (h *Handler) CreateHy2Account(w http.ResponseWriter, r *http.Request) {
 
 	account, err := h.repo.CreateHy2Account(r.Context(), req.ClientID, authPayload, identity)
 	if err != nil {
+		if repository.IsUniqueViolation(err) {
+			render.Error(w, http.StatusConflict, "auth payload or identity already exists")
+			return
+		}
 		render.Error(w, http.StatusInternalServerError, "failed to create hysteria account")
 		return
 	}
@@ -92,7 +102,75 @@ func (h *Handler) GetHy2Account(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	uri := h.buildHy2URI(item)
-	render.JSON(w, http.StatusOK, map[string]any{"account": item, "uri": uri})
+	render.JSON(w, http.StatusOK, map[string]any{"account": item, "uri": uri, "client_params": h.currentHy2ClientParams()})
+}
+
+func (h *Handler) UpdateHy2Account(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	current, err := h.repo.GetHy2Account(r.Context(), id)
+	if err != nil {
+		if repository.IsNotFound(err) {
+			render.Error(w, http.StatusNotFound, "hysteria account not found")
+			return
+		}
+		render.Error(w, http.StatusInternalServerError, "failed to get hysteria account")
+		return
+	}
+
+	var req updateHy2AccountRequest
+	if err := render.DecodeJSON(r, &req); err != nil {
+		render.Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	authPayload := current.AuthPayload
+	if req.AuthPayload != nil {
+		authPayload = strings.TrimSpace(*req.AuthPayload)
+	}
+	identity := current.Hy2Identity
+	if req.Hy2Identity != nil {
+		identity = strings.TrimSpace(*req.Hy2Identity)
+	}
+
+	if strings.TrimSpace(authPayload) == "" {
+		render.Error(w, http.StatusBadRequest, "auth_payload cannot be empty")
+		return
+	}
+	if strings.TrimSpace(identity) == "" {
+		render.Error(w, http.StatusBadRequest, "hy2_identity cannot be empty")
+		return
+	}
+
+	updated, err := h.repo.UpdateHy2Account(r.Context(), id, authPayload, identity)
+	if err != nil {
+		if repository.IsNotFound(err) {
+			render.Error(w, http.StatusNotFound, "hysteria account not found")
+			return
+		}
+		if repository.IsUniqueViolation(err) {
+			render.Error(w, http.StatusConflict, "auth payload or identity already exists")
+			return
+		}
+		render.Error(w, http.StatusInternalServerError, "failed to update hysteria account")
+		return
+	}
+
+	h.audit(r, "hy2.account.update", "hy2_account", &id, map[string]any{"hy2_identity": updated.Hy2Identity})
+	render.JSON(w, http.StatusOK, map[string]any{"account": updated, "uri": h.buildHy2URI(updated)})
+}
+
+func (h *Handler) DeleteHy2Account(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if err := h.repo.DeleteHy2Account(r.Context(), id); err != nil {
+		if repository.IsNotFound(err) {
+			render.Error(w, http.StatusNotFound, "hysteria account not found")
+			return
+		}
+		render.Error(w, http.StatusInternalServerError, "failed to delete hysteria account")
+		return
+	}
+	h.audit(r, "hy2.account.delete", "hy2_account", &id, nil)
+	render.JSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
 func (h *Handler) EnableHy2Account(w http.ResponseWriter, r *http.Request) {
@@ -106,6 +184,10 @@ func (h *Handler) DisableHy2Account(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) setHy2State(w http.ResponseWriter, r *http.Request, enabled bool) {
 	id := chi.URLParam(r, "id")
 	if err := h.repo.SetHy2AccountEnabled(r.Context(), id, enabled); err != nil {
+		if repository.IsNotFound(err) {
+			render.Error(w, http.StatusNotFound, "hysteria account not found")
+			return
+		}
 		render.Error(w, http.StatusInternalServerError, "failed to update hysteria account status")
 		return
 	}
@@ -206,3 +288,28 @@ func (h *Handler) InternalHy2Auth(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *Handler) currentHy2ClientParams() services.Hy2ClientParams {
+	params := services.Hy2ClientParams{
+		Server: services.NormalizeHost(h.cfg.Hy2Domain),
+		Port:   h.cfg.Hy2Port,
+		SNI:    services.NormalizeHost(h.cfg.Hy2Domain),
+	}
+	if params.Server == "" {
+		params.Server = services.NormalizeHost(h.cfg.PanelPublicHost)
+	}
+	if params.SNI == "" {
+		params.SNI = params.Server
+	}
+	if h.hy2ConfigManager == nil {
+		return params
+	}
+	content, err := h.hy2ConfigManager.Read()
+	if err != nil {
+		return params
+	}
+	parsed := h.hy2ConfigManager.ClientParams(content, h.cfg.Hy2Domain, h.cfg.Hy2Port)
+	if parsed.Server != "" {
+		return parsed
+	}
+	return params
+}
