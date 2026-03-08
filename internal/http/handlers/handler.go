@@ -223,11 +223,24 @@ func (h *Handler) buildHy2URI(account repository.Hy2AccountWithClient) string {
 		fragment = account.Hy2Identity
 	}
 
-	base := "hy2://" + url.PathEscape(account.AuthPayload) + "@" + params.Server + ":" + strconv.Itoa(params.Port) + "/"
+	base := "hysteria2://" + url.PathEscape(account.AuthPayload) + "@" + params.Server + ":" + strconv.Itoa(params.Port) + "/"
 	if encodedQuery := query.Encode(); encodedQuery != "" {
 		base += "?" + encodedQuery
 	}
 	return base + "#" + url.QueryEscape(fragment)
+}
+
+func (h *Handler) buildHy2V2RayNGURI(account repository.Hy2AccountWithClient) string {
+	uri := h.buildHy2URI(account)
+	parsed, err := url.Parse(uri)
+	if err != nil {
+		return strings.Replace(uri, "hysteria2://", "hy2://", 1)
+	}
+	parsed.Scheme = "hy2"
+	query := parsed.Query()
+	query.Del("pinSHA256")
+	parsed.RawQuery = query.Encode()
+	return parsed.String()
 }
 
 func (h *Handler) buildMTProxyLink(secret string) string {

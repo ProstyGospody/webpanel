@@ -86,8 +86,9 @@ func (h *Handler) CreateHy2Account(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	uri := h.buildHy2URI(item)
+	uriV2RayNG := h.buildHy2V2RayNGURI(item)
 	h.audit(r, "hy2.account.create", "hy2_account", &item.ID, map[string]any{"client_id": item.ClientID, "hy2_identity": item.Hy2Identity})
-	render.JSON(w, http.StatusCreated, map[string]any{"account": item, "uri": uri})
+	render.JSON(w, http.StatusCreated, map[string]any{"account": item, "uri": uri, "uri_v2rayng": uriV2RayNG})
 }
 
 func (h *Handler) GetHy2Account(w http.ResponseWriter, r *http.Request) {
@@ -102,7 +103,8 @@ func (h *Handler) GetHy2Account(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	uri := h.buildHy2URI(item)
-	render.JSON(w, http.StatusOK, map[string]any{"account": item, "uri": uri, "client_params": h.currentHy2ClientParams()})
+	uriV2RayNG := h.buildHy2V2RayNGURI(item)
+	render.JSON(w, http.StatusOK, map[string]any{"account": item, "uri": uri, "uri_v2rayng": uriV2RayNG, "client_params": h.currentHy2ClientParams()})
 }
 
 func (h *Handler) UpdateHy2Account(w http.ResponseWriter, r *http.Request) {
@@ -155,8 +157,10 @@ func (h *Handler) UpdateHy2Account(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	uri := h.buildHy2URI(updated)
+	uriV2RayNG := h.buildHy2V2RayNGURI(updated)
 	h.audit(r, "hy2.account.update", "hy2_account", &id, map[string]any{"hy2_identity": updated.Hy2Identity})
-	render.JSON(w, http.StatusOK, map[string]any{"account": updated, "uri": h.buildHy2URI(updated)})
+	render.JSON(w, http.StatusOK, map[string]any{"account": updated, "uri": uri, "uri_v2rayng": uriV2RayNG})
 }
 
 func (h *Handler) DeleteHy2Account(w http.ResponseWriter, r *http.Request) {
@@ -210,7 +214,9 @@ func (h *Handler) Hy2AccountURI(w http.ResponseWriter, r *http.Request) {
 		render.Error(w, http.StatusInternalServerError, "failed to get hysteria account")
 		return
 	}
-	render.JSON(w, http.StatusOK, map[string]any{"uri": h.buildHy2URI(item)})
+	uri := h.buildHy2URI(item)
+	uriV2RayNG := h.buildHy2V2RayNGURI(item)
+	render.JSON(w, http.StatusOK, map[string]any{"uri": uri, "uri_v2rayng": uriV2RayNG})
 }
 
 func (h *Handler) KickHy2Account(w http.ResponseWriter, r *http.Request) {
