@@ -519,7 +519,7 @@ install_sudoers_policy() {
   action "Installing restricted sudoers policy"
 
   cat > /etc/sudoers.d/proxy-panel-api <<'EOF'
-Cmnd_Alias PROXY_PANEL_SHOW = /usr/bin/systemctl show proxy-panel-api --property=ActiveState,SubState,MainPID,ActiveEnterTimestamp, /usr/bin/systemctl show proxy-panel-web --property=ActiveState,SubState,MainPID,ActiveEnterTimestamp, /usr/bin/systemctl show hysteria-server --property=ActiveState,SubState,MainPID,ActiveEnterTimestamp, /usr/bin/systemctl show mtproxy --property=ActiveState,SubState,MainPID,ActiveEnterTimestamp
+Cmnd_Alias PROXY_PANEL_SHOW = /usr/bin/systemctl show proxy-panel-api --property=ActiveState --property=SubState --property=MainPID --property=ActiveEnterTimestamp, /usr/bin/systemctl show proxy-panel-web --property=ActiveState --property=SubState --property=MainPID --property=ActiveEnterTimestamp, /usr/bin/systemctl show hysteria-server --property=ActiveState --property=SubState --property=MainPID --property=ActiveEnterTimestamp, /usr/bin/systemctl show mtproxy --property=ActiveState --property=SubState --property=MainPID --property=ActiveEnterTimestamp
 Cmnd_Alias PROXY_PANEL_RESTART = /usr/bin/systemctl restart proxy-panel-api, /usr/bin/systemctl restart proxy-panel-web, /usr/bin/systemctl restart hysteria-server, /usr/bin/systemctl restart mtproxy
 Cmnd_Alias PROXY_PANEL_RELOAD = /usr/bin/systemctl reload proxy-panel-api, /usr/bin/systemctl reload proxy-panel-web, /usr/bin/systemctl reload hysteria-server, /usr/bin/systemctl reload mtproxy
 Cmnd_Alias PROXY_PANEL_LOGS = /usr/bin/journalctl -u proxy-panel-api -n * --no-pager --output=short-iso, /usr/bin/journalctl -u proxy-panel-web -n * --no-pager --output=short-iso, /usr/bin/journalctl -u hysteria-server -n * --no-pager --output=short-iso, /usr/bin/journalctl -u mtproxy -n * --no-pager --output=short-iso
@@ -635,6 +635,7 @@ main() {
 }
 
 main "$@"
+
 
 
 
