@@ -32,16 +32,19 @@ func NewRouter(
 	r.Route("/api", func(api chi.Router) {
 		api.Route("/auth", func(auth chi.Router) {
 			auth.Post("/login", h.Login)
+			auth.With(
+				middleware.RequireAuth(cfg, repo, logger),
+				middleware.RequireCSRF(cfg),
+			).Post("/logout", h.Logout)
+			auth.With(
+				middleware.RequireAuth(cfg, repo, logger),
+				middleware.RequireCSRF(cfg),
+			).Get("/me", h.Me)
 		})
 
 		api.Group(func(secured chi.Router) {
 			secured.Use(middleware.RequireAuth(cfg, repo, logger))
 			secured.Use(middleware.RequireCSRF(cfg))
-
-			secured.Route("/auth", func(auth chi.Router) {
-				auth.Post("/logout", h.Logout)
-				auth.Get("/me", h.Me)
-			})
 
 			secured.Get("/clients", h.ListClients)
 			secured.Post("/clients", h.CreateClient)
