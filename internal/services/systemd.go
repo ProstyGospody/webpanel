@@ -81,7 +81,15 @@ func (m *ServiceManager) Status(ctx context.Context, service string) (ServiceDet
 		return ServiceDetails{}, fmt.Errorf("service %s is not allowed", service)
 	}
 
-	out, err := m.runSystemctl(ctx, "show", service, "--property=ActiveState,SubState,MainPID,ActiveEnterTimestamp")
+	out, err := m.runSystemctl(
+		ctx,
+		"show",
+		service,
+		"--property=ActiveState",
+		"--property=SubState",
+		"--property=MainPID",
+		"--property=ActiveEnterTimestamp",
+	)
 	if err != nil {
 		return ServiceDetails{}, fmt.Errorf("systemctl show failed: %w: %s", err, strings.TrimSpace(string(out)))
 	}
@@ -175,4 +183,3 @@ func (m *ServiceManager) ToJSON(details ServiceDetails) string {
 	}
 	return string(encoded)
 }
-
