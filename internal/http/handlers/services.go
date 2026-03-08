@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -13,22 +14,47 @@ import (
 )
 
 func (h *Handler) ListServices(w http.ResponseWriter, r *http.Request) {
-	items, err := h.repo.ListServiceStates(r.Context())
-	if err == nil && len(items) > 0 {
-		render.JSON(w, http.StatusOK, map[string]any{"items": items})
-		return
-	}
-
-	states := make([]map[string]any, 0)
+	services := make([]string, 0, len(h.serviceManager.ManagedServices))
 	for service := range h.serviceManager.ManagedServices {
+		services = append(services, service)
+	}
+	sort.Strings(services)
+
+	states := make([]map[string]any, 0, len(services))
+	for _, service := range services {
 		details, statusErr := h.serviceManager.Status(r.Context(), service)
 		if statusErr != nil {
-			states = append(states, map[string]any{"service_name": service, "status": "failed", "error": statusErr.Error()})
+			h.logger.Warn("service status failed on list", "service", service, "error", statusErr)
+			cached, cacheErr := h.repo.GetServiceState(r.Context(), service)
+			if cacheErr == nil {
+				states = append(states, map[string]any{
+					"id":            cached.ID,
+					"service_name":  cached.ServiceName,
+					"status":        cached.Status,
+					"version":       cached.Version,
+					"last_check_at": cached.LastCheckAt,
+					"raw_json":      cached.RawJSON,
+					"error":         statusErr.Error(),
+				})
+				continue
+			}
+			states = append(states, map[string]any{
+				"service_name":  service,
+				"status":        "failed",
+				"last_check_at": time.Now().UTC(),
+				"error":         statusErr.Error(),
+			})
 			continue
 		}
+
 		raw := h.serviceManager.ToJSON(details)
 		_ = h.repo.UpsertServiceState(r.Context(), service, details.StatusText, nil, raw)
-		states = append(states, map[string]any{"service_name": service, "status": details.StatusText, "raw": details.Raw, "checked_at": details.CheckedAt})
+		states = append(states, map[string]any{
+			"service_name":  service,
+			"status":        details.StatusText,
+			"last_check_at": details.CheckedAt,
+			"raw_json":      raw,
+		})
 	}
 
 	render.JSON(w, http.StatusOK, map[string]any{"items": states})
@@ -98,4 +124,3 @@ func (h *Handler) runServiceAction(w http.ResponseWriter, r *http.Request, actio
 	}
 	render.JSON(w, http.StatusOK, map[string]any{"ok": true, "service": details})
 }
-
