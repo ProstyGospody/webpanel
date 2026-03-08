@@ -441,8 +441,9 @@ build_backend() {
   action "Building Go backend"
   export PATH="/usr/local/go/bin:${PATH}"
   pushd "${SRC_DIR}" >/dev/null
-  go mod download
-  go build -ldflags "-s -w" -o "${BIN_DIR}/panel-api" ./cmd/panel-api
+  GOFLAGS="-mod=mod" go mod tidy
+  GOFLAGS="-mod=mod" go mod download
+  GOFLAGS="-mod=mod" go build -ldflags "-s -w" -o "${BIN_DIR}/panel-api" ./cmd/panel-api
   popd >/dev/null
   chown root:proxy-panel "${BIN_DIR}/panel-api"
   chmod 0750 "${BIN_DIR}/panel-api"
@@ -634,5 +635,6 @@ main() {
 }
 
 main "$@"
+
 
 
