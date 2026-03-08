@@ -1,0 +1,23 @@
+[Unit]
+Description=Hysteria 2 Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hysteria
+Group=hysteria
+ExecStart=/usr/local/bin/hysteria server -c /etc/proxy-panel/hysteria/server.yaml
+Restart=always
+RestartSec=2
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/etc/proxy-panel/hysteria /var/lib/hysteria
+
+[Install]
+WantedBy=multi-user.target
+

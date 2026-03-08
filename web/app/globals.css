@@ -1,0 +1,61 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-panel-bg text-panel-text antialiased;
+}
+
+a {
+  @apply text-panel-accent;
+}
+
+.table {
+  @apply w-full border-collapse;
+}
+
+.table th,
+.table td {
+  @apply border border-panel-border p-2 text-left text-sm;
+}
+
+.badge {
+  @apply inline-flex rounded px-2 py-1 text-xs font-medium;
+}
+
+.badge-enabled {
+  @apply bg-green-100 text-green-800;
+}
+
+.badge-disabled {
+  @apply bg-red-100 text-red-800;
+}
+
+.btn {
+  @apply rounded border border-panel-border px-3 py-1.5 text-sm font-medium transition-colors;
+}
+
+.btn-primary {
+  @apply btn border-panel-accent bg-panel-accent text-white hover:bg-blue-700;
+}
+
+.btn-muted {
+  @apply btn bg-white hover:bg-slate-50;
+}
+
+.btn-danger {
+  @apply btn border-red-700 bg-red-700 text-white hover:bg-red-800;
+}
+
+.input {
+  @apply w-full rounded border border-panel-border bg-white px-3 py-2 text-sm;
+}
+
+.card {
+  @apply rounded-lg border border-panel-border bg-panel-card p-4 shadow-sm;
+}
+

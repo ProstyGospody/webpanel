@@ -1,0 +1,28 @@
+listen: :${HY2_PORT}
+
+tls:
+  type: acme
+  acme:
+    domains:
+      - ${HY2_DOMAIN}
+    email: ${PANEL_ACME_EMAIL}
+
+auth:
+  type: http
+  http:
+    url: http://127.0.0.1:${PANEL_API_PORT}/internal/hy2/auth
+    timeout: 5s
+    insecure: true
+    headers:
+      X-Internal-Token: ${INTERNAL_AUTH_TOKEN}
+
+trafficStats:
+  listen: 127.0.0.1:${HY2_STATS_PORT}
+  secret: ${HY2_STATS_SECRET}
+
+masquerade:
+  type: proxy
+  proxy:
+    url: https://www.cloudflare.com
+    rewriteHost: true
+

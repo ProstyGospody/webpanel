@@ -1,0 +1,24 @@
+[Unit]
+Description=Proxy Panel Web (Next.js)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=proxy-panel
+Group=proxy-panel
+EnvironmentFile=/opt/proxy-panel/.env.generated
+Environment=NODE_ENV=production
+WorkingDirectory=/opt/proxy-panel/current/web
+ExecStart=/usr/bin/npm run start -- --hostname 127.0.0.1 --port 13000
+Restart=always
+RestartSec=2
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/proxy-panel/current/web/.next
+
+[Install]
+WantedBy=multi-user.target
+
