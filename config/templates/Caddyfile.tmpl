@@ -1,4 +1,4 @@
-{
+﻿{
   email {$PANEL_ACME_EMAIL}
 }
 
@@ -17,6 +17,12 @@
     reverse_proxy 127.0.0.1:{$PANEL_API_PORT}
   }
 
+  # Compatibility for stale/cached asset URLs that may request /next/* instead of /_next/*
+  @legacy_next path /next/*
+  handle @legacy_next {
+    uri replace /next/ /_next/
+    reverse_proxy 127.0.0.1:{$PANEL_WEB_PORT}
+  }
+
   reverse_proxy 127.0.0.1:{$PANEL_WEB_PORT}
 }
-
