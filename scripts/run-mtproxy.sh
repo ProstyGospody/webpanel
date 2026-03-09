@@ -31,27 +31,46 @@ fetch_if_stale() {
   mv -f "${tmp_path}" "${path}"
 }
 
+normalize_secret() {
+  local raw
+  raw="$(echo "$1" | tr 'A-F' 'a-f' | tr -d '[:space:]')"
+
+  if [[ "${raw}" =~ ^(dd|ee)[0-9a-f]{32}([0-9a-f]+)?$ ]]; then
+    echo "${raw:2:32}"
+    return
+  fi
+  if [[ "${raw}" =~ ^[0-9a-f]{32}$ ]]; then
+    echo "${raw}"
+    return
+  fi
+  echo ""
+}
+
 fetch_if_stale "${MTPROXY_WORKDIR}/proxy-secret" "https://core.telegram.org/getProxySecret"
 fetch_if_stale "${MTPROXY_WORKDIR}/proxy-multi.conf" "https://core.telegram.org/getProxyConfig"
 
 primary_secret=""
 if [[ -f "${MTPROXY_SECRETS_FILE}" ]]; then
-  primary_secret="$(grep -m1 -E '^[0-9a-fA-F]{32,64}$' "${MTPROXY_SECRETS_FILE}" || true)"
+  candidate="$(grep -m1 -E '^(dd|ee)?[0-9a-fA-F]{32}([0-9a-fA-F]+)?$' "${MTPROXY_SECRETS_FILE}" || true)"
+  primary_secret="$(normalize_secret "${candidate}")"
 fi
 
 if [[ -z "${primary_secret}" ]]; then
-  primary_secret="${MTPROXY_FALLBACK_SECRET}"
+  primary_secret="$(normalize_secret "${MTPROXY_FALLBACK_SECRET}")"
 fi
 
 if [[ -z "${primary_secret}" ]]; then
-  echo "No MTProxy secret found in ${MTPROXY_SECRETS_FILE} and no fallback configured" >&2
+  echo "No valid MTProxy secret found in ${MTPROXY_SECRETS_FILE} and no fallback configured" >&2
   exit 1
 fi
 
 args=(
   -u mtproxy
-  -p "${MTPROXY_PORT}"
-  -H "${MTPROXY_STATS_PORT}"
+  # MTProxy official flags:
+  # -p = local management/stats port (loopback-only inside MTProxy)
+  # -H = public client port used in tg:// links
+  -p "${MTPROXY_STATS_PORT}"
+  -H "${MTPROXY_PORT}"
   -S "${primary_secret}"
   --aes-pwd "${MTPROXY_WORKDIR}/proxy-secret"
   "${MTPROXY_WORKDIR}/proxy-multi.conf"

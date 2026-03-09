@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/hex"
 	"fmt"
 	"net"
 	"net/url"
@@ -12,12 +13,12 @@ func NormalizeMTProxySecret(input string) (string, error) {
 	secret = strings.TrimPrefix(secret, "0x")
 	secret = strings.ReplaceAll(secret, " ", "")
 
-	if strings.HasPrefix(secret, "dd") && len(secret) >= 34 {
+	if (strings.HasPrefix(secret, "dd") || strings.HasPrefix(secret, "ee")) && len(secret) >= 34 {
 		candidate := secret[2:34]
 		if isHex(candidate) {
 			return candidate, nil
 		}
-		return "", fmt.Errorf("invalid mtproxy dd secret")
+		return "", fmt.Errorf("invalid mtproxy prefixed secret")
 	}
 
 	if len(secret) != 32 || !isHex(secret) {
@@ -27,10 +28,18 @@ func NormalizeMTProxySecret(input string) (string, error) {
 	return secret, nil
 }
 
-func BuildTelegramMTProxySecret(runtimeSecret string, _ string, _ string) string {
+func BuildTelegramMTProxySecret(runtimeSecret string, publicHost string, tlsDomain string) string {
 	normalized, err := NormalizeMTProxySecret(runtimeSecret)
 	if err != nil {
 		return strings.TrimSpace(runtimeSecret)
+	}
+
+	domain := NormalizeHost(tlsDomain)
+	if domain == "" {
+		domain = NormalizeHost(publicHost)
+	}
+	if isValidMTProxyTLSDomain(domain) {
+		return "ee" + normalized + hex.EncodeToString([]byte(domain))
 	}
 
 	return "dd" + normalized
@@ -70,6 +79,29 @@ func isHex(value string) bool {
 			continue
 		}
 		return false
+	}
+	return true
+}
+
+func isValidMTProxyTLSDomain(domain string) bool {
+	if domain == "" {
+		return false
+	}
+	if net.ParseIP(domain) != nil {
+		return false
+	}
+	if !strings.Contains(domain, ".") {
+		return false
+	}
+	for _, ch := range domain {
+		switch {
+		case ch >= 'a' && ch <= 'z':
+		case ch >= '0' && ch <= '9':
+		case ch == '.':
+		case ch == '-':
+		default:
+			return false
+		}
 	}
 	return true
 }

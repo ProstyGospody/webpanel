@@ -34,7 +34,7 @@ The installer asks for:
 - `PANEL_ACME_EMAIL`
 - `HY2_DOMAIN`
 - `MTPROXY_PUBLIC_HOST`
-- `MTPROXY_TLS_DOMAIN` (optional, legacy compatibility)
+- `MTPROXY_TLS_DOMAIN` (optional, used for ee-formatted tg:// secret generation)
 - `INITIAL_ADMIN_EMAIL`
 - `INITIAL_ADMIN_PASSWORD` (blank => generated)
 

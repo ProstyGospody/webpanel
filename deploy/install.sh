@@ -276,9 +276,9 @@ collect_configuration() {
   prompt_value MTPROXY_PORT "MTProxy TCP port" "${MTPROXY_PORT:-443}"
   prompt_value MTPROXY_STATS_PORT "MTProxy local stats port" "${MTPROXY_STATS_PORT:-3129}"
   if [[ "${MTPROXY_PUBLIC_HOST}" =~ [A-Za-z] ]]; then
-    prompt_value MTPROXY_TLS_DOMAIN "MTProxy legacy TLS domain (optional, compatibility)" "${MTPROXY_TLS_DOMAIN:-${MTPROXY_PUBLIC_HOST}}"
+    prompt_value MTPROXY_TLS_DOMAIN "MTProxy TLS camouflage domain (optional)" "${MTPROXY_TLS_DOMAIN:-${MTPROXY_PUBLIC_HOST}}"
   else
-    prompt_value MTPROXY_TLS_DOMAIN "MTProxy legacy TLS domain (optional, compatibility)" "${MTPROXY_TLS_DOMAIN:-www.cloudflare.com}"
+    prompt_value MTPROXY_TLS_DOMAIN "MTProxy TLS camouflage domain (optional)" "${MTPROXY_TLS_DOMAIN:-www.cloudflare.com}"
   fi
 
   prompt_value INITIAL_ADMIN_EMAIL "Initial admin email" "${INITIAL_ADMIN_EMAIL:-admin@${PANEL_PUBLIC_HOST}}"

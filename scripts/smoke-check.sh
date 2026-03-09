@@ -10,6 +10,8 @@ if [[ -f "${ENV_FILE}" ]]; then
 fi
 
 PANEL_API_PORT="${PANEL_API_PORT:-18080}"
+MTPROXY_PORT="${MTPROXY_PORT:-443}"
+MTPROXY_STATS_PORT="${MTPROXY_STATS_PORT:-3129}"
 SMOKE_ADMIN_EMAIL="${SMOKE_ADMIN_EMAIL:-${INITIAL_ADMIN_EMAIL:-}}"
 SMOKE_ADMIN_PASSWORD="${SMOKE_ADMIN_PASSWORD:-${INITIAL_ADMIN_PASSWORD:-}}"
 CURL_CONNECT_TIMEOUT="${CURL_CONNECT_TIMEOUT:-3}"
@@ -31,6 +33,18 @@ echo "[step] checking panel-api health endpoints"
 curl -fsS --connect-timeout "${CURL_CONNECT_TIMEOUT}" --max-time "${CURL_MAX_TIME}" "http://127.0.0.1:${PANEL_API_PORT}/healthz" >/dev/null
 curl -fsS --connect-timeout "${CURL_CONNECT_TIMEOUT}" --max-time "${CURL_MAX_TIME}" "http://127.0.0.1:${PANEL_API_PORT}/readyz" >/dev/null
 echo "[ok] panel-api health and readiness checks passed"
+
+echo "[step] checking mtproxy listener and local stats"
+if ! ss -ltn "( sport = :${MTPROXY_PORT} )" | grep -q ":${MTPROXY_PORT}"; then
+  echo "[error] mtproxy is not listening on configured public port ${MTPROXY_PORT}" >&2
+  exit 1
+fi
+if ! ss -ltn "( sport = :${MTPROXY_STATS_PORT} )" | grep -q "127.0.0.1:${MTPROXY_STATS_PORT}"; then
+  echo "[warn] mtproxy stats port ${MTPROXY_STATS_PORT} is not shown as loopback-only"
+fi
+curl -fsS --connect-timeout "${CURL_CONNECT_TIMEOUT}" --max-time "${CURL_MAX_TIME}" "http://127.0.0.1:${MTPROXY_STATS_PORT}/stats" >/dev/null || \
+curl -fsS --connect-timeout "${CURL_CONNECT_TIMEOUT}" --max-time "${CURL_MAX_TIME}" "http://127.0.0.1:${MTPROXY_STATS_PORT}/" >/dev/null
+echo "[ok] mtproxy listener and local stats check passed"
 
 if [[ -n "${SMOKE_ADMIN_EMAIL}" && -n "${SMOKE_ADMIN_PASSWORD}" ]]; then
   echo "[step] checking admin login flow"
