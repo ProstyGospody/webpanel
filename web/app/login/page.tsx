@@ -1,10 +1,11 @@
-﻿"use client";
+"use client";
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { APIError, apiFetch, toJSONBody } from "@/lib/api";
 import { Button, InlineMessage, TextField } from "@/components/ui";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -36,35 +37,38 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="md-auth-shell">
-      <section className="md-auth-card" aria-labelledby="login-title">
-        <h1 id="login-title" className="md-auth-title">Proxy Panel Login</h1>
-        <p className="md-auth-subtitle">Sign in with admin account credentials.</p>
+    <div className="grid min-h-screen place-items-center p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader className="space-y-2">
+          <CardTitle className="text-2xl">Proxy Panel Login</CardTitle>
+          <CardDescription>Sign in with your administrator credentials.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {error && <InlineMessage tone="error">{error}</InlineMessage>}
 
-        {error && <InlineMessage tone="error">{error}</InlineMessage>}
-
-        <form onSubmit={onSubmit} style={{ display: "grid", gap: 12, marginTop: 16 }}>
-          <TextField
-            label="Email"
-            type="email"
-            autoComplete="username"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
-          />
-          <TextField
-            label="Password"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-          />
-          <Button type="submit" fullWidth disabled={loading}>
-            {loading ? "Signing in..." : "Sign in"}
-          </Button>
-        </form>
-      </section>
+          <form onSubmit={onSubmit} className="space-y-3">
+            <TextField
+              label="Email"
+              type="email"
+              autoComplete="username"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
+            />
+            <TextField
+              label="Password"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              required
+            />
+            <Button type="submit" fullWidth disabled={loading}>
+              {loading ? "Signing in..." : "Sign in"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }

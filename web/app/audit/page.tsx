@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 
@@ -6,6 +6,7 @@ import { apiFetch } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import type { AuditLog } from "@/lib/types";
 import { Card, EmptyState, InlineMessage, PageHeader, TextField } from "@/components/ui";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function AuditPage() {
   const [items, setItems] = useState<AuditLog[]>([]);
@@ -34,7 +35,7 @@ export default function AuditPage() {
   }, [items, query]);
 
   return (
-    <div className="md-page-stack">
+    <div className="space-y-6">
       <PageHeader
         title="Audit"
         subtitle="Recent administrative actions across panel operations, filtered for faster triage."
@@ -43,40 +44,43 @@ export default function AuditPage() {
       {error && <InlineMessage tone="warning">{error}</InlineMessage>}
 
       <Card title="Filters" subtitle="Search by action, admin, entity type or entity id." outlined>
-        <TextField label="Search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Type to filter audit feed" />
+        <TextField
+          label="Search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Type to filter audit feed"
+        />
       </Card>
 
-      <Card title="Audit feed" subtitle={`Latest 200 records${query ? ` · ${filtered.length} shown` : ""}.`}>
+      <Card title="Audit feed" subtitle={`Latest 200 records${query ? ` Р’В· ${filtered.length} shown` : ""}.`}>
         {filtered.length === 0 ? (
           <EmptyState title="No audit records" description="No entries match the current filter." icon="history_toggle_off" />
         ) : (
-          <div className="md-data-table-wrap">
-            <table className="md-data-table">
-              <thead>
-                <tr>
-                  <th>Time</th>
-                  <th>Admin</th>
-                  <th>Action</th>
-                  <th>Entity</th>
-                  <th>Payload</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((item) => (
-                  <tr key={item.id}>
-                    <td>{formatDate(item.created_at)}</td>
-                    <td>{item.admin_email || "system"}</td>
-                    <td>{item.action}</td>
-                    <td>
-                      {item.entity_type}
-                      {item.entity_id ? `/${item.entity_id}` : ""}
-                    </td>
-                    <td style={{ maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.payload_json}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Time</TableHead>
+                <TableHead>Admin</TableHead>
+                <TableHead>Action</TableHead>
+                <TableHead>Entity</TableHead>
+                <TableHead>Payload</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell className="text-muted-foreground">{formatDate(item.created_at)}</TableCell>
+                  <TableCell>{item.admin_email || "system"}</TableCell>
+                  <TableCell>{item.action}</TableCell>
+                  <TableCell>
+                    {item.entity_type}
+                    {item.entity_id ? `/${item.entity_id}` : ""}
+                  </TableCell>
+                  <TableCell className="max-w-[360px] truncate font-mono text-xs">{item.payload_json}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
       </Card>
     </div>

@@ -1,16 +1,11 @@
-﻿"use client";
+"use client";
 
-import { createContext, PropsWithChildren, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, PropsWithChildren, useCallback, useContext, useMemo } from "react";
+import { toast } from "sonner";
 
-import { MaterialIcon } from "@/components/ui";
+import { Toaster } from "@/components/ui/sonner";
 
 type ToastTone = "success" | "error" | "info";
-
-type ToastItem = {
-  id: number;
-  tone: ToastTone;
-  message: string;
-};
 
 type ToastContextValue = {
   push: (message: string, tone?: ToastTone) => void;
@@ -19,34 +14,26 @@ type ToastContextValue = {
 const ToastContext = createContext<ToastContextValue | null>(null);
 
 export function ToastProvider({ children }: PropsWithChildren) {
-  const [items, setItems] = useState<ToastItem[]>([]);
-
   const push = useCallback((message: string, tone: ToastTone = "info") => {
-    const id = Date.now() + Math.floor(Math.random() * 1000);
-    setItems((prev) => [...prev, { id, tone, message }]);
-    window.setTimeout(() => {
-      setItems((prev) => prev.filter((item) => item.id !== id));
-    }, 3000);
+    if (tone === "success") {
+      toast.success(message);
+      return;
+    }
+
+    if (tone === "error") {
+      toast.error(message);
+      return;
+    }
+
+    toast(message);
   }, []);
 
   const value = useMemo<ToastContextValue>(() => ({ push }), [push]);
-  const toneIcon: Record<ToastTone, string> = {
-    success: "check_circle",
-    error: "error",
-    info: "info",
-  };
 
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="md-snackbar-stack" role="status" aria-live="polite">
-        {items.map((item) => (
-          <div key={item.id} className={`md-snackbar md-snackbar--${item.tone}`}>
-            <MaterialIcon name={toneIcon[item.tone]} />
-            <span>{item.message}</span>
-          </div>
-        ))}
-      </div>
+      <Toaster position="bottom-right" closeButton richColors />
     </ToastContext.Provider>
   );
 }

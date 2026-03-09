@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
@@ -232,7 +232,7 @@ export default function MTProxyUsersPage() {
   }
 
   return (
-    <div className="md-page-stack">
+    <div className="space-y-6">
       <PageHeader
         title="MTProxy"
         subtitle="Manage proxy users with overflow actions and runtime-safe dialog workflows."
@@ -247,7 +247,7 @@ export default function MTProxyUsersPage() {
 
       {error && <InlineMessage tone="warning">{error}</InlineMessage>}
 
-      <div className="md-metric-grid">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Enabled" value={String(overview?.enabled_secrets ?? 0)} />
         <MetricCard label="Connections" value={String(overview?.connections_total ?? 0)} />
         <MetricCard label="Users" value={String(overview?.users_total ?? 0)} />
@@ -255,17 +255,17 @@ export default function MTProxyUsersPage() {
 
       <Card title="Users" subtitle="Primary action: Edit. Secondary actions are available from overflow menu.">
         {loading ? (
-          <div className="md-skeleton">
-            <div className="md-skeleton__line" />
-            <div className="md-skeleton__line" />
-            <div className="md-skeleton__line" />
+          <div className="space-y-2">
+            <div className="h-3 w-full animate-pulse rounded-full bg-muted" />
+            <div className="h-3 w-full animate-pulse rounded-full bg-muted" />
+            <div className="h-3 w-full animate-pulse rounded-full bg-muted" />
           </div>
         ) : secrets.length === 0 ? (
           <EmptyState title="No MTProxy users" description="Create the first secret to activate MTProxy access." icon="vpn_key_off" />
         ) : (
           <>
-            <div className="hidden md-data-table-wrap md:block">
-              <table className="md-data-table">
+            <div className="hidden w-full min-w-[760px] text-sm-wrap md:block">
+              <table className="w-full min-w-[760px] text-sm">
                 <thead>
                   <tr>
                     <th>User</th>
@@ -296,7 +296,7 @@ export default function MTProxyUsersPage() {
                         </td>
                         <td>{formatDate(item.last_seen_at)}</td>
                         <td>
-                          <div className="md-row-actions">
+                          <div className="flex flex-wrap items-center justify-end gap-2">
                             <Button variant="text" type="button" onClick={() => openEdit(item)} disabled={busy}>
                               Edit
                             </Button>
@@ -330,14 +330,14 @@ export default function MTProxyUsersPage() {
               </table>
             </div>
 
-            <div className="md-list md:hidden">
+            <div className="grid gap-3 md:hidden">
               {secrets.map((item) => {
                 const busy = busyID === item.id;
                 return (
-                  <article key={item.id} className="md-list-item">
+                  <article key={item.id} className="space-y-2 rounded-xl border border-border/70 bg-muted/30 p-4">
                     <div>
-                      <h3 className="md-list-item__headline">{item.label || item.client_name || item.client_id}</h3>
-                      <p className="md-list-item__supporting" style={{ wordBreak: "break-all" }}>
+                      <h3 className="space-y-2 rounded-xl border border-border/70 bg-muted/30 p-4__headline">{item.label || item.client_name || item.client_id}</h3>
+                      <p className="space-y-2 rounded-xl border border-border/70 bg-muted/30 p-4__supporting" style={{ wordBreak: "break-all" }}>
                         Secret: {item.secret}
                       </p>
                     </div>
@@ -347,10 +347,10 @@ export default function MTProxyUsersPage() {
                         {item.is_runtime_active ? "active" : "standby"}
                       </StatusBadge>
                     </div>
-                    <p className="md-list-item__supporting" style={{ margin: 0 }}>
+                    <p className="space-y-2 rounded-xl border border-border/70 bg-muted/30 p-4__supporting" style={{ margin: 0 }}>
                       Last seen: {formatDate(item.last_seen_at)}
                     </p>
-                    <div className="md-page-actions">
+                    <div className="flex flex-wrap items-center gap-2">
                       <Button variant="tonal" type="button" onClick={() => openEdit(item)} disabled={busy}>
                         Edit
                       </Button>
@@ -399,7 +399,7 @@ export default function MTProxyUsersPage() {
           </>
         }
       >
-        <form id="mtproxy-user-form" className="md-form-grid" onSubmit={submitForm}>
+        <form id="mtproxy-user-form" className="grid gap-4 md:grid-cols-2" onSubmit={submitForm}>
           <SelectField
             label="Client"
             value={formState.client_id}

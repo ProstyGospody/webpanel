@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
@@ -286,7 +286,7 @@ export default function HysteriaUsersPage() {
   }
 
   return (
-    <div className="md-page-stack">
+    <div className="space-y-6">
       <PageHeader
         title="Hysteria 2"
         subtitle="Manage users in dialog workflows and keep URI, QR and runtime settings in sync."
@@ -301,7 +301,7 @@ export default function HysteriaUsersPage() {
 
       {error && <InlineMessage tone="warning">{error}</InlineMessage>}
 
-      <div className="md-metric-grid">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Enabled" value={String(overview?.enabled_accounts ?? 0)} />
         <MetricCard label="Online" value={String(overview?.online_count ?? 0)} />
         <MetricCard label="Total TX" value={formatBytes(overview?.total_tx_bytes ?? 0)} />
@@ -310,17 +310,17 @@ export default function HysteriaUsersPage() {
 
       <Card title="Users" subtitle="Primary action: Edit. Secondary actions are grouped in an overflow menu.">
         {loading ? (
-          <div className="md-skeleton">
-            <div className="md-skeleton__line" />
-            <div className="md-skeleton__line" />
-            <div className="md-skeleton__line" />
+          <div className="space-y-2">
+            <div className="h-3 w-full animate-pulse rounded-full bg-muted" />
+            <div className="h-3 w-full animate-pulse rounded-full bg-muted" />
+            <div className="h-3 w-full animate-pulse rounded-full bg-muted" />
           </div>
         ) : accounts.length === 0 ? (
           <EmptyState title="No Hysteria users" description="Create the first user to issue access credentials." icon="person_off" />
         ) : (
           <>
-            <div className="hidden md-data-table-wrap md:block">
-              <table className="md-data-table">
+            <div className="hidden w-full min-w-[760px] text-sm-wrap md:block">
+              <table className="w-full min-w-[760px] text-sm">
                 <thead>
                   <tr>
                     <th>User</th>
@@ -354,7 +354,7 @@ export default function HysteriaUsersPage() {
                         </td>
                         <td>{formatDate(item.last_seen_at)}</td>
                         <td>
-                          <div className="md-row-actions">
+                          <div className="flex flex-wrap items-center justify-end gap-2">
                             <Button variant="text" type="button" onClick={() => openEdit(item)} disabled={busy}>
                               Edit
                             </Button>
@@ -397,15 +397,15 @@ export default function HysteriaUsersPage() {
               </table>
             </div>
 
-            <div className="md-list md:hidden">
+            <div className="grid gap-3 md:hidden">
               {accounts.map((item) => {
                 const online = (item.online_count || 0) > 0;
                 const busy = busyID === item.id;
                 return (
-                  <article key={item.id} className="md-list-item">
+                  <article key={item.id} className="space-y-2 rounded-xl border border-border/70 bg-muted/30 p-4">
                     <div>
-                      <h3 className="md-list-item__headline">{item.client_name || item.hy2_identity}</h3>
-                      <p className="md-list-item__supporting" style={{ wordBreak: "break-all" }}>
+                      <h3 className="space-y-2 rounded-xl border border-border/70 bg-muted/30 p-4__headline">{item.client_name || item.hy2_identity}</h3>
+                      <p className="space-y-2 rounded-xl border border-border/70 bg-muted/30 p-4__supporting" style={{ wordBreak: "break-all" }}>
                         Identity: {item.hy2_identity}
                       </p>
                     </div>
@@ -413,13 +413,13 @@ export default function HysteriaUsersPage() {
                       <StatusBadge enabled={item.is_enabled} />
                       <StatusBadge tone={onlineBadgeClass(online)}>{online ? "Online" : "Offline"}</StatusBadge>
                     </div>
-                    <p className="md-list-item__supporting" style={{ margin: 0 }}>
+                    <p className="space-y-2 rounded-xl border border-border/70 bg-muted/30 p-4__supporting" style={{ margin: 0 }}>
                       TX: {formatBytes(item.last_tx_bytes || 0)} | RX: {formatBytes(item.last_rx_bytes || 0)}
                     </p>
-                    <p className="md-list-item__supporting" style={{ margin: 0 }}>
+                    <p className="space-y-2 rounded-xl border border-border/70 bg-muted/30 p-4__supporting" style={{ margin: 0 }}>
                       Last seen: {formatDate(item.last_seen_at)}
                     </p>
-                    <div className="md-page-actions">
+                    <div className="flex flex-wrap items-center gap-2">
                       <Button variant="tonal" type="button" onClick={() => openEdit(item)} disabled={busy}>
                         Edit
                       </Button>
@@ -477,7 +477,7 @@ export default function HysteriaUsersPage() {
           </>
         }
       >
-        <form id="hy2-user-form" className="md-form-grid" onSubmit={submitForm}>
+        <form id="hy2-user-form" className="grid gap-4 md:grid-cols-2" onSubmit={submitForm}>
           <SelectField
             label="Client"
             value={formState.client_id}
@@ -534,12 +534,12 @@ export default function HysteriaUsersPage() {
         }
       >
         <div style={{ display: "grid", gap: 12 }}>
-          <TextareaField label="hysteria2 URI" value={uriValue} readOnly className="md-mono" />
+          <TextareaField label="hysteria2 URI" value={uriValue} readOnly className="font-mono text-xs" />
 
-          {uriV2Ray && <TextareaField label="V2RayNG hy2 URI" value={uriV2Ray} readOnly className="md-mono" />}
+          {uriV2Ray && <TextareaField label="V2RayNG hy2 URI" value={uriV2Ray} readOnly className="font-mono text-xs" />}
 
           {uriClientParams && (
-            <div className="md-inline-message md-inline-message--info" style={{ marginTop: 4 }}>
+            <div className="rounded-lg border border-blue-300/70 bg-blue-500/10 px-3 py-2 text-sm text-blue-900 dark:border-blue-500/40 dark:text-blue-200" style={{ marginTop: 4 }}>
               <div>
                 server: {uriClientParams.server || "-"} | port: {uriClientParams.port || "-"} | sni: {uriClientParams.sni || "-"}
               </div>

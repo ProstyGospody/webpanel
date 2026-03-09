@@ -1,8 +1,96 @@
-﻿import { ButtonHTMLAttributes, InputHTMLAttributes, PropsWithChildren, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
+import {
+  ButtonHTMLAttributes,
+  InputHTMLAttributes,
+  PropsWithChildren,
+  ReactNode,
+  SelectHTMLAttributes,
+  TextareaHTMLAttributes,
+} from "react";
+import {
+  BellRing,
+  Cable,
+  CircleAlert,
+  CircleCheckBig,
+  Copy,
+  EllipsisVertical,
+  History,
+  Inbox,
+  Info,
+  KeyRound,
+  LayoutGrid,
+  LoaderCircle,
+  LogOut,
+  Menu,
+  Moon,
+  Plus,
+  QrCode,
+  ReceiptText,
+  RefreshCw,
+  RotateCcw,
+  Server,
+  Settings,
+  Sun,
+  Trash2,
+  TriangleAlert,
+  UserRoundX,
+  Users,
+  X,
+  Zap,
+  type LucideIcon,
+} from "lucide-react";
 
-export function cn(...parts: Array<string | false | null | undefined>) {
-  return parts.filter(Boolean).join(" ");
-}
+import { cn } from "@/lib/utils";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button as ShadButton } from "@/components/ui/button";
+import {
+  Card as ShadCard,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+
+const iconMap: Record<string, LucideIcon> = {
+  add: Plus,
+  bolt: Zap,
+  check_circle: CircleCheckBig,
+  close: X,
+  content_copy: Copy,
+  dark_mode: Moon,
+  delete: Trash2,
+  dns: Server,
+  error: CircleAlert,
+  group: Users,
+  group_off: UserRoundX,
+  history: History,
+  history_toggle_off: History,
+  inbox: Inbox,
+  info: Info,
+  light_mode: Sun,
+  logout: LogOut,
+  menu: Menu,
+  more_vert: EllipsisVertical,
+  person_off: UserRoundX,
+  qr_code_2: QrCode,
+  receipt_long: ReceiptText,
+  restart_alt: RotateCcw,
+  search: BellRing,
+  settings: Settings,
+  settings_ethernet: Cable,
+  space_dashboard: LayoutGrid,
+  sync: RefreshCw,
+  vpn_key: KeyRound,
+  vpn_key_off: KeyRound,
+  warning: TriangleAlert,
+};
+
+export { cn };
 
 type MaterialIconProps = {
   name: string;
@@ -10,8 +98,9 @@ type MaterialIconProps = {
   className?: string;
 };
 
-export function MaterialIcon({ name, filled = false, className }: MaterialIconProps) {
-  return <span aria-hidden className={cn("material-symbols-rounded", filled && "md-icon--filled", className)}>{name}</span>;
+export function MaterialIcon({ name, className }: MaterialIconProps) {
+  const Icon = iconMap[name] || Info;
+  return <Icon aria-hidden className={cn("size-4", className)} />;
 }
 
 type ButtonVariant = "filled" | "tonal" | "outlined" | "text" | "elevated" | "danger";
@@ -23,13 +112,45 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   fullWidth?: boolean;
 };
 
-export function Button({ variant = "filled", icon, trailingIcon, className, children, fullWidth = false, ...props }: ButtonProps) {
+function mapButtonVariant(variant: ButtonVariant): "default" | "secondary" | "outline" | "ghost" | "destructive" {
+  if (variant === "tonal" || variant === "elevated") {
+    return "secondary";
+  }
+
+  if (variant === "outlined") {
+    return "outline";
+  }
+
+  if (variant === "text") {
+    return "ghost";
+  }
+
+  if (variant === "danger") {
+    return "destructive";
+  }
+
+  return "default";
+}
+
+export function Button({
+  variant = "filled",
+  icon,
+  trailingIcon,
+  className,
+  children,
+  fullWidth = false,
+  ...props
+}: ButtonProps) {
   return (
-    <button className={cn("md-button", `md-button--${variant}`, fullWidth && "md-button--full", className)} {...props}>
-      {icon && <MaterialIcon name={icon} className="md-button__icon" />}
+    <ShadButton
+      variant={mapButtonVariant(variant)}
+      className={cn(fullWidth && "w-full", className)}
+      {...props}
+    >
+      {icon && <MaterialIcon name={icon} className="size-4" />}
       <span>{children}</span>
-      {trailingIcon && <MaterialIcon name={trailingIcon} className="md-button__icon" />}
-    </button>
+      {trailingIcon && <MaterialIcon name={trailingIcon} className="size-4" />}
+    </ShadButton>
   );
 }
 
@@ -42,16 +163,20 @@ type IconButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 export function IconButton({ icon, label, variant = "standard", className, ...props }: IconButtonProps) {
+  const resolvedVariant = variant === "outlined" ? "outline" : variant === "filled" ? "default" : "ghost";
+
   return (
-    <button
+    <ShadButton
       type="button"
-      className={cn("md-icon-button", variant !== "standard" && `md-icon-button--${variant}`, className)}
+      size="icon"
+      variant={resolvedVariant}
+      className={className}
       aria-label={label}
       title={label}
       {...props}
     >
-      <MaterialIcon name={icon} />
-    </button>
+      <MaterialIcon name={icon} className="size-4" />
+    </ShadButton>
   );
 }
 
@@ -66,14 +191,42 @@ type StatusBadgeProps = {
   falseLabel?: string;
 };
 
-export function StatusBadge({ tone = "neutral", children, icon, enabled, trueLabel = "Enabled", falseLabel = "Disabled" }: StatusBadgeProps) {
+function statusToneClass(tone: StatusTone): string {
+  if (tone === "success") {
+    return "border-emerald-300/80 bg-emerald-500/10 text-emerald-700 dark:border-emerald-500/50 dark:text-emerald-300";
+  }
+
+  if (tone === "warning") {
+    return "border-amber-300/80 bg-amber-500/10 text-amber-700 dark:border-amber-500/50 dark:text-amber-300";
+  }
+
+  if (tone === "error") {
+    return "border-rose-300/80 bg-rose-500/10 text-rose-700 dark:border-rose-500/50 dark:text-rose-300";
+  }
+
+  if (tone === "info") {
+    return "border-blue-300/80 bg-blue-500/10 text-blue-700 dark:border-blue-500/50 dark:text-blue-300";
+  }
+
+  return "border-border bg-muted text-muted-foreground";
+}
+
+export function StatusBadge({
+  tone = "neutral",
+  children,
+  icon,
+  enabled,
+  trueLabel = "Enabled",
+  falseLabel = "Disabled",
+}: StatusBadgeProps) {
   const resolvedTone = enabled === undefined ? tone : enabled ? "success" : "error";
   const label = children || (enabled === undefined ? "-" : enabled ? trueLabel : falseLabel);
+
   return (
-    <span className={cn("md-badge", `md-badge--${resolvedTone}`)}>
-      {icon && <MaterialIcon name={icon} />}
+    <Badge variant="outline" className={cn("gap-1.5 font-medium", statusToneClass(resolvedTone))}>
+      {icon && <MaterialIcon name={icon} className="size-3.5" />}
       {label}
-    </span>
+    </Badge>
   );
 }
 
@@ -86,15 +239,15 @@ type PageHeaderProps = {
 
 export function PageHeader({ title, subtitle, actions, meta }: PageHeaderProps) {
   return (
-    <header className="md-page-header">
-      <div className="md-page-header__titles">
-        <h1 className="md-page-title">{title}</h1>
-        {subtitle && <p className="md-page-subtitle">{subtitle}</p>}
+    <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div className="space-y-1.5">
+        <h1 className="text-2xl font-semibold leading-tight sm:text-3xl">{title}</h1>
+        {subtitle && <p className="max-w-4xl text-sm text-muted-foreground sm:text-base">{subtitle}</p>}
       </div>
       {(actions || meta) && (
-        <div>
-          {actions && <div className="md-page-actions">{actions}</div>}
-          {meta && <div className="md-page-meta">{meta}</div>}
+        <div className="flex w-full flex-col items-start gap-2 lg:w-auto lg:items-end">
+          {actions && <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto">{actions}</div>}
+          {meta && <div className="text-xs text-muted-foreground sm:text-sm">{meta}</div>}
         </div>
       )}
     </header>
@@ -111,18 +264,18 @@ type CardProps = PropsWithChildren<{
 
 export function Card({ title, subtitle, action, className, children, outlined = false }: CardProps) {
   return (
-    <section className={cn("md-card", outlined && "md-card--outlined", className)}>
+    <ShadCard className={cn(outlined && "bg-background", className)}>
       {(title || subtitle || action) && (
-        <header className="md-card__header">
-          <div>
-            {title && <h2 className="md-card__title">{title}</h2>}
-            {subtitle && <p className="md-card__subtitle">{subtitle}</p>}
+        <CardHeader>
+          <div className="space-y-1">
+            {title && <CardTitle>{title}</CardTitle>}
+            {subtitle && <CardDescription>{subtitle}</CardDescription>}
           </div>
-          {action}
-        </header>
+          {action && <CardAction>{action}</CardAction>}
+        </CardHeader>
       )}
-      <div className="md-card__content">{children}</div>
-    </section>
+      <CardContent>{children}</CardContent>
+    </ShadCard>
   );
 }
 
@@ -134,11 +287,13 @@ type MetricCardProps = {
 
 export function MetricCard({ label, value, hint }: MetricCardProps) {
   return (
-    <div className="md-metric-card">
-      <div className="md-metric-label">{label}</div>
-      <div className="md-metric-value">{value}</div>
-      {hint && <div className="md-metric-hint">{hint}</div>}
-    </div>
+    <ShadCard className="surface-gradient border border-border/70">
+      <CardContent className="space-y-2 p-5">
+        <div className="text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">{label}</div>
+        <div className="text-2xl font-semibold tracking-tight tabular-nums">{value}</div>
+        {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+      </CardContent>
+    </ShadCard>
   );
 }
 
@@ -150,18 +305,37 @@ type InlineMessageProps = {
 };
 
 export function InlineMessage({ tone = "info", children }: InlineMessageProps) {
-  const iconByTone: Record<MessageTone, string> = {
-    info: "info",
-    warning: "warning",
-    error: "error",
-    success: "check_circle",
+  const toneMeta: Record<MessageTone, { title: string; className: string; icon: string }> = {
+    info: {
+      title: "Info",
+      className: "border-blue-300/80 bg-blue-500/10 text-blue-900 dark:border-blue-500/40 dark:text-blue-200",
+      icon: "info",
+    },
+    warning: {
+      title: "Warning",
+      className: "border-amber-300/80 bg-amber-500/10 text-amber-900 dark:border-amber-500/40 dark:text-amber-200",
+      icon: "warning",
+    },
+    error: {
+      title: "Error",
+      className: "border-rose-300/80 bg-rose-500/10 text-rose-900 dark:border-rose-500/40 dark:text-rose-200",
+      icon: "error",
+    },
+    success: {
+      title: "Success",
+      className: "border-emerald-300/80 bg-emerald-500/10 text-emerald-900 dark:border-emerald-500/40 dark:text-emerald-200",
+      icon: "check_circle",
+    },
   };
 
   return (
-    <div className={cn("md-inline-message", `md-inline-message--${tone}`)}>
-      <MaterialIcon name={iconByTone[tone]} />
-      <div>{children}</div>
-    </div>
+    <Alert className={cn("gap-3", toneMeta[tone].className)}>
+      <MaterialIcon name={toneMeta[tone].icon} className="mt-0.5 size-4" />
+      <div className="space-y-1">
+        <AlertTitle>{toneMeta[tone].title}</AlertTitle>
+        <AlertDescription>{children}</AlertDescription>
+      </div>
+    </Alert>
   );
 }
 
@@ -174,11 +348,13 @@ type EmptyStateProps = {
 
 export function EmptyState({ title, description, icon = "inbox", action }: EmptyStateProps) {
   return (
-    <div className="md-empty-state" role="status" aria-live="polite">
-      <MaterialIcon name={icon} />
-      <p className="md-empty-state__title">{title}</p>
-      {description && <p className="md-empty-state__description">{description}</p>}
-      {action && <div className="md-page-actions" style={{ justifyContent: "center", marginTop: 12 }}>{action}</div>}
+    <div className="rounded-xl border border-dashed border-border bg-muted/30 px-6 py-10 text-center">
+      <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+        <MaterialIcon name={icon} className="size-5" />
+      </div>
+      <p className="text-base font-medium">{title}</p>
+      {description && <p className="mx-auto mt-1 max-w-xl text-sm text-muted-foreground">{description}</p>}
+      {action && <div className="mt-4 flex justify-center">{action}</div>}
     </div>
   );
 }
@@ -190,15 +366,22 @@ type LinearProgressProps = {
 
 export function LinearProgress({ value = 0, indeterminate = false }: LinearProgressProps) {
   const clamped = Math.max(0, Math.min(100, value));
+
   return (
-    <div className={cn("md-linear-progress", indeterminate && "md-linear-progress--indeterminate")} aria-hidden>
-      <div className="md-linear-progress__bar" style={{ width: indeterminate ? undefined : `${clamped}%` }} />
+    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted" aria-hidden>
+      <div
+        className={cn(
+          "h-full rounded-full bg-primary transition-[width] duration-300",
+          indeterminate && "w-2/5 animate-[pulse_1.2s_ease-in-out_infinite]"
+        )}
+        style={{ width: indeterminate ? undefined : `${clamped}%` }}
+      />
     </div>
   );
 }
 
 export function CircularProgress() {
-  return <span className="md-circular-progress" aria-hidden />;
+  return <LoaderCircle className="size-4 animate-spin text-primary" aria-hidden />;
 }
 
 type BaseFieldProps = {
@@ -212,30 +395,43 @@ type TextFieldProps = BaseFieldProps & InputHTMLAttributes<HTMLInputElement>;
 
 export function TextField({ label, supportingText, errorText, className, ...props }: TextFieldProps) {
   return (
-    <label className={cn("md-field", errorText && "md-field--error", className)}>
-      <span className="md-field__label">{label}</span>
-      <input className="md-field__control" {...props} />
-      {(errorText || supportingText) && <span className="md-field__supporting">{errorText || supportingText}</span>}
+    <label className={cn("grid gap-2", className)}>
+      <Label className="text-sm font-medium">{label}</Label>
+      <Input className={errorText ? "border-destructive/70 focus-visible:ring-destructive/20" : undefined} {...props} />
+      {(errorText || supportingText) && (
+        <span className={cn("text-xs", errorText ? "text-destructive" : "text-muted-foreground")}>{errorText || supportingText}</span>
+      )}
     </label>
   );
 }
 
-type SelectFieldProps = BaseFieldProps & SelectHTMLAttributes<HTMLSelectElement> & {
-  options: Array<{ value: string; label: string }>;
-};
+type SelectFieldProps = BaseFieldProps &
+  SelectHTMLAttributes<HTMLSelectElement> & {
+    options: Array<{ value: string; label: string }>;
+  };
 
 export function SelectField({ label, supportingText, errorText, className, options, ...props }: SelectFieldProps) {
   return (
-    <label className={cn("md-field", errorText && "md-field--error", className)}>
-      <span className="md-field__label">{label}</span>
-      <select className="md-field__control" {...props}>
+    <label className={cn("grid gap-2", className)}>
+      <Label className="text-sm font-medium">{label}</Label>
+      <select
+        className={cn(
+          "flex h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none",
+          "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
+          "disabled:cursor-not-allowed disabled:opacity-50",
+          errorText && "border-destructive/70 focus-visible:ring-destructive/20"
+        )}
+        {...props}
+      >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
           </option>
         ))}
       </select>
-      {(errorText || supportingText) && <span className="md-field__supporting">{errorText || supportingText}</span>}
+      {(errorText || supportingText) && (
+        <span className={cn("text-xs", errorText ? "text-destructive" : "text-muted-foreground")}>{errorText || supportingText}</span>
+      )}
     </label>
   );
 }
@@ -244,10 +440,12 @@ type TextareaFieldProps = BaseFieldProps & TextareaHTMLAttributes<HTMLTextAreaEl
 
 export function TextareaField({ label, supportingText, errorText, className, ...props }: TextareaFieldProps) {
   return (
-    <label className={cn("md-field", errorText && "md-field--error", className)}>
-      <span className="md-field__label">{label}</span>
-      <textarea className="md-field__control" {...props} />
-      {(errorText || supportingText) && <span className="md-field__supporting">{errorText || supportingText}</span>}
+    <label className={cn("grid gap-2", className)}>
+      <Label className="text-sm font-medium">{label}</Label>
+      <Textarea className={errorText ? "border-destructive/70 focus-visible:ring-destructive/20" : undefined} {...props} />
+      {(errorText || supportingText) && (
+        <span className={cn("text-xs", errorText ? "text-destructive" : "text-muted-foreground")}>{errorText || supportingText}</span>
+      )}
     </label>
   );
 }
@@ -262,12 +460,12 @@ type SwitchFieldProps = {
 
 export function SwitchField({ label, supportingText, checked, onChange, disabled = false }: SwitchFieldProps) {
   return (
-    <label className="md-switch-field">
-      <span className="md-switch-field__text">
-        <span className="md-switch-field__label">{label}</span>
-        {supportingText && <span className="md-switch-field__supporting">{supportingText}</span>}
+    <label className="flex items-start justify-between gap-4 rounded-lg border border-border/70 bg-muted/20 p-3">
+      <span className="space-y-1">
+        <span className="block text-sm font-medium leading-tight">{label}</span>
+        {supportingText && <span className="block text-xs text-muted-foreground">{supportingText}</span>}
       </span>
-      <input className="md-switch" type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} disabled={disabled} />
+      <Switch checked={checked} onCheckedChange={onChange} disabled={disabled} className="mt-0.5" />
     </label>
   );
 }

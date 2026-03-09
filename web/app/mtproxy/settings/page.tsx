@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 
@@ -52,33 +52,30 @@ export default function MTProxySettingsPage() {
   }, [push]);
 
   return (
-    <div className="md-page-stack">
-      <PageHeader
-        title="MTProxy"
-        subtitle="Runtime context and read-only service status for the active proxy node."
-      />
+    <div className="space-y-6">
+      <PageHeader title="MTProxy" subtitle="Runtime context and read-only status for the active proxy node." />
 
       <SectionTabs items={tabs} />
 
       {error && <InlineMessage tone="warning">{error}</InlineMessage>}
 
-      <Card title="Runtime" subtitle="Read-only runtime values from backend config.">
-        <div className="md-form-grid">
-          <div className="md-chip">Public host: {settings?.public_host || "-"}</div>
-          <div className="md-chip">Port: {settings?.port || "-"}</div>
-          <div className="md-chip">TLS domain: {settings?.tls_domain || "-"}</div>
-          <div className="md-chip">Stats URL: {settings?.stats_url || "-"}</div>
-          <div className="md-chip">Stats token configured: {settings?.stats_token_config ? "yes" : "no"}</div>
-          <div className="md-chip">Active runtime secret: {settings?.runtime_secret_id || "-"}</div>
+      <Card title="Runtime" subtitle="Values resolved from backend config.">
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-medium text-muted-foreground">Public host: {settings?.public_host || "-"}</div>
+          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-medium text-muted-foreground">Port: {settings?.port || "-"}</div>
+          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-medium text-muted-foreground">TLS domain: {settings?.tls_domain || "-"}</div>
+          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-medium text-muted-foreground">Stats URL: {settings?.stats_url || "-"}</div>
+          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-medium text-muted-foreground">Stats token configured: {settings?.stats_token_config ? "yes" : "no"}</div>
+          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-medium text-muted-foreground">Active runtime secret: {settings?.runtime_secret_id || "-"}</div>
         </div>
       </Card>
 
-      <Card title="Live overview" subtitle="Current MTProxy counters and service runtime health.">
-        <div className="md-form-grid">
-          <div className="md-chip md-chip--selected">Enabled users: {overview?.enabled_secrets ?? 0}</div>
-          <div className="md-chip md-chip--selected">Connections: {overview?.connections_total ?? 0}</div>
-          <div className="md-chip md-chip--selected">Total users: {overview?.users_total ?? 0}</div>
-          <div className="md-chip md-chip--selected">Service status: {service?.status_text || "-"}</div>
+      <Card title="Live overview" subtitle="Current MTProxy counters and service health.">
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-secondary px-3 text-xs font-medium text-secondary-foreground">Enabled users: {overview?.enabled_secrets ?? 0}</div>
+          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-secondary px-3 text-xs font-medium text-secondary-foreground">Connections: {overview?.connections_total ?? 0}</div>
+          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-secondary px-3 text-xs font-medium text-secondary-foreground">Total users: {overview?.users_total ?? 0}</div>
+          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-secondary px-3 text-xs font-medium text-secondary-foreground">Service status: {service?.status_text || "-"}</div>
         </div>
       </Card>
     </div>

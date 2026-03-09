@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
@@ -6,17 +6,10 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { apiFetch, toJSONBody } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import type { Client } from "@/lib/types";
-import {
-  Button,
-  Card,
-  EmptyState,
-  InlineMessage,
-  PageHeader,
-  StatusBadge,
-  TextField,
-} from "@/components/ui";
+import { Button, Card, EmptyState, InlineMessage, PageHeader, StatusBadge, TextField } from "@/components/ui";
 import { useToast } from "@/components/toast-provider";
 import { ConfirmDialog } from "@/components/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function ClientsPage() {
   const { push } = useToast();
@@ -96,70 +89,77 @@ export default function ClientsPage() {
   }
 
   return (
-    <div className="md-page-stack">
+    <div className="space-y-6">
       <PageHeader
         title="Clients"
-        subtitle="Manage client identities and lifecycle state across Hysteria 2 and MTProxy."
+        subtitle="Manage shared client identities used across Hysteria 2 and MTProxy access surfaces."
       />
 
       {error && <InlineMessage tone="warning">{error}</InlineMessage>}
 
-      <Card title="Create client" subtitle="Client entities are shared across protocol modules.">
-        <form className="md-form-grid" onSubmit={onCreate}>
-          <TextField label="Client name" value={name} onChange={(event) => setName(event.target.value)} required />
-          <TextField label="Email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
-          <TextField label="Note" value={note} onChange={(event) => setNote(event.target.value)} />
-          <div className="md-page-actions" style={{ alignItems: "end" }}>
-            <Button type="submit">Create client</Button>
-          </div>
-        </form>
-      </Card>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Card title="Create client" subtitle="Clients are reusable identity records for protocol accounts.">
+          <form className="grid gap-4 md:grid-cols-2" onSubmit={onCreate}>
+            <TextField label="Client name" value={name} onChange={(event) => setName(event.target.value)} required />
+            <TextField label="Email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+            <TextField
+              label="Note"
+              className="md:col-span-2"
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+            />
+            <div className="md:col-span-2 flex justify-end">
+              <Button type="submit">Create client</Button>
+            </div>
+          </form>
+        </Card>
 
-      <Card title="Search" subtitle="Filter by name or email.">
-        <form onSubmit={onSearchSubmit} className="md-form-grid">
-          <TextField
-            label="Query"
-            placeholder="Search by name or email"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-          <div className="md-page-actions" style={{ alignItems: "end" }}>
-            <Button variant="outlined" type="submit">
-              Search
-            </Button>
-          </div>
-        </form>
-      </Card>
+        <Card title="Search" subtitle="Filter by client name or e-mail.">
+          <form onSubmit={onSearchSubmit} className="grid gap-4">
+            <TextField
+              label="Query"
+              placeholder="Search by name or email"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+            <div className="flex justify-end">
+              <Button variant="outlined" type="submit">
+                Search
+              </Button>
+            </div>
+          </form>
+        </Card>
+      </div>
 
-      <Card title="Client list" subtitle={`Total clients: ${filtered.length}`}>
+      <Card title="Client directory" subtitle={`Total clients: ${filtered.length}`}>
         {filtered.length === 0 ? (
-          <EmptyState title="No clients found" description="Try creating a new client or changing search query." icon="group_off" />
+          <EmptyState title="No clients found" description="Create a client or refine your search query." icon="group_off" />
         ) : (
-          <div className="md-data-table-wrap">
-            <table className="md-data-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Status</th>
-                  <th>Updated</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((client) => (
-                  <tr key={client.id}>
-                    <td>
-                      <Link href={`/clients/${client.id}`} style={{ fontWeight: 600 }}>
-                        {client.name}
-                      </Link>
-                    </td>
-                    <td>{client.email || "-"}</td>
-                    <td>
-                      <StatusBadge enabled={client.is_active} />
-                    </td>
-                    <td>{formatDate(client.updated_at)}</td>
-                    <td>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Updated</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((client) => (
+                <TableRow key={client.id}>
+                  <TableCell>
+                    <Link href={`/clients/${client.id}`} className="font-medium hover:underline">
+                      {client.name}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{client.email || "-"}</TableCell>
+                  <TableCell>
+                    <StatusBadge enabled={client.is_active} />
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{formatDate(client.updated_at)}</TableCell>
+                  <TableCell>
+                    <div className="flex justify-end">
                       {client.is_active ? (
                         <Button variant="danger" onClick={() => setPendingStateChange({ client, enable: false })}>
                           Disable
@@ -169,12 +169,12 @@ export default function ClientsPage() {
                           Enable
                         </Button>
                       )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
       </Card>
 

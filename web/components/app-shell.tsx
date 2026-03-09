@@ -1,68 +1,146 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { PropsWithChildren, useEffect, useMemo, useState } from "react";
+import { type ComponentType, PropsWithChildren, useEffect, useMemo, useState } from "react";
+import {
+  Activity,
+  ChevronRight,
+  KeyRound,
+  LayoutDashboard,
+  LogOut,
+  Moon,
+  Settings,
+  ShieldCheck,
+  Sun,
+  Users,
+  Zap,
+} from "lucide-react";
+import { useTheme } from "next-themes";
 
 import { APIError, apiFetch, toJSONBody } from "@/lib/api";
 import type { Admin } from "@/lib/types";
 import { useToast } from "@/components/toast-provider";
-import { useTheme } from "@/components/theme-provider";
-import { Button, IconButton, MaterialIcon, cn } from "@/components/ui";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Separator } from "@/components/ui/separator";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
+import { CircularProgress, cn } from "@/components/ui";
 
-type Destination = {
+type NavigationItem = {
   href: string;
   label: string;
-  icon: string;
+  icon: ComponentType<{ className?: string }>;
+  exact?: boolean;
 };
 
-const destinations: Destination[] = [
-  { href: "/", label: "Dashboard", icon: "space_dashboard" },
-  { href: "/clients", label: "Clients", icon: "group" },
-  { href: "/hysteria", label: "Hysteria 2", icon: "bolt" },
-  { href: "/mtproxy", label: "MTProxy", icon: "vpn_key" },
-  { href: "/services", label: "Services", icon: "dns" },
-  { href: "/audit", label: "Audit", icon: "history" },
-  { href: "/settings", label: "Settings", icon: "settings" },
+type NavigationSection = {
+  title: string;
+  items: NavigationItem[];
+};
+
+const sections: NavigationSection[] = [
+  {
+    title: "Overview",
+    items: [{ href: "/", label: "Dashboard", icon: LayoutDashboard, exact: true }],
+  },
+  {
+    title: "Protocols",
+    items: [
+      { href: "/clients", label: "Clients", icon: Users },
+      { href: "/hysteria/users", label: "Hysteria Users", icon: Zap },
+      { href: "/hysteria/settings", label: "Hysteria Settings", icon: Settings },
+      { href: "/mtproxy/users", label: "MTProxy Users", icon: KeyRound },
+      { href: "/mtproxy/settings", label: "MTProxy Settings", icon: Settings },
+    ],
+  },
+  {
+    title: "Operations",
+    items: [
+      { href: "/services", label: "Services", icon: Activity },
+      { href: "/audit", label: "Audit", icon: ShieldCheck },
+    ],
+  },
+  {
+    title: "System",
+    items: [{ href: "/settings", label: "Settings", icon: Settings }],
+  },
 ];
 
+function isActivePath(pathname: string, item: NavigationItem): boolean {
+  if (item.exact) {
+    return pathname === item.href;
+  }
+
+  return pathname === item.href || pathname.startsWith(`${item.href}/`);
+}
+
 function normalizePathname(pathname: string): string {
-  if (pathname === "/hysteria/users" || pathname === "/hysteria/settings") {
-    return "/hysteria";
+  if (pathname === "/hysteria") {
+    return "/hysteria/users";
   }
-  if (pathname === "/mtproxy/users" || pathname === "/mtproxy/settings") {
-    return "/mtproxy";
+
+  if (pathname === "/mtproxy") {
+    return "/mtproxy/users";
   }
+
   return pathname;
 }
 
-function isActiveDestination(pathname: string, href: string): boolean {
-  if (href === "/") {
-    return pathname === "/";
-  }
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
+function useBreadcrumb(pathname: string) {
+  const map = useMemo(
+    () => ({
+      "/": ["Dashboard"],
+      "/clients": ["Clients"],
+      "/clients/[id]": ["Clients", "Details"],
+      "/hysteria/users": ["Hysteria 2", "Users"],
+      "/hysteria/settings": ["Hysteria 2", "Settings"],
+      "/mtproxy/users": ["MTProxy", "Users"],
+      "/mtproxy/settings": ["MTProxy", "Settings"],
+      "/services": ["Services"],
+      "/audit": ["Audit"],
+      "/settings": ["Settings"],
+    }),
+    []
+  );
 
-function getPageSubtitle(pathname: string): string {
-  if (pathname.startsWith("/hysteria")) {
-    return "Hysteria runtime and account control";
+  if (pathname.startsWith("/clients/") && pathname !== "/clients") {
+    return map["/clients/[id]"];
   }
-  if (pathname.startsWith("/mtproxy")) {
-    return "MTProxy secrets and runtime context";
-  }
-  if (pathname.startsWith("/services")) {
-    return "Systemd operations and log diagnostics";
-  }
-  if (pathname.startsWith("/audit")) {
-    return "Administrative history and change trace";
-  }
-  if (pathname.startsWith("/settings")) {
-    return "Panel and protocol configuration";
-  }
-  if (pathname.startsWith("/clients")) {
-    return "Client identities and access lifecycle";
-  }
-  return "Single-node Debian 12 operations";
+
+  return map[pathname as keyof typeof map] || ["Panel"];
 }
 
 export function AppShell({ children }: PropsWithChildren) {
@@ -70,33 +148,14 @@ export function AppShell({ children }: PropsWithChildren) {
   const rawPathname = usePathname();
   const pathname = normalizePathname(rawPathname);
 
+  const breadcrumbs = useBreadcrumb(pathname);
   const { push } = useToast();
-  const { theme, toggleTheme, ready } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
 
   const [loading, setLoading] = useState(true);
   const [admin, setAdmin] = useState<Admin | null>(null);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
-  const isPublic = useMemo(() => pathname === "/login", [pathname]);
-
-  useEffect(() => {
-    setMobileNavOpen(false);
-  }, [pathname]);
-
-  useEffect(() => {
-    if (!mobileNavOpen) {
-      return;
-    }
-
-    function onEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setMobileNavOpen(false);
-      }
-    }
-
-    document.addEventListener("keydown", onEscape);
-    return () => document.removeEventListener("keydown", onEscape);
-  }, [mobileNavOpen]);
+  const isPublic = pathname === "/login";
 
   useEffect(() => {
     let cancelled = false;
@@ -118,10 +177,12 @@ export function AppShell({ children }: PropsWithChildren) {
         if (cancelled) {
           return;
         }
+
         if (error instanceof APIError && error.status === 401) {
           router.replace("/login");
           return;
         }
+
         setLoading(false);
       });
 
@@ -129,25 +190,6 @@ export function AppShell({ children }: PropsWithChildren) {
       cancelled = true;
     };
   }, [isPublic, router]);
-
-  if (isPublic) {
-    return <>{children}</>;
-  }
-
-  if (loading) {
-    return (
-      <div className="app-shell" style={{ display: "grid", placeItems: "center", padding: 16 }}>
-        <section className="md-card md-card--outlined" style={{ width: "min(420px, 100%)" }}>
-          <div className="md-card__content" style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span className="md-circular-progress" aria-hidden />
-            <span>Loading admin session...</span>
-          </div>
-        </section>
-      </div>
-    );
-  }
-
-  const currentDestination = destinations.find((item) => isActiveDestination(pathname, item.href)) || destinations[0];
 
   async function onLogout() {
     try {
@@ -160,99 +202,174 @@ export function AppShell({ children }: PropsWithChildren) {
     }
   }
 
-  function onThemeToggle() {
-    const next = toggleTheme();
-    push(`Theme changed: ${next}`, "info");
+  function toggleTheme() {
+    const next = resolvedTheme === "dark" ? "light" : "dark";
+    setTheme(next);
+    push(`Theme switched to ${next}`, "info");
   }
 
-  const drawerItems = (
-    <div className="md-destination-list">
-      {destinations.map((item) => {
-        const active = isActiveDestination(pathname, item.href);
-        return (
-          <Link key={item.href} href={item.href} className={cn("md-nav-item", active && "md-nav-item--active")}>
-            <span className="md-nav-item__icon">
-              <MaterialIcon name={item.icon} filled={active} />
-            </span>
-            <span className="md-nav-item__label">{item.label}</span>
-          </Link>
-        );
-      })}
-    </div>
-  );
+  if (isPublic) {
+    return <>{children}</>;
+  }
 
-  return (
-    <div className="app-shell">
-      {mobileNavOpen && (
-        <>
-          <div className="md-modal-scrim" onClick={() => setMobileNavOpen(false)} />
-          <aside className="md-modal-drawer" aria-label="Navigation drawer">
-            <div className="md-modal-drawer__header">
-              <div className="md-nav-brand__title">Navigation</div>
-              <IconButton icon="close" label="Close navigation" onClick={() => setMobileNavOpen(false)} />
-            </div>
-            {drawerItems}
-            <div className="md-modal-drawer__footer">{admin?.email || "admin"}</div>
-          </aside>
-        </>
-      )}
-
-      <div className="md-scaffold">
-        <aside className="md-navigation-drawer" aria-label="Primary destinations">
-          <div className="md-nav-brand">
-            <h1 className="md-nav-brand__title">Proxy Panel</h1>
-            <p className="md-nav-brand__subtitle">Hysteria 2 + MTProxy</p>
-          </div>
-          {drawerItems}
-          <div className="md-nav-footer">{admin?.email || "admin"}</div>
-        </aside>
-
-        <aside className="md-navigation-rail" aria-label="Primary destinations">
-          {destinations.map((item) => {
-            const active = isActiveDestination(pathname, item.href);
-            return (
-              <Link key={item.href} href={item.href} className={cn("md-rail-item", active && "md-rail-item--active")}>
-                <span className="md-rail-item__icon">
-                  <MaterialIcon name={item.icon} filled={active} />
-                </span>
-                <span className="md-rail-item__label">{item.label}</span>
-              </Link>
-            );
-          })}
-        </aside>
-
-        <div className="md-scaffold-main">
-          <header className="md-top-app-bar">
-            <div className="md-top-app-bar__leading">
-              <IconButton
-                className="md-only-compact"
-                icon="menu"
-                label="Open navigation"
-                onClick={() => setMobileNavOpen(true)}
-              />
-              <div>
-                <p className="md-top-app-bar__title">{currentDestination.label}</p>
-                <p className="md-top-app-bar__subtitle">{getPageSubtitle(pathname)}</p>
-              </div>
-            </div>
-
-            <div className="md-top-app-bar__actions">
-              <IconButton
-                icon={theme === "dark" ? "light_mode" : "dark_mode"}
-                label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
-                onClick={onThemeToggle}
-                disabled={!ready}
-              />
-              <Button variant="text" icon="logout" onClick={onLogout}>
-                Logout
-              </Button>
-            </div>
-          </header>
-
-          <main className="md-content">{children}</main>
+  if (loading) {
+    return (
+      <div className="grid min-h-screen place-items-center p-4">
+        <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground shadow-sm">
+          <CircularProgress />
+          Loading admin session...
         </div>
       </div>
-    </div>
+    );
+  }
+
+  return (
+    <SidebarProvider defaultOpen>
+      <Sidebar variant="inset" collapsible="icon">
+        <SidebarHeader>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                size="lg"
+                render={<Link href="/" />}
+                className="group-data-[collapsible=icon]:!p-2"
+              >
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+                  <ShieldCheck className="size-4" />
+                </div>
+                <div className="grid flex-1 text-left leading-tight">
+                  <span className="truncate text-sm font-semibold">Proxy Panel</span>
+                  <span className="truncate text-xs text-sidebar-foreground/70">Hysteria 2 + MTProxy</span>
+                </div>
+                <Badge variant="outline" className="text-[10px] group-data-[collapsible=icon]:hidden">
+                  v1
+                </Badge>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarHeader>
+
+        <SidebarContent>
+          {sections.map((section) => (
+            <SidebarGroup key={section.title}>
+              <SidebarGroupLabel>{section.title}</SidebarGroupLabel>
+              <SidebarMenu>
+                {section.items.map((item) => {
+                  const active = isActivePath(pathname, item);
+                  const Icon = item.icon;
+
+                  return (
+                    <SidebarMenuItem key={item.href}>
+                      <SidebarMenuButton
+                        isActive={active}
+                        tooltip={item.label}
+                        render={<Link href={item.href} />}
+                      >
+                        <Icon className="size-4" />
+                        <span>{item.label}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+
+              {section.title === "Protocols" && (
+                <SidebarMenuSub>
+                  <SidebarMenuSubItem>
+                    <SidebarMenuSubButton render={<Link href="/hysteria/users" />} isActive={pathname.startsWith("/hysteria")}>
+                      Hysteria 2
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
+                  <SidebarMenuSubItem>
+                    <SidebarMenuSubButton render={<Link href="/mtproxy/users" />} isActive={pathname.startsWith("/mtproxy")}>
+                      MTProxy
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
+                </SidebarMenuSub>
+              )}
+            </SidebarGroup>
+          ))}
+        </SidebarContent>
+
+        <SidebarFooter>
+          <div className="rounded-lg border border-sidebar-border bg-sidebar-accent/40 p-2 group-data-[collapsible=icon]:hidden">
+            <p className="truncate text-xs font-medium">{admin?.email || "admin"}</p>
+            <p className="text-xs text-sidebar-foreground/70">Authenticated session</p>
+          </div>
+        </SidebarFooter>
+      </Sidebar>
+
+      <SidebarInset>
+        <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-2 border-b bg-background/90 px-4 backdrop-blur">
+          <div className="flex min-w-0 items-center gap-2">
+            <SidebarTrigger className="shrink-0" />
+            <Separator orientation="vertical" className="h-5" />
+            <Breadcrumb>
+              <BreadcrumbList>
+                {breadcrumbs.map((item, index) => {
+                  const last = index === breadcrumbs.length - 1;
+
+                  return (
+                    <div key={`${item}-${index}`} className="flex items-center">
+                      <BreadcrumbItem>
+                        <BreadcrumbPage>{item}</BreadcrumbPage>
+                      </BreadcrumbItem>
+                      {!last && (
+                        <BreadcrumbSeparator>
+                          <ChevronRight className="size-3.5" />
+                        </BreadcrumbSeparator>
+                      )}
+                    </div>
+                  );
+                })}
+              </BreadcrumbList>
+            </Breadcrumb>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="shrink-0"
+              onClick={toggleTheme}
+              aria-label={resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            >
+              {resolvedTheme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+            </Button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<Button variant="ghost" className="h-8 gap-2 px-2" />}>
+                <Avatar className="size-6">
+                  <AvatarFallback className="text-[11px]">AD</AvatarFallback>
+                </Avatar>
+                <span className="hidden text-sm md:inline">Admin</span>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>
+                  <div className="flex flex-col">
+                    <span className="text-xs text-muted-foreground">Signed in as</span>
+                    <span className="truncate text-sm font-medium">{admin?.email || "admin"}</span>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => router.push("/settings")}>
+                  <Settings className="size-4" />
+                  Appearance & Settings
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onLogout} variant="destructive">
+                  <LogOut className="size-4" />
+                  Logout
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </header>
+
+        <main className={cn("mx-auto w-full max-w-7xl p-4 sm:p-6")}>{children}</main>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }
+
 

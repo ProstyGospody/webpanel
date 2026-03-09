@@ -1,50 +1,30 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
 
 import "./globals.css";
 import { AppShell } from "@/components/app-shell";
 import { ToastProvider } from "@/components/toast-provider";
 import { ThemeProvider } from "@/components/theme-provider";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 export const metadata: Metadata = {
   title: "Proxy Panel",
   description: "Admin panel for Hysteria 2 and MTProxy",
 };
 
-const themeInitScript = `
-(function () {
-  try {
-    var key = "panel-theme";
-    var stored = window.localStorage.getItem(key);
-    var theme = stored === "light" || stored === "dark"
-      ? stored
-      : (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-    document.documentElement.setAttribute("data-theme", theme);
-  } catch (err) {
-    document.documentElement.setAttribute("data-theme", "light");
-  }
-})();
-`;
-
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400..700,0..1,-50..200&family=Noto+Sans:wght@400;500;600;700&display=swap"
-          rel="stylesheet"
-        />
-        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
-      </head>
-      <body>
+      <body className="min-h-screen bg-background font-sans text-foreground">
         <ThemeProvider>
-          <ToastProvider>
-            <AppShell>{children}</AppShell>
-          </ToastProvider>
+          <TooltipProvider delay={100}>
+            <ToastProvider>
+              <AppShell>{children}</AppShell>
+            </ToastProvider>
+          </TooltipProvider>
         </ThemeProvider>
       </body>
     </html>
   );
 }
+
 

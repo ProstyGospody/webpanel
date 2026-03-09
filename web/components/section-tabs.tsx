@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -19,16 +19,26 @@ export function SectionTabs({ items }: SectionTabsProps) {
   const pathname = usePathname();
 
   return (
-    <nav className="md-tabs" aria-label="Section navigation">
-      {items.map((item) => {
-        const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-        return (
-          <Link key={item.href} href={item.href} className={cn("md-tab", active && "md-tab--active")}> 
-            {item.icon && <MaterialIcon name={item.icon} />}
-            {item.label}
-          </Link>
-        );
-      })}
+    <nav className="w-full overflow-x-auto rounded-xl border border-border/70 bg-muted/40 p-1" aria-label="Section navigation">
+      <div className="flex min-w-max items-center gap-1">
+        {items.map((item) => {
+          const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+                active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {item.icon && <MaterialIcon name={item.icon} className="size-4" />}
+              {item.label}
+            </Link>
+          );
+        })}
+      </div>
     </nav>
   );
 }

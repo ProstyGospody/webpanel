@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useParams } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
@@ -9,6 +9,7 @@ import type { Client, Hy2Account, MTProxySecret } from "@/lib/types";
 import { Button, Card, EmptyState, InlineMessage, PageHeader, StatusBadge, TextareaField } from "@/components/ui";
 import { useToast } from "@/components/toast-provider";
 import { ConfirmDialog } from "@/components/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type ClientPayload = {
   client: Client;
@@ -184,7 +185,7 @@ export default function ClientDetailsPage() {
 
   if (!payload) {
     return (
-      <div className="md-page-stack">
+      <div className="space-y-6">
         <InlineMessage tone="info">Loading client details...</InlineMessage>
       </div>
     );
@@ -248,7 +249,7 @@ export default function ClientDetailsPage() {
     (pendingAction?.kind === "secret-toggle" && !pendingAction.enable);
 
   return (
-    <div className="md-page-stack">
+    <div className="space-y-6">
       <PageHeader
         title={`Client: ${payload.client.name}`}
         subtitle={`Email: ${payload.client.email || "-"}`}
@@ -268,13 +269,13 @@ export default function ClientDetailsPage() {
       {error && <InlineMessage tone="warning">{error}</InlineMessage>}
 
       <Card title="Profile" subtitle={`Updated: ${formatDate(payload.client.updated_at)}`}>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+        <div className="mb-4 flex flex-wrap gap-2">
           <StatusBadge enabled={payload.client.is_active} />
         </div>
 
-        <form onSubmit={updateClient} style={{ display: "grid", gap: 12 }}>
+        <form onSubmit={updateClient} className="space-y-4">
           <TextareaField label="Note" value={note} onChange={(event) => setNote(event.target.value)} />
-          <div className="md-page-actions">
+          <div className="flex justify-end">
             <Button type="submit">Save note</Button>
           </div>
         </form>
@@ -292,50 +293,48 @@ export default function ClientDetailsPage() {
         {payload.hy2_accounts.length === 0 ? (
           <EmptyState title="No Hysteria accounts" description="Create access to issue Hysteria credentials." icon="person_off" />
         ) : (
-          <div className="md-data-table-wrap">
-            <table className="md-data-table">
-              <thead>
-                <tr>
-                  <th>Identity</th>
-                  <th>Credential</th>
-                  <th>Status</th>
-                  <th>Last seen</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {payload.hy2_accounts.map((account) => (
-                  <tr key={account.id}>
-                    <td>{account.hy2_identity}</td>
-                    <td style={{ maxWidth: 320, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{account.auth_payload}</td>
-                    <td>
-                      <StatusBadge enabled={account.is_enabled} />
-                    </td>
-                    <td>{formatDate(account.last_seen_at)}</td>
-                    <td>
-                      <div className="md-row-actions">
-                        <Button variant="text" onClick={() => void copyValue(account.auth_payload)}>
-                          Copy
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Identity</TableHead>
+                <TableHead>Credential</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Last seen</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {payload.hy2_accounts.map((account) => (
+                <TableRow key={account.id}>
+                  <TableCell>{account.hy2_identity}</TableCell>
+                  <TableCell className="max-w-[260px] truncate font-mono text-xs">{account.auth_payload}</TableCell>
+                  <TableCell>
+                    <StatusBadge enabled={account.is_enabled} />
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{formatDate(account.last_seen_at)}</TableCell>
+                  <TableCell>
+                    <div className="flex justify-end gap-2">
+                      <Button variant="text" onClick={() => void copyValue(account.auth_payload)}>
+                        Copy
+                      </Button>
+                      <Button variant="outlined" onClick={() => setPendingAction({ kind: "hy2-kick", id: account.id })}>
+                        Kick
+                      </Button>
+                      {account.is_enabled ? (
+                        <Button variant="danger" onClick={() => setPendingAction({ kind: "hy2-toggle", id: account.id, enable: false })}>
+                          Disable
                         </Button>
-                        <Button variant="outlined" onClick={() => setPendingAction({ kind: "hy2-kick", id: account.id })}>
-                          Kick
+                      ) : (
+                        <Button variant="tonal" onClick={() => setPendingAction({ kind: "hy2-toggle", id: account.id, enable: true })}>
+                          Enable
                         </Button>
-                        {account.is_enabled ? (
-                          <Button variant="danger" onClick={() => setPendingAction({ kind: "hy2-toggle", id: account.id, enable: false })}>
-                            Disable
-                          </Button>
-                        ) : (
-                          <Button variant="tonal" onClick={() => setPendingAction({ kind: "hy2-toggle", id: account.id, enable: true })}>
-                            Enable
-                          </Button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
       </Card>
 
@@ -351,45 +350,43 @@ export default function ClientDetailsPage() {
         {payload.mtproxy_secrets.length === 0 ? (
           <EmptyState title="No MTProxy secrets" description="Create a secret to allow MTProxy access." icon="vpn_key_off" />
         ) : (
-          <div className="md-data-table-wrap">
-            <table className="md-data-table">
-              <thead>
-                <tr>
-                  <th>Secret</th>
-                  <th>Status</th>
-                  <th>Last seen</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {payload.mtproxy_secrets.map((secret) => (
-                  <tr key={secret.id}>
-                    <td style={{ maxWidth: 320, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{secret.secret}</td>
-                    <td>
-                      <StatusBadge enabled={secret.is_enabled} />
-                    </td>
-                    <td>{formatDate(secret.last_seen_at)}</td>
-                    <td>
-                      <div className="md-row-actions">
-                        <Button variant="text" onClick={() => void copyValue(secret.secret)}>
-                          Copy
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Secret</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Last seen</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {payload.mtproxy_secrets.map((secret) => (
+                <TableRow key={secret.id}>
+                  <TableCell className="max-w-[260px] truncate font-mono text-xs">{secret.secret}</TableCell>
+                  <TableCell>
+                    <StatusBadge enabled={secret.is_enabled} />
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{formatDate(secret.last_seen_at)}</TableCell>
+                  <TableCell>
+                    <div className="flex justify-end gap-2">
+                      <Button variant="text" onClick={() => void copyValue(secret.secret)}>
+                        Copy
+                      </Button>
+                      {secret.is_enabled ? (
+                        <Button variant="danger" onClick={() => setPendingAction({ kind: "secret-toggle", id: secret.id, enable: false })}>
+                          Disable
                         </Button>
-                        {secret.is_enabled ? (
-                          <Button variant="danger" onClick={() => setPendingAction({ kind: "secret-toggle", id: secret.id, enable: false })}>
-                            Disable
-                          </Button>
-                        ) : (
-                          <Button variant="tonal" onClick={() => setPendingAction({ kind: "secret-toggle", id: secret.id, enable: true })}>
-                            Enable
-                          </Button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      ) : (
+                        <Button variant="tonal" onClick={() => setPendingAction({ kind: "secret-toggle", id: secret.id, enable: true })}>
+                          Enable
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
       </Card>
 
@@ -422,4 +419,3 @@ export default function ClientDetailsPage() {
     </div>
   );
 }
-

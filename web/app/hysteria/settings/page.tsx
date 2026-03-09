@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 
@@ -226,7 +226,7 @@ export default function HysteriaSettingsPage() {
   }
 
   return (
-    <div className="md-page-stack">
+    <div className="space-y-6">
       <PageHeader
         title="Hysteria 2"
         subtitle="Native runtime settings: port, SNI, OBFS and Masquerade with validation-first apply flow."
@@ -237,7 +237,7 @@ export default function HysteriaSettingsPage() {
       {error && <InlineMessage tone="warning">{error}</InlineMessage>}
 
       <Card title="Runtime source" subtitle={path || "-"}>
-        <div className="md-form-grid">
+        <div className="grid gap-4 md:grid-cols-2">
           <TextField
             label="Port"
             type="number"
@@ -267,13 +267,13 @@ export default function HysteriaSettingsPage() {
         />
 
         {settings.obfs_enabled && (
-          <div className="md-form-grid" style={{ marginTop: 8 }}>
-            <label className="md-field">
-              <span className="md-field__label">OBFS type</span>
-              <select className="md-field__control" value={settings.obfs_type || "salamander"} onChange={(event) => update("obfs_type", event.target.value)}>
+          <div className="grid gap-4 md:grid-cols-2" style={{ marginTop: 8 }}>
+            <label className="grid gap-2">
+              <span className="text-sm font-medium">OBFS type</span>
+              <select className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50" value={settings.obfs_type || "salamander"} onChange={(event) => update("obfs_type", event.target.value)}>
                 <option value="salamander">salamander</option>
               </select>
-              <span className="md-field__supporting">Material-aligned secure obfuscation mode for clients.</span>
+              <span className="text-xs text-muted-foreground">Secure obfuscation mode used by compatible clients.</span>
             </label>
 
             <TextField
@@ -297,7 +297,7 @@ export default function HysteriaSettingsPage() {
         />
 
         {settings.masquerade_enabled && (
-          <div className="md-form-grid" style={{ marginTop: 8 }}>
+          <div className="grid gap-4 md:grid-cols-2" style={{ marginTop: 8 }}>
             <TextField
               label="Masquerade URL"
               value={settings.masquerade_url || ""}
@@ -320,7 +320,7 @@ export default function HysteriaSettingsPage() {
         title="Apply flow"
         subtitle="Validate, save, then apply runtime config with explicit confirmation."
         action={
-          <div className="md-page-actions">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="outlined" type="button" onClick={validateSettings} disabled={validating || loading}>
               {validating ? "Validating..." : "Validate"}
             </Button>
@@ -357,13 +357,13 @@ export default function HysteriaSettingsPage() {
           </InlineMessage>
         )}
 
-        <div className="md-form-grid" style={{ marginTop: 12 }}>
-          <div className="md-chip md-chip--selected">Validation: {settingsValidation?.valid ? "OK" : "Check fields"}</div>
-          <div className="md-chip md-chip--selected">Config: {configValidation?.valid ? "OK" : "Check config"}</div>
-          <div className="md-chip">Updated: {formatDate(new Date().toISOString())}</div>
-          <div className="md-chip">Client port: {clientParams?.port || "-"}</div>
-          <div className="md-chip">Client SNI: {clientParams?.sni || "-"}</div>
-          <div className="md-chip">Client OBFS: {clientParams?.obfs_type || "disabled"}</div>
+        <div className="grid gap-4 md:grid-cols-2" style={{ marginTop: 12 }}>
+          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-secondary px-3 text-xs font-medium text-secondary-foreground">Validation: {settingsValidation?.valid ? "OK" : "Check fields"}</div>
+          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-secondary px-3 text-xs font-medium text-secondary-foreground">Config: {configValidation?.valid ? "OK" : "Check config"}</div>
+          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-medium text-muted-foreground">Updated: {formatDate(new Date().toISOString())}</div>
+          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-medium text-muted-foreground">Client port: {clientParams?.port || "-"}</div>
+          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-medium text-muted-foreground">Client SNI: {clientParams?.sni || "-"}</div>
+          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-medium text-muted-foreground">Client OBFS: {clientParams?.obfs_type || "disabled"}</div>
         </div>
       </Card>
 
@@ -379,4 +379,5 @@ export default function HysteriaSettingsPage() {
     </div>
   );
 }
+
 
