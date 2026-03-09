@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
@@ -53,6 +53,10 @@ type AccountFormState = {
   hy2_identity: string;
 };
 
+type FormErrors = {
+  client_id?: string;
+};
+
 const POLL_INTERVAL_MS = 10000;
 
 function onlineBadgeClass(online: boolean): "success" | "neutral" {
@@ -83,6 +87,7 @@ export default function HysteriaUsersPage() {
     auth_payload: "",
     hy2_identity: "",
   });
+  const [formErrors, setFormErrors] = useState<FormErrors>({});
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -103,6 +108,12 @@ export default function HysteriaUsersPage() {
     window.setTimeout(() => {
       setCopiedKey((current) => (current === key ? null : current));
     }, 1500);
+  }
+
+  function closeForm() {
+    setFormOpen(false);
+    setEditing(null);
+    setFormErrors({});
   }
 
   async function load(showLoader = false) {
@@ -158,6 +169,7 @@ export default function HysteriaUsersPage() {
 
   function openCreate() {
     setEditing(null);
+    setFormErrors({});
     setFormState((prev) => ({
       client_id: prev.client_id || sortedClients[0]?.id || "",
       auth_payload: "",
@@ -168,6 +180,7 @@ export default function HysteriaUsersPage() {
 
   function openEdit(account: Hy2Account) {
     setEditing(account);
+    setFormErrors({});
     setFormState({
       client_id: account.client_id,
       auth_payload: account.auth_payload,
@@ -178,6 +191,13 @@ export default function HysteriaUsersPage() {
 
   async function submitForm(event: FormEvent) {
     event.preventDefault();
+
+    if (!formState.client_id) {
+      setFormErrors({ client_id: "Client is required." });
+      return;
+    }
+
+    setFormErrors({});
     setFormBusy(true);
     try {
       if (editing) {
@@ -201,8 +221,7 @@ export default function HysteriaUsersPage() {
         push("User created", "success");
       }
 
-      setFormOpen(false);
-      setEditing(null);
+      closeForm();
       await load(false);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to save user";
@@ -319,7 +338,7 @@ export default function HysteriaUsersPage() {
           <EmptyState title="No Hysteria users" description="Create the first user to issue access credentials." icon="person_off" />
         ) : (
           <>
-            <div className="hidden w-full min-w-[760px] text-sm-wrap md:block">
+            <div className="hidden w-full min-w-[760px] md:block">
               <table className="w-full min-w-[760px] text-sm">
                 <thead>
                   <tr>
@@ -337,8 +356,8 @@ export default function HysteriaUsersPage() {
                     return (
                       <tr key={item.id}>
                         <td>
-                          <div style={{ fontWeight: 600 }}>{item.client_name || item.hy2_identity}</div>
-                          <div className="text-muted" style={{ fontSize: "0.8125rem", wordBreak: "break-all" }}>
+                          <div className="font-semibold">{item.client_name || item.hy2_identity}</div>
+                          <div className="text-[0.8125rem] break-all text-muted-foreground">
                             Identity: {item.hy2_identity}
                           </div>
                         </td>
@@ -404,19 +423,19 @@ export default function HysteriaUsersPage() {
                 return (
                   <article key={item.id} className="space-y-2 rounded-xl border border-border/70 bg-muted/30 p-4">
                     <div>
-                      <h3 className="space-y-2 rounded-xl border border-border/70 bg-muted/30 p-4__headline">{item.client_name || item.hy2_identity}</h3>
-                      <p className="space-y-2 rounded-xl border border-border/70 bg-muted/30 p-4__supporting" style={{ wordBreak: "break-all" }}>
+                      <h3 className="text-sm font-semibold">{item.client_name || item.hy2_identity}</h3>
+                      <p className="text-xs break-all text-muted-foreground">
                         Identity: {item.hy2_identity}
                       </p>
                     </div>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <div className="flex flex-wrap gap-2">
                       <StatusBadge enabled={item.is_enabled} />
                       <StatusBadge tone={onlineBadgeClass(online)}>{online ? "Online" : "Offline"}</StatusBadge>
                     </div>
-                    <p className="space-y-2 rounded-xl border border-border/70 bg-muted/30 p-4__supporting" style={{ margin: 0 }}>
+                    <p className="text-xs text-muted-foreground">
                       TX: {formatBytes(item.last_tx_bytes || 0)} | RX: {formatBytes(item.last_rx_bytes || 0)}
                     </p>
-                    <p className="space-y-2 rounded-xl border border-border/70 bg-muted/30 p-4__supporting" style={{ margin: 0 }}>
+                    <p className="text-xs text-muted-foreground">
                       Last seen: {formatDate(item.last_seen_at)}
                     </p>
                     <div className="flex flex-wrap items-center gap-2">
@@ -465,10 +484,10 @@ export default function HysteriaUsersPage() {
       <Dialog
         open={formOpen}
         title={editing ? "Edit Hysteria user" : "Create Hysteria user"}
-        onClose={() => setFormOpen(false)}
+        onClose={closeForm}
         actions={
           <>
-            <Button variant="text" type="button" onClick={() => setFormOpen(false)} disabled={formBusy}>
+            <Button variant="text" type="button" onClick={closeForm} disabled={formBusy}>
               Cancel
             </Button>
             <Button type="submit" form="hy2-user-form" disabled={formBusy}>
@@ -477,12 +496,17 @@ export default function HysteriaUsersPage() {
           </>
         }
       >
-        <form id="hy2-user-form" className="grid gap-4 md:grid-cols-2" onSubmit={submitForm}>
+        <form id="hy2-user-form" className="grid gap-4 md:grid-cols-2" onSubmit={submitForm} noValidate>
           <SelectField
             label="Client"
             value={formState.client_id}
-            onChange={(event) => setFormState((prev) => ({ ...prev, client_id: event.target.value }))}
-            required
+            errorText={formErrors.client_id}
+            onChange={(event) => {
+              setFormState((prev) => ({ ...prev, client_id: event.target.value }));
+              if (formErrors.client_id) {
+                setFormErrors((prev) => ({ ...prev, client_id: undefined }));
+              }
+            }}
             disabled={Boolean(editing)}
             options={sortedClients.map((client) => ({ value: client.id, label: client.name }))}
           />
@@ -539,7 +563,7 @@ export default function HysteriaUsersPage() {
           {uriV2Ray && <TextareaField label="V2RayNG hy2 URI" value={uriV2Ray} readOnly className="font-mono text-xs" />}
 
           {uriClientParams && (
-            <div className="rounded-lg border border-blue-300/70 bg-blue-500/10 px-3 py-2 text-sm text-blue-900 dark:border-blue-500/40 dark:text-blue-200" style={{ marginTop: 4 }}>
+            <div className="mt-1 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
               <div>
                 server: {uriClientParams.server || "-"} | port: {uriClientParams.port || "-"} | sni: {uriClientParams.sni || "-"}
               </div>
@@ -558,4 +582,9 @@ export default function HysteriaUsersPage() {
     </div>
   );
 }
+
+
+
+
+
 

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
@@ -44,6 +44,10 @@ type FormState = {
   secret: string;
 };
 
+type FormErrors = {
+  client_id?: string;
+};
+
 const POLL_INTERVAL_MS = 10000;
 
 const tabs = [
@@ -67,6 +71,7 @@ export default function MTProxyUsersPage() {
   const [formBusy, setFormBusy] = useState(false);
   const [editing, setEditing] = useState<MTProxySecret | null>(null);
   const [formState, setFormState] = useState<FormState>({ client_id: "", label: "", secret: "" });
+  const [formErrors, setFormErrors] = useState<FormErrors>({});
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -77,6 +82,12 @@ export default function MTProxyUsersPage() {
   function markCopied(key: string) {
     setCopiedKey(key);
     window.setTimeout(() => setCopiedKey((current) => (current === key ? null : current)), 1500);
+  }
+
+  function closeForm() {
+    setFormOpen(false);
+    setEditing(null);
+    setFormErrors({});
   }
 
   async function load(showLoader = false) {
@@ -132,6 +143,7 @@ export default function MTProxyUsersPage() {
 
   function openCreate() {
     setEditing(null);
+    setFormErrors({});
     setFormState((prev) => ({
       client_id: prev.client_id || sortedClients[0]?.id || "",
       label: "",
@@ -142,6 +154,7 @@ export default function MTProxyUsersPage() {
 
   function openEdit(secret: MTProxySecret) {
     setEditing(secret);
+    setFormErrors({});
     setFormState({
       client_id: secret.client_id,
       label: secret.label || "",
@@ -152,6 +165,13 @@ export default function MTProxyUsersPage() {
 
   async function submitForm(event: FormEvent) {
     event.preventDefault();
+
+    if (!formState.client_id) {
+      setFormErrors({ client_id: "Client is required." });
+      return;
+    }
+
+    setFormErrors({});
     setFormBusy(true);
     try {
       if (editing) {
@@ -175,8 +195,7 @@ export default function MTProxyUsersPage() {
         push("Secret created", "success");
       }
 
-      setFormOpen(false);
-      setEditing(null);
+      closeForm();
       await load(false);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to save secret";
@@ -264,7 +283,7 @@ export default function MTProxyUsersPage() {
           <EmptyState title="No MTProxy users" description="Create the first secret to activate MTProxy access." icon="vpn_key_off" />
         ) : (
           <>
-            <div className="hidden w-full min-w-[760px] text-sm-wrap md:block">
+            <div className="hidden w-full min-w-[760px] md:block">
               <table className="w-full min-w-[760px] text-sm">
                 <thead>
                   <tr>
@@ -281,8 +300,8 @@ export default function MTProxyUsersPage() {
                     return (
                       <tr key={item.id}>
                         <td>
-                          <div style={{ fontWeight: 600 }}>{item.label || item.client_name || item.client_id}</div>
-                          <div className="text-muted" style={{ fontSize: "0.8125rem", wordBreak: "break-all" }}>
+                          <div className="font-semibold">{item.label || item.client_name || item.client_id}</div>
+                          <div className="text-[0.8125rem] break-all text-muted-foreground">
                             Secret: {item.secret}
                           </div>
                         </td>
@@ -336,18 +355,18 @@ export default function MTProxyUsersPage() {
                 return (
                   <article key={item.id} className="space-y-2 rounded-xl border border-border/70 bg-muted/30 p-4">
                     <div>
-                      <h3 className="space-y-2 rounded-xl border border-border/70 bg-muted/30 p-4__headline">{item.label || item.client_name || item.client_id}</h3>
-                      <p className="space-y-2 rounded-xl border border-border/70 bg-muted/30 p-4__supporting" style={{ wordBreak: "break-all" }}>
+                      <h3 className="text-sm font-semibold">{item.label || item.client_name || item.client_id}</h3>
+                      <p className="text-xs break-all text-muted-foreground">
                         Secret: {item.secret}
                       </p>
                     </div>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <div className="flex flex-wrap gap-2">
                       <StatusBadge enabled={item.is_enabled} />
                       <StatusBadge tone={item.is_runtime_active ? "success" : "neutral"}>
                         {item.is_runtime_active ? "active" : "standby"}
                       </StatusBadge>
                     </div>
-                    <p className="space-y-2 rounded-xl border border-border/70 bg-muted/30 p-4__supporting" style={{ margin: 0 }}>
+                    <p className="text-xs text-muted-foreground">
                       Last seen: {formatDate(item.last_seen_at)}
                     </p>
                     <div className="flex flex-wrap items-center gap-2">
@@ -387,10 +406,10 @@ export default function MTProxyUsersPage() {
       <Dialog
         open={formOpen}
         title={editing ? "Edit MTProxy user" : "Create MTProxy user"}
-        onClose={() => setFormOpen(false)}
+        onClose={closeForm}
         actions={
           <>
-            <Button variant="text" type="button" onClick={() => setFormOpen(false)} disabled={formBusy}>
+            <Button variant="text" type="button" onClick={closeForm} disabled={formBusy}>
               Cancel
             </Button>
             <Button type="submit" form="mtproxy-user-form" disabled={formBusy}>
@@ -399,13 +418,18 @@ export default function MTProxyUsersPage() {
           </>
         }
       >
-        <form id="mtproxy-user-form" className="grid gap-4 md:grid-cols-2" onSubmit={submitForm}>
+        <form id="mtproxy-user-form" className="grid gap-4 md:grid-cols-2" onSubmit={submitForm} noValidate>
           <SelectField
             label="Client"
             value={formState.client_id}
-            onChange={(event) => setFormState((prev) => ({ ...prev, client_id: event.target.value }))}
+            errorText={formErrors.client_id}
+            onChange={(event) => {
+              setFormState((prev) => ({ ...prev, client_id: event.target.value }));
+              if (formErrors.client_id) {
+                setFormErrors((prev) => ({ ...prev, client_id: undefined }));
+              }
+            }}
             disabled={Boolean(editing)}
-            required
             options={sortedClients.map((client) => ({ value: client.id, label: client.name }))}
           />
 
@@ -438,4 +462,9 @@ export default function MTProxyUsersPage() {
     </div>
   );
 }
+
+
+
+
+
 

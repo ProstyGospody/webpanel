@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useParams } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
@@ -273,7 +273,7 @@ export default function ClientDetailsPage() {
           <StatusBadge enabled={payload.client.is_active} />
         </div>
 
-        <form onSubmit={updateClient} className="space-y-4">
+        <form onSubmit={updateClient} noValidate className="space-y-4">
           <TextareaField label="Note" value={note} onChange={(event) => setNote(event.target.value)} />
           <div className="flex justify-end">
             <Button type="submit">Save note</Button>
@@ -419,3 +419,5 @@ export default function ClientDetailsPage() {
     </div>
   );
 }
+
+

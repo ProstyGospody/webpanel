@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -226,14 +226,13 @@ export function AppShell({ children }: PropsWithChildren) {
 
   return (
     <SidebarProvider defaultOpen>
-      <Sidebar variant="inset" collapsible="icon">
+      <Sidebar variant="inset" collapsible="offcanvas">
         <SidebarHeader>
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton
                 size="lg"
                 render={<Link href="/" />}
-                className="group-data-[collapsible=icon]:!p-2"
               >
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
                   <ShieldCheck className="size-4" />
@@ -374,6 +373,10 @@ export function AppShell({ children }: PropsWithChildren) {
     </SidebarProvider>
   );
 }
+
+
+
+
 
 
 

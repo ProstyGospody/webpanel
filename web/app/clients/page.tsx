@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
@@ -11,6 +11,11 @@ import { useToast } from "@/components/toast-provider";
 import { ConfirmDialog } from "@/components/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
+type CreateClientErrors = {
+  name?: string;
+  email?: string;
+};
+
 export default function ClientsPage() {
   const { push } = useToast();
   const [clients, setClients] = useState<Client[]>([]);
@@ -19,6 +24,7 @@ export default function ClientsPage() {
   const [email, setEmail] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [createErrors, setCreateErrors] = useState<CreateClientErrors>({});
 
   const [pendingStateChange, setPendingStateChange] = useState<{ client: Client; enable: boolean } | null>(null);
   const [changingState, setChangingState] = useState(false);
@@ -42,12 +48,32 @@ export default function ClientsPage() {
   async function onCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+
+    const nextErrors: CreateClientErrors = {};
+    const normalizedName = name.trim();
+    const normalizedEmail = email.trim();
+
+    if (!normalizedName) {
+      nextErrors.name = "Client name is required.";
+    }
+
+    if (normalizedEmail && !/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
+      nextErrors.email = "Enter a valid email.";
+    }
+
+    if (Object.keys(nextErrors).length > 0) {
+      setCreateErrors(nextErrors);
+      return;
+    }
+
+    setCreateErrors({});
+
     try {
       await apiFetch<Client>("/api/clients", {
         method: "POST",
         body: toJSONBody({
-          name,
-          email: email || null,
+          name: normalizedName,
+          email: normalizedEmail || null,
           note: note || null,
         }),
       });
@@ -99,9 +125,30 @@ export default function ClientsPage() {
 
       <div className="grid gap-4 xl:grid-cols-2">
         <Card title="Create client" subtitle="Clients are reusable identity records for protocol accounts.">
-          <form className="grid gap-4 md:grid-cols-2" onSubmit={onCreate}>
-            <TextField label="Client name" value={name} onChange={(event) => setName(event.target.value)} required />
-            <TextField label="Email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+          <form className="grid gap-4 md:grid-cols-2" onSubmit={onCreate} noValidate>
+            <TextField
+              label="Client name"
+              value={name}
+              errorText={createErrors.name}
+              onChange={(event) => {
+                setName(event.target.value);
+                if (createErrors.name) {
+                  setCreateErrors((prev) => ({ ...prev, name: undefined }));
+                }
+              }}
+            />
+            <TextField
+              label="Email"
+              type="email"
+              value={email}
+              errorText={createErrors.email}
+              onChange={(event) => {
+                setEmail(event.target.value);
+                if (createErrors.email) {
+                  setCreateErrors((prev) => ({ ...prev, email: undefined }));
+                }
+              }}
+            />
             <TextField
               label="Note"
               className="md:col-span-2"
@@ -115,7 +162,7 @@ export default function ClientsPage() {
         </Card>
 
         <Card title="Search" subtitle="Filter by client name or e-mail.">
-          <form onSubmit={onSearchSubmit} className="grid gap-4">
+          <form onSubmit={onSearchSubmit} noValidate className="grid gap-4">
             <TextField
               label="Query"
               placeholder="Search by name or email"

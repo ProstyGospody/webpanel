@@ -1,10 +1,11 @@
-import {
+﻿import {
   ButtonHTMLAttributes,
   InputHTMLAttributes,
   PropsWithChildren,
   ReactNode,
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
+  useId,
 } from "react";
 import {
   BellRing,
@@ -193,19 +194,19 @@ type StatusBadgeProps = {
 
 function statusToneClass(tone: StatusTone): string {
   if (tone === "success") {
-    return "border-emerald-300/80 bg-emerald-500/10 text-emerald-700 dark:border-emerald-500/50 dark:text-emerald-300";
+    return "border-border bg-secondary text-secondary-foreground";
   }
 
   if (tone === "warning") {
-    return "border-amber-300/80 bg-amber-500/10 text-amber-700 dark:border-amber-500/50 dark:text-amber-300";
+    return "border-border bg-accent text-accent-foreground";
   }
 
   if (tone === "error") {
-    return "border-rose-300/80 bg-rose-500/10 text-rose-700 dark:border-rose-500/50 dark:text-rose-300";
+    return "border-destructive/40 bg-destructive/10 text-destructive";
   }
 
   if (tone === "info") {
-    return "border-blue-300/80 bg-blue-500/10 text-blue-700 dark:border-blue-500/50 dark:text-blue-300";
+    return "border-border bg-muted text-muted-foreground";
   }
 
   return "border-border bg-muted text-muted-foreground";
@@ -287,7 +288,7 @@ type MetricCardProps = {
 
 export function MetricCard({ label, value, hint }: MetricCardProps) {
   return (
-    <ShadCard className="surface-gradient border border-border/70">
+    <ShadCard className="border border-border/70 bg-card">
       <CardContent className="space-y-2 p-5">
         <div className="text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">{label}</div>
         <div className="text-2xl font-semibold tracking-tight tabular-nums">{value}</div>
@@ -308,22 +309,22 @@ export function InlineMessage({ tone = "info", children }: InlineMessageProps) {
   const toneMeta: Record<MessageTone, { title: string; className: string; icon: string }> = {
     info: {
       title: "Info",
-      className: "border-blue-300/80 bg-blue-500/10 text-blue-900 dark:border-blue-500/40 dark:text-blue-200",
+      className: "border-border bg-muted text-foreground",
       icon: "info",
     },
     warning: {
       title: "Warning",
-      className: "border-amber-300/80 bg-amber-500/10 text-amber-900 dark:border-amber-500/40 dark:text-amber-200",
+      className: "border-border bg-accent text-accent-foreground",
       icon: "warning",
     },
     error: {
       title: "Error",
-      className: "border-rose-300/80 bg-rose-500/10 text-rose-900 dark:border-rose-500/40 dark:text-rose-200",
+      className: "border-destructive/40 bg-destructive/10 text-destructive",
       icon: "error",
     },
     success: {
       title: "Success",
-      className: "border-emerald-300/80 bg-emerald-500/10 text-emerald-900 dark:border-emerald-500/40 dark:text-emerald-200",
+      className: "border-border bg-secondary text-secondary-foreground",
       icon: "check_circle",
     },
   };
@@ -394,14 +395,27 @@ type BaseFieldProps = {
 type TextFieldProps = BaseFieldProps & InputHTMLAttributes<HTMLInputElement>;
 
 export function TextField({ label, supportingText, errorText, className, ...props }: TextFieldProps) {
+  const fieldId = props.id || useId();
+  const helperId = `${fieldId}-help`;
+  const hasHelper = Boolean(errorText || supportingText);
+
   return (
-    <label className={cn("grid gap-2", className)}>
-      <Label className="text-sm font-medium">{label}</Label>
-      <Input className={errorText ? "border-destructive/70 focus-visible:ring-destructive/20" : undefined} {...props} />
-      {(errorText || supportingText) && (
-        <span className={cn("text-xs", errorText ? "text-destructive" : "text-muted-foreground")}>{errorText || supportingText}</span>
+    <div className={cn("grid gap-2", className)}>
+      <Label htmlFor={fieldId} className="text-sm font-medium">
+        {label}
+      </Label>
+      <Input
+        id={fieldId}
+        aria-invalid={Boolean(errorText)}
+        aria-describedby={hasHelper ? helperId : undefined}
+        {...props}
+      />
+      {hasHelper && (
+        <p id={helperId} role={errorText ? "alert" : undefined} className={cn("text-xs", errorText ? "text-destructive" : "text-muted-foreground")}>
+          {errorText || supportingText}
+        </p>
       )}
-    </label>
+    </div>
   );
 }
 
@@ -411,15 +425,24 @@ type SelectFieldProps = BaseFieldProps &
   };
 
 export function SelectField({ label, supportingText, errorText, className, options, ...props }: SelectFieldProps) {
+  const fieldId = props.id || useId();
+  const helperId = `${fieldId}-help`;
+  const hasHelper = Boolean(errorText || supportingText);
+
   return (
-    <label className={cn("grid gap-2", className)}>
-      <Label className="text-sm font-medium">{label}</Label>
+    <div className={cn("grid gap-2", className)}>
+      <Label htmlFor={fieldId} className="text-sm font-medium">
+        {label}
+      </Label>
       <select
+        id={fieldId}
+        aria-invalid={Boolean(errorText)}
+        aria-describedby={hasHelper ? helperId : undefined}
         className={cn(
           "flex h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none",
           "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
           "disabled:cursor-not-allowed disabled:opacity-50",
-          errorText && "border-destructive/70 focus-visible:ring-destructive/20"
+          "aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20"
         )}
         {...props}
       >
@@ -429,24 +452,39 @@ export function SelectField({ label, supportingText, errorText, className, optio
           </option>
         ))}
       </select>
-      {(errorText || supportingText) && (
-        <span className={cn("text-xs", errorText ? "text-destructive" : "text-muted-foreground")}>{errorText || supportingText}</span>
+      {hasHelper && (
+        <p id={helperId} role={errorText ? "alert" : undefined} className={cn("text-xs", errorText ? "text-destructive" : "text-muted-foreground")}>
+          {errorText || supportingText}
+        </p>
       )}
-    </label>
+    </div>
   );
 }
 
 type TextareaFieldProps = BaseFieldProps & TextareaHTMLAttributes<HTMLTextAreaElement>;
 
 export function TextareaField({ label, supportingText, errorText, className, ...props }: TextareaFieldProps) {
+  const fieldId = props.id || useId();
+  const helperId = `${fieldId}-help`;
+  const hasHelper = Boolean(errorText || supportingText);
+
   return (
-    <label className={cn("grid gap-2", className)}>
-      <Label className="text-sm font-medium">{label}</Label>
-      <Textarea className={errorText ? "border-destructive/70 focus-visible:ring-destructive/20" : undefined} {...props} />
-      {(errorText || supportingText) && (
-        <span className={cn("text-xs", errorText ? "text-destructive" : "text-muted-foreground")}>{errorText || supportingText}</span>
+    <div className={cn("grid gap-2", className)}>
+      <Label htmlFor={fieldId} className="text-sm font-medium">
+        {label}
+      </Label>
+      <Textarea
+        id={fieldId}
+        aria-invalid={Boolean(errorText)}
+        aria-describedby={hasHelper ? helperId : undefined}
+        {...props}
+      />
+      {hasHelper && (
+        <p id={helperId} role={errorText ? "alert" : undefined} className={cn("text-xs", errorText ? "text-destructive" : "text-muted-foreground")}>
+          {errorText || supportingText}
+        </p>
       )}
-    </label>
+    </div>
   );
 }
 
@@ -469,4 +507,6 @@ export function SwitchField({ label, supportingText, checked, onChange, disabled
     </label>
   );
 }
+
+
 

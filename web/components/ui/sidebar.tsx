@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import * as React from "react"
 import { mergeProps } from "@base-ui/react/merge-props"
@@ -503,18 +503,25 @@ function SidebarMenuButton({
   size = "default",
   tooltip,
   className,
+  onClick,
   ...props
 }: useRender.ComponentProps<"button"> &
   React.ComponentProps<"button"> & {
     isActive?: boolean
     tooltip?: string | React.ComponentProps<typeof TooltipContent>
   } & VariantProps<typeof sidebarMenuButtonVariants>) {
-  const { isMobile, state } = useSidebar()
+  const { isMobile, state, setOpenMobile } = useSidebar()
   const comp = useRender({
     defaultTagName: "button",
     props: mergeProps<"button">(
       {
         className: cn(sidebarMenuButtonVariants({ variant, size }), className),
+        onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
+          onClick?.(event)
+          if (!event.defaultPrevented && isMobile) {
+            setOpenMobile(false)
+          }
+        },
       },
       props
     ),
@@ -721,3 +728,6 @@ export {
   SidebarTrigger,
   useSidebar,
 }
+
+
+

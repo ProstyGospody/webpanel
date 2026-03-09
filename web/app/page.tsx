@@ -1,34 +1,117 @@
-"use client";
+﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { ReactNode, useEffect, useMemo, useState } from "react";
+import { Activity, Clock3, Cpu, MemoryStick } from "lucide-react";
 
 import { apiFetch } from "@/lib/api";
-import type { LiveDashboardPayload, LiveServiceStatus } from "@/lib/types";
+import type { LiveDashboardPayload } from "@/lib/types";
 import { formatBytes, formatDate, formatRate, formatUptime } from "@/lib/format";
-import { Card, EmptyState, InlineMessage, LinearProgress, MetricCard, PageHeader, StatusBadge } from "@/components/ui";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const POLL_INTERVAL_MS = 5000;
+const HISTORY_LIMIT = 48;
 
-function serviceTone(status: string): "success" | "error" | "warning" | "neutral" {
-  const normalized = status.toLowerCase();
-  if (normalized.includes("active") || normalized.includes("running")) {
-    return "success";
+type MetricSnapshot = {
+  timestamp: number;
+  cpu: number;
+  memory: number;
+  uptime: number;
+  network: number;
+};
+
+function appendSnapshot(history: MetricSnapshot[], snapshot: MetricSnapshot): MetricSnapshot[] {
+  if (history.length > 0 && history[history.length - 1].timestamp === snapshot.timestamp) {
+    return [...history.slice(0, -1), snapshot];
   }
-  if (normalized.includes("failed") || normalized.includes("dead") || normalized.includes("inactive")) {
-    return "error";
-  }
-  if (normalized.includes("reloading") || normalized.includes("activating")) {
-    return "warning";
-  }
-  return "neutral";
+
+  return [...history, snapshot].slice(-HISTORY_LIMIT);
 }
 
-function findService(services: LiveServiceStatus[], name: string): LiveServiceStatus | null {
-  return services.find((item) => item.service_name === name) || null;
+function Sparkline({ values, loading, failed }: { values: number[]; loading: boolean; failed: boolean }) {
+  if (loading && values.length === 0) {
+    return <Skeleton className="h-20 w-full rounded-md" />;
+  }
+
+  if (values.length === 0) {
+    return (
+      <div className="flex h-20 items-center justify-center rounded-md border border-dashed border-border text-xs text-muted-foreground">
+        {failed ? "Data unavailable" : "Waiting for data"}
+      </div>
+    );
+  }
+
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+  const range = maxValue - minValue || 1;
+
+  const points = values.map((value, index) => {
+    const x = values.length === 1 ? 50 : (index / (values.length - 1)) * 100;
+    const y = 100 - ((value - minValue) / range) * 100;
+    return `${x},${y}`;
+  });
+
+  const polylinePoints = points.join(" ");
+  const areaPoints = `0,100 ${polylinePoints} 100,100`;
+
+  return (
+    <div className="relative h-20 w-full overflow-hidden rounded-md bg-muted/30">
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-full w-full">
+        <polygon points={areaPoints} fill="hsl(var(--primary) / 0.16)" />
+        <polyline
+          points={polylinePoints}
+          fill="none"
+          stroke="hsl(var(--primary))"
+          strokeWidth="2.25"
+          vectorEffect="non-scaling-stroke"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+      {failed && <span className="absolute top-2 right-2 text-[10px] text-muted-foreground">degraded</span>}
+    </div>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  hint,
+  loading,
+  failed,
+  values,
+  icon,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+  loading: boolean;
+  failed: boolean;
+  values: number[];
+  icon: ReactNode;
+}) {
+  return (
+    <Card className="border-border/70">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">{label}</span>
+          <span className="text-muted-foreground">{icon}</span>
+        </div>
+        <CardTitle className="text-2xl font-semibold tracking-tight tabular-nums">{value}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <Sparkline values={values} loading={loading} failed={failed} />
+        <p className="text-xs text-muted-foreground">{hint}</p>
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function DashboardPage() {
   const [data, setData] = useState<LiveDashboardPayload | null>(null);
+  const [history, setHistory] = useState<MetricSnapshot[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,11 +125,21 @@ export default function DashboardPage() {
 
     try {
       const payload = await apiFetch<LiveDashboardPayload>("/api/system/live");
+      const backendIssues = (payload.errors || []).filter((issue, index, all) => issue && all.indexOf(issue) === index);
+
       setData(payload);
-      const backendIssues = (payload.errors || []).filter((item, idx, all) => item && all.indexOf(item) === idx);
       setError(backendIssues.length > 0 ? backendIssues.join(". ") : null);
+      setHistory((prev) =>
+        appendSnapshot(prev, {
+          timestamp: Date.parse(payload.collected_at) || Date.now(),
+          cpu: payload.system.cpu_usage_percent,
+          memory: payload.system.memory_used_percent,
+          uptime: payload.system.uptime_seconds,
+          network: (payload.system.network_rx_bps || 0) + (payload.system.network_tx_bps || 0),
+        })
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load live dashboard");
+      setError(err instanceof Error ? err.message : "Failed to load dashboard");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -75,118 +168,80 @@ export default function DashboardPage() {
   }, []);
 
   const system = data?.system;
-  const hy2Service = useMemo(() => findService(data?.services || [], "hysteria-server"), [data]);
-  const mtService = useMemo(() => findService(data?.services || [], "mtproxy"), [data]);
+
+  const cpuSeries = useMemo(() => history.map((point) => point.cpu), [history]);
+  const memorySeries = useMemo(() => history.map((point) => point.memory), [history]);
+  const uptimeSeries = useMemo(() => history.map((point) => point.uptime), [history]);
+  const networkSeries = useMemo(() => history.map((point) => point.network), [history]);
+
+  const hasHardFailure = Boolean(error && !data);
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Dashboard"
-        subtitle="Live system health, protocol traffic and service runtime state in one view."
-        meta={
-          <>
-            {refreshing ? "Refreshing..." : "Auto refresh: 5s"}
-            <br />
-            Last update: {formatDate(data?.collected_at)}
-          </>
-        }
-      />
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Badge variant="outline">{refreshing ? "Refreshing" : "Live · 5s"}</Badge>
+          <span>Updated: {formatDate(data?.collected_at)}</span>
+        </div>
+      </div>
 
-      {(loading || refreshing) && <LinearProgress indeterminate />}
+      {error && (
+        <Alert variant={hasHardFailure ? "destructive" : "default"}>
+          <AlertTitle>{hasHardFailure ? "Dashboard unavailable" : "Partial data"}</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
-      {error && <InlineMessage tone="warning">{error}</InlineMessage>}
-
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="System and protocol metrics">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4" aria-label="System metrics">
         <MetricCard
           label="CPU"
-          value={loading ? "Loading..." : `${system?.cpu_usage_percent?.toFixed(1) || "0.0"}%`}
-          hint={system ? `${system.source}${system.is_stale ? " РІР‚Сћ stale" : " РІР‚Сћ live"}` : "-"}
+          value={system ? `${system.cpu_usage_percent.toFixed(1)}%` : "--"}
+          hint={system ? `${system.source}${system.is_stale ? " · stale" : " · live"}` : "No sample yet"}
+          loading={loading}
+          failed={hasHardFailure}
+          values={cpuSeries}
+          icon={<Cpu className="size-4" />}
         />
+
         <MetricCard
-          label="Memory"
-          value={loading ? "Loading..." : `${formatBytes(system?.memory_used_bytes)} / ${formatBytes(system?.memory_total_bytes)}`}
-          hint={system ? `${system.memory_used_percent.toFixed(1)}% used` : "-"}
+          label="MEMORY"
+          value={system ? `${system.memory_used_percent.toFixed(1)}%` : "--"}
+          hint={system ? `${formatBytes(system.memory_used_bytes)} of ${formatBytes(system.memory_total_bytes)}` : "No sample yet"}
+          loading={loading}
+          failed={hasHardFailure}
+          values={memorySeries}
+          icon={<MemoryStick className="size-4" />}
         />
+
         <MetricCard
-          label="Uptime"
-          value={loading ? "Loading..." : formatUptime(system?.uptime_seconds)}
-          hint={system ? `Collected ${formatDate(system.collected_at)}` : "-"}
+          label="UPTIME"
+          value={system ? formatUptime(system.uptime_seconds) : "--"}
+          hint={system ? `Collected: ${formatDate(system.collected_at)}` : "No sample yet"}
+          loading={loading}
+          failed={hasHardFailure}
+          values={uptimeSeries}
+          icon={<Clock3 className="size-4" />}
         />
+
         <MetricCard
-          label="Network"
-          value={loading ? "Loading..." : `RX ${formatRate(system?.network_rx_bps)}`}
-          hint={loading ? "" : `TX ${formatRate(system?.network_tx_bps)}`}
-        />
-        <MetricCard
-          label="Hysteria Online"
-          value={String(data?.hysteria.online_count ?? 0)}
-          hint={`${data?.hysteria.source || "snapshot"}${data?.hysteria.is_stale ? " РІР‚Сћ stale" : " РІР‚Сћ live"}`}
-        />
-        <MetricCard
-          label="Hysteria Traffic"
-          value={`TX ${formatBytes(data?.hysteria.total_tx_bytes ?? 0)}`}
-          hint={`RX ${formatBytes(data?.hysteria.total_rx_bytes ?? 0)}`}
-        />
-        <MetricCard
-          label="MTProxy Connections"
-          value={String(data?.mtproxy.connections_total ?? 0)}
-          hint={`Users ${data?.mtproxy.users_total ?? 0}`}
-        />
-        <MetricCard
-          label="MTProxy Enabled"
-          value={String(data?.mtproxy.enabled_secrets ?? 0)}
-          hint={`${data?.mtproxy.source || "snapshot"}${data?.mtproxy.is_stale ? " РІР‚Сћ stale" : " РІР‚Сћ live"}`}
+          label="NETWORK"
+          value={system ? formatRate((system.network_rx_bps || 0) + (system.network_tx_bps || 0)) : "--"}
+          hint={
+            system
+              ? `RX ${formatRate(system.network_rx_bps || 0)} · TX ${formatRate(system.network_tx_bps || 0)}`
+              : "No sample yet"
+          }
+          loading={loading}
+          failed={hasHardFailure}
+          values={networkSeries}
+          icon={<Activity className="size-4" />}
         />
       </section>
-
-      <div className="grid gap-4 xl:grid-cols-5">
-        <Card
-          className="xl:col-span-3"
-          title="Service status"
-          subtitle="Runtime state from systemd with automatic fallback to cached checks."
-        >
-          <div className="space-y-3">
-            {[hy2Service, mtService].map((item) => {
-              if (!item) {
-                return null;
-              }
-
-              return (
-                <article key={item.service_name} className="rounded-xl border border-border/70 bg-muted/30 p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <h3 className="text-base font-semibold">{item.service_name}</h3>
-                      <p className="text-xs text-muted-foreground">
-                        Checked: {formatDate(item.last_check_at)} РІР‚Сћ {item.source}
-                        {item.is_stale ? " (stale)" : ""}
-                      </p>
-                    </div>
-                    <StatusBadge tone={serviceTone(item.status)}>{item.status}</StatusBadge>
-                  </div>
-                  {item.error && <p className="mt-2 text-sm text-muted-foreground">{item.error}</p>}
-                </article>
-              );
-            })}
-
-            {(!data?.services || data.services.length === 0) && !loading && (
-              <EmptyState
-                title="No service data"
-                description="No runtime status is currently available from backend services."
-                icon="dns"
-              />
-            )}
-          </div>
-        </Card>
-
-        <Card className="xl:col-span-2" title="Data notes" subtitle="How metrics are collected and interpreted.">
-          <ul className="space-y-2 text-sm text-muted-foreground">
-            <li>CPU, RAM and uptime are collected via Prometheus/node_exporter with procfs fallback.</li>
-            <li>Hysteria and MTProxy counters are loaded from live runtime endpoints with snapshot fallback.</li>
-            <li>Stale status means runtime source is currently unavailable and cached values are shown.</li>
-          </ul>
-        </Card>
-      </div>
     </div>
   );
 }
+
+
+
 
