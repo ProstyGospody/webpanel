@@ -485,7 +485,7 @@ acme:
 auth:
   type: http
   http:
-    url: http://127.0.0.1:${PANEL_API_PORT}/internal/hy2/auth?token=${INTERNAL_AUTH_TOKEN}
+    url: http://127.0.0.1:${PANEL_API_PORT}/internal/hy2/auth/${INTERNAL_AUTH_TOKEN}
     insecure: true
 
 trafficStats:

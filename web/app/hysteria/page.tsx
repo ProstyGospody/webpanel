@@ -55,6 +55,7 @@ type Hy2AccountViewPayload = {
   account: Hy2Account;
   uri: string;
   uri_v2rayng?: string;
+  singbox_outbound?: Record<string, unknown>;
   client_params?: Hy2ClientParams;
 };
 
@@ -73,7 +74,7 @@ export default function HysteriaPage() {
   const [uriModalOpen, setURIModalOpen] = useState(false);
   const [showQRCode, setShowQRCode] = useState(false);
   const [currentURI, setCurrentURI] = useState("");
-  const [currentV2RayNGURI, setCurrentV2RayNGURI] = useState("");
+  const [currentSingBoxJSON, setCurrentSingBoxJSON] = useState("");
   const [currentURITitle, setCurrentURITitle] = useState("");
   const [currentClientParams, setCurrentClientParams] = useState<Hy2ClientParams | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -226,7 +227,7 @@ export default function HysteriaPage() {
     try {
       const payload = await apiFetch<Hy2AccountViewPayload>(`/api/hy2/accounts/${account.id}`);
       setCurrentURI(payload.uri);
-      setCurrentV2RayNGURI(payload.uri_v2rayng || payload.uri.replace(/^hysteria2:\/\//, "hy2://"));
+      setCurrentSingBoxJSON(JSON.stringify(payload.singbox_outbound || {}, null, 2));
       setCurrentURITitle(account.client_name || account.hy2_identity);
       setCurrentClientParams(payload.client_params || null);
       setShowQRCode(withQR);
@@ -480,7 +481,7 @@ export default function HysteriaPage() {
               <button className="btn btn-muted" onClick={() => setURIModalOpen(false)}>Close</button>
             </div>
             <textarea className="input min-h-24 font-mono text-xs" value={currentURI} readOnly />
-            <textarea className="input min-h-24 font-mono text-xs" value={currentV2RayNGURI} readOnly />
+            <textarea className="input min-h-24 font-mono text-xs" value={currentSingBoxJSON} readOnly />
             {currentClientParams && (
               <div className="rounded border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700">
                 <div>server: {currentClientParams.server || "-"}</div>
@@ -494,12 +495,12 @@ export default function HysteriaPage() {
             )}
             <div className="flex flex-wrap gap-2">
               <button className="btn btn-primary" onClick={() => copyURI(currentURI, "uri")}>{copiedKey === "uri" ? "Copied" : "Copy URI (Standard)"}</button>
-              <button className="btn btn-primary" onClick={() => copyURI(currentV2RayNGURI, "uri_v2rayng")}>{copiedKey === "uri_v2rayng" ? "Copied" : "Copy URI (v2rayNG)"}</button>
+              <button className="btn btn-primary" onClick={() => copyURI(currentSingBoxJSON, "singbox")}>{copiedKey === "singbox" ? "Copied" : "Copy sing-box outbound"}</button>
               <button className="btn btn-muted" onClick={() => setShowQRCode((prev) => !prev)}>{showQRCode ? "Hide QR" : "Show QR"}</button>
             </div>
-            {showQRCode && currentV2RayNGURI && (
+            {showQRCode && currentURI && (
               <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(currentV2RayNGURI)}`}
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(currentURI)}`}
                 alt="Hysteria QR code"
                 className="h-64 w-64 rounded border border-slate-200"
               />

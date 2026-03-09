@@ -167,39 +167,7 @@ func (h *Handler) audit(r *http.Request, action string, entityType string, entit
 }
 
 func (h *Handler) buildHy2URI(account repository.Hy2AccountWithClient) string {
-	params := services.Hy2ClientParams{
-		Server:   services.NormalizeHost(h.cfg.Hy2Domain),
-		Port:     h.cfg.Hy2Port,
-		SNI:      services.NormalizeHost(h.cfg.Hy2Domain),
-		Insecure: false,
-	}
-	if params.Server == "" {
-		params.Server = services.NormalizeHost(h.cfg.PanelPublicHost)
-	}
-	if params.SNI == "" {
-		params.SNI = params.Server
-	}
-
-	if h.hy2ConfigManager != nil {
-		if content, err := h.hy2ConfigManager.Read(); err == nil {
-			parsed := h.hy2ConfigManager.ClientParams(content, h.cfg.Hy2Domain, h.cfg.Hy2Port)
-			if parsed.Server != "" {
-				params = parsed
-			}
-		} else {
-			h.logger.Debug("failed to read hysteria config for uri", "error", err)
-		}
-	}
-
-	if params.Server == "" {
-		params.Server = services.NormalizeHost(h.cfg.PanelPublicHost)
-	}
-	if params.Port <= 0 {
-		params.Port = h.cfg.Hy2Port
-	}
-	if params.SNI == "" {
-		params.SNI = params.Server
-	}
+	params := h.resolveHy2ClientParams()
 
 	query := url.Values{}
 	if params.SNI != "" {
@@ -243,6 +211,84 @@ func (h *Handler) buildHy2V2RayNGURI(account repository.Hy2AccountWithClient) st
 	return parsed.String()
 }
 
+func (h *Handler) buildHy2SingBoxOutbound(account repository.Hy2AccountWithClient) map[string]any {
+	params := h.resolveHy2ClientParams()
+
+	tls := map[string]any{
+		"enabled": true,
+	}
+	if strings.TrimSpace(params.SNI) != "" {
+		tls["server_name"] = strings.TrimSpace(params.SNI)
+	}
+	if params.Insecure {
+		tls["insecure"] = true
+	}
+	if strings.TrimSpace(params.PinSHA256) != "" {
+		tls["certificate_public_key_sha256"] = []string{strings.TrimSpace(params.PinSHA256)}
+	}
+	if len(params.ALPN) > 0 {
+		tls["alpn"] = params.ALPN
+	}
+
+	outbound := map[string]any{
+		"type":        "hysteria2",
+		"tag":         "hy2-" + strings.TrimSpace(account.Hy2Identity),
+		"server":      params.Server,
+		"server_port": params.Port,
+		"password":    account.AuthPayload,
+		"tls":         tls,
+	}
+
+	if strings.TrimSpace(params.ObfsType) != "" {
+		obfs := map[string]any{
+			"type": strings.TrimSpace(params.ObfsType),
+		}
+		if strings.TrimSpace(params.ObfsPassword) != "" {
+			obfs["password"] = strings.TrimSpace(params.ObfsPassword)
+		}
+		outbound["obfs"] = obfs
+	}
+
+	return outbound
+}
+
+func (h *Handler) resolveHy2ClientParams() services.Hy2ClientParams {
+	params := services.Hy2ClientParams{
+		Server:   services.NormalizeHost(h.cfg.Hy2Domain),
+		Port:     h.cfg.Hy2Port,
+		SNI:      services.NormalizeHost(h.cfg.Hy2Domain),
+		Insecure: false,
+	}
+	if params.Server == "" {
+		params.Server = services.NormalizeHost(h.cfg.PanelPublicHost)
+	}
+	if params.SNI == "" {
+		params.SNI = params.Server
+	}
+
+	if h.hy2ConfigManager != nil {
+		if content, err := h.hy2ConfigManager.Read(); err == nil {
+			parsed := h.hy2ConfigManager.ClientParams(content, h.cfg.Hy2Domain, h.cfg.Hy2Port)
+			if parsed.Server != "" {
+				params = parsed
+			}
+		} else {
+			h.logger.Debug("failed to read hysteria config for client params", "error", err)
+		}
+	}
+
+	if params.Server == "" {
+		params.Server = services.NormalizeHost(h.cfg.PanelPublicHost)
+	}
+	if params.Port <= 0 {
+		params.Port = h.cfg.Hy2Port
+	}
+	if params.SNI == "" {
+		params.SNI = params.Server
+	}
+
+	return params
+}
 func (h *Handler) buildMTProxyLink(secret string) string {
 	host := services.NormalizeHost(h.cfg.MTProxyPublicHost)
 	if host == "" {
@@ -260,7 +306,15 @@ func parseInternalAuth(r *http.Request) string {
 	if token != "" {
 		return token
 	}
+	token = strings.TrimSpace(r.URL.Query().Get("auth_token"))
+	if token != "" {
+		return token
+	}
 	token = strings.TrimSpace(r.Header.Get("X-Internal-Token"))
+	if token != "" {
+		return token
+	}
+	token = strings.TrimSpace(r.Header.Get("X-Internal-Auth-Token"))
 	if token != "" {
 		return token
 	}

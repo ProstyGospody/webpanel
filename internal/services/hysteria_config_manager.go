@@ -138,6 +138,8 @@ func (m *HysteriaConfigManager) Parse(content string) Hy2ConfigSummary {
 			summary.ObfsType = parsed
 		case "obfs.password":
 			summary.ObfsPassword = parsed
+		case "obfs.salamander.password":
+			summary.ObfsPassword = parsed
 		case "trafficstats.listen":
 			summary.TrafficStatsListen = parsed
 		case "trafficstats.secret":
@@ -191,6 +193,9 @@ func (m *HysteriaConfigManager) Validate(content string) Hy2ConfigValidation {
 	}
 	if summary.PrimaryDomain == "" && summary.SNI == "" {
 		validation.Warnings = append(validation.Warnings, "no acme/tls domain detected, client SNI may be invalid")
+	}
+	if strings.TrimSpace(summary.ObfsType) != "" && strings.TrimSpace(summary.ObfsPassword) == "" {
+		validation.Warnings = append(validation.Warnings, "obfs is enabled but password is empty")
 	}
 
 	validation.Valid = len(validation.Errors) == 0

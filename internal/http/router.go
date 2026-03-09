@@ -28,6 +28,7 @@ func NewRouter(
 	r.Get("/healthz", h.Healthz)
 	r.Get("/readyz", h.Readyz)
 	r.Post("/internal/hy2/auth", h.InternalHy2Auth)
+	r.Post("/internal/hy2/auth/{token}", h.InternalHy2Auth)
 
 	r.Route("/api", func(api chi.Router) {
 		api.Route("/auth", func(auth chi.Router) {
