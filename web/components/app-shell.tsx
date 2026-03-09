@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -13,7 +13,6 @@ import {
   Settings,
   ShieldCheck,
   Sun,
-  Users,
   Zap,
 } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -65,6 +64,7 @@ type NavigationItem = {
   label: string;
   icon: ComponentType<{ className?: string }>;
   exact?: boolean;
+  items?: NavigationItem[];
 };
 
 type NavigationSection = {
@@ -80,11 +80,24 @@ const sections: NavigationSection[] = [
   {
     title: "Protocols",
     items: [
-      { href: "/clients", label: "Clients", icon: Users },
-      { href: "/hysteria/users", label: "Hysteria Users", icon: Zap },
-      { href: "/hysteria/settings", label: "Hysteria Settings", icon: Settings },
-      { href: "/mtproxy/users", label: "MTProxy Users", icon: KeyRound },
-      { href: "/mtproxy/settings", label: "MTProxy Settings", icon: Settings },
+      {
+        href: "/hysteria",
+        label: "Hysteria",
+        icon: Zap,
+        items: [
+          { href: "/hysteria/users", label: "Users", icon: Zap },
+          { href: "/hysteria/settings", label: "Settings", icon: Settings },
+        ],
+      },
+      {
+        href: "/mtproxy",
+        label: "MTProxy",
+        icon: KeyRound,
+        items: [
+          { href: "/mtproxy/users", label: "Users", icon: KeyRound },
+          { href: "/mtproxy/settings", label: "Settings", icon: Settings },
+        ],
+      },
     ],
   },
   {
@@ -93,10 +106,6 @@ const sections: NavigationSection[] = [
       { href: "/services", label: "Services", icon: Activity },
       { href: "/audit", label: "Audit", icon: ShieldCheck },
     ],
-  },
-  {
-    title: "System",
-    items: [{ href: "/settings", label: "Settings", icon: Settings }],
   },
 ];
 
@@ -126,8 +135,8 @@ function useBreadcrumb(pathname: string) {
       "/": ["Dashboard"],
       "/clients": ["Clients"],
       "/clients/[id]": ["Clients", "Details"],
-      "/hysteria/users": ["Hysteria 2", "Users"],
-      "/hysteria/settings": ["Hysteria 2", "Settings"],
+      "/hysteria/users": ["Hysteria", "Users"],
+      "/hysteria/settings": ["Hysteria", "Settings"],
       "/mtproxy/users": ["MTProxy", "Users"],
       "/mtproxy/settings": ["MTProxy", "Settings"],
       "/services": ["Services"],
@@ -226,8 +235,8 @@ export function AppShell({ children }: PropsWithChildren) {
 
   return (
     <SidebarProvider defaultOpen>
-      <Sidebar variant="inset" collapsible="offcanvas">
-        <SidebarHeader>
+      <Sidebar variant="sidebar" collapsible="offcanvas" className="border-sidebar-border/80">
+        <SidebarHeader className="px-2 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton
@@ -268,30 +277,29 @@ export function AppShell({ children }: PropsWithChildren) {
                         <Icon className="size-4" />
                         <span>{item.label}</span>
                       </SidebarMenuButton>
+                      {item.items && (
+                        <SidebarMenuSub>
+                          {item.items.map((child) => (
+                            <SidebarMenuSubItem key={child.href}>
+                              <SidebarMenuSubButton
+                                render={<Link href={child.href} />}
+                                isActive={isActivePath(pathname, child)}
+                              >
+                                {child.label}
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      )}
                     </SidebarMenuItem>
                   );
                 })}
               </SidebarMenu>
-
-              {section.title === "Protocols" && (
-                <SidebarMenuSub>
-                  <SidebarMenuSubItem>
-                    <SidebarMenuSubButton render={<Link href="/hysteria/users" />} isActive={pathname.startsWith("/hysteria")}>
-                      Hysteria 2
-                    </SidebarMenuSubButton>
-                  </SidebarMenuSubItem>
-                  <SidebarMenuSubItem>
-                    <SidebarMenuSubButton render={<Link href="/mtproxy/users" />} isActive={pathname.startsWith("/mtproxy")}>
-                      MTProxy
-                    </SidebarMenuSubButton>
-                  </SidebarMenuSubItem>
-                </SidebarMenuSub>
-              )}
             </SidebarGroup>
           ))}
         </SidebarContent>
 
-        <SidebarFooter>
+        <SidebarFooter className="px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
           <div className="rounded-lg border border-sidebar-border bg-sidebar-accent/40 p-2 group-data-[collapsible=icon]:hidden">
             <p className="truncate text-xs font-medium">{admin?.email || "admin"}</p>
             <p className="text-xs text-sidebar-foreground/70">Authenticated session</p>
@@ -300,7 +308,7 @@ export function AppShell({ children }: PropsWithChildren) {
       </Sidebar>
 
       <SidebarInset>
-        <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-2 border-b bg-background/90 px-4 backdrop-blur">
+        <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-2 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
           <div className="flex min-w-0 items-center gap-2">
             <SidebarTrigger className="shrink-0" />
             <Separator orientation="vertical" className="h-5" />
@@ -373,11 +381,3 @@ export function AppShell({ children }: PropsWithChildren) {
     </SidebarProvider>
   );
 }
-
-
-
-
-
-
-
-

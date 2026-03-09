@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { Activity, Clock3, Cpu, MemoryStick } from "lucide-react";
@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const POLL_INTERVAL_MS = 5000;
-const HISTORY_LIMIT = 48;
+const HISTORY_LIMIT = 72;
 
 type MetricSnapshot = {
   timestamp: number;
@@ -20,6 +20,13 @@ type MetricSnapshot = {
   memory: number;
   uptime: number;
   network: number;
+};
+
+type SeriesStats = {
+  min: number;
+  max: number;
+  avg: number;
+  current: number;
 };
 
 function appendSnapshot(history: MetricSnapshot[], snapshot: MetricSnapshot): MetricSnapshot[] {
@@ -30,17 +37,26 @@ function appendSnapshot(history: MetricSnapshot[], snapshot: MetricSnapshot): Me
   return [...history, snapshot].slice(-HISTORY_LIMIT);
 }
 
-function Sparkline({ values, loading, failed }: { values: number[]; loading: boolean; failed: boolean }) {
-  if (loading && values.length === 0) {
-    return <Skeleton className="h-20 w-full rounded-md" />;
+function getSeriesStats(values: number[]): SeriesStats | null {
+  if (values.length === 0) {
+    return null;
   }
 
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const avg = values.reduce((sum, value) => sum + value, 0) / values.length;
+
+  return {
+    min,
+    max,
+    avg,
+    current: values[values.length - 1],
+  };
+}
+
+function buildSeriesPolyline(values: number[]): { line: string; area: string } {
   if (values.length === 0) {
-    return (
-      <div className="flex h-20 items-center justify-center rounded-md border border-dashed border-border text-xs text-muted-foreground">
-        {failed ? "Data unavailable" : "Waiting for data"}
-      </div>
-    );
+    return { line: "", area: "" };
   }
 
   const minValue = Math.min(...values);
@@ -48,62 +64,143 @@ function Sparkline({ values, loading, failed }: { values: number[]; loading: boo
   const range = maxValue - minValue || 1;
 
   const points = values.map((value, index) => {
-    const x = values.length === 1 ? 50 : (index / (values.length - 1)) * 100;
+    const x = values.length === 1 ? 100 : (index / (values.length - 1)) * 100;
     const y = 100 - ((value - minValue) / range) * 100;
     return `${x},${y}`;
   });
 
-  const polylinePoints = points.join(" ");
-  const areaPoints = `0,100 ${polylinePoints} 100,100`;
+  const line = points.join(" ");
+  const area = `0,100 ${line} 100,100`;
 
-  return (
-    <div className="relative h-20 w-full overflow-hidden rounded-md bg-muted/30">
-      <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-full w-full">
-        <polygon points={areaPoints} fill="hsl(var(--primary) / 0.16)" />
-        <polyline
-          points={polylinePoints}
-          fill="none"
-          stroke="hsl(var(--primary))"
-          strokeWidth="2.25"
-          vectorEffect="non-scaling-stroke"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-      {failed && <span className="absolute top-2 right-2 text-[10px] text-muted-foreground">degraded</span>}
-    </div>
-  );
+  return { line, area };
 }
 
-function MetricCard({
+function formatWindowLabel(samples: number): string {
+  if (samples <= 1) {
+    return "Window: instant";
+  }
+
+  const duration = Math.max(0, (samples - 1) * (POLL_INTERVAL_MS / 1000));
+  return `Window: ${formatUptime(duration)}`;
+}
+
+function formatTrend(values: number[], formatter: (delta: number) => string): string {
+  if (values.length < 2) {
+    return "Trend: waiting";
+  }
+
+  const start = values[0];
+  const end = values[values.length - 1];
+  const delta = end - start;
+
+  if (Math.abs(delta) < 0.0001) {
+    return "Trend: stable";
+  }
+
+  return `Trend: ${delta > 0 ? "up" : "down"} ${formatter(Math.abs(delta))}`;
+}
+
+function MetricChartCard({
   label,
-  value,
-  hint,
+  current,
+  context,
   loading,
   failed,
   values,
   icon,
+  valueFormatter,
+  trendFormatter,
 }: {
   label: string;
-  value: string;
-  hint: string;
+  current: string;
+  context: string;
   loading: boolean;
   failed: boolean;
   values: number[];
   icon: ReactNode;
+  valueFormatter: (value: number) => string;
+  trendFormatter: (values: number[]) => string;
 }) {
+  const stats = getSeriesStats(values);
+  const chart = buildSeriesPolyline(values);
+
   return (
     <Card className="border-border/70">
-      <CardHeader className="pb-3">
+      <CardHeader className="space-y-3">
         <div className="flex items-center justify-between gap-2">
           <span className="text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">{label}</span>
           <span className="text-muted-foreground">{icon}</span>
         </div>
-        <CardTitle className="text-2xl font-semibold tracking-tight tabular-nums">{value}</CardTitle>
+        <div className="flex flex-wrap items-center gap-2">
+          <CardTitle className="text-2xl font-semibold tracking-tight tabular-nums">{current}</CardTitle>
+          <Badge variant="outline" className="text-[11px]">
+            {trendFormatter(values)}
+          </Badge>
+        </div>
+        <p className="text-xs text-muted-foreground">{context}</p>
       </CardHeader>
-      <CardContent className="space-y-3">
-        <Sparkline values={values} loading={loading} failed={failed} />
-        <p className="text-xs text-muted-foreground">{hint}</p>
+
+      <CardContent className="space-y-4">
+        {loading && values.length === 0 ? (
+          <Skeleton className="h-56 w-full rounded-lg" />
+        ) : values.length === 0 ? (
+          <div className="flex h-56 items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted-foreground">
+            {failed ? "Data unavailable" : "Waiting for data"}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="relative h-56 overflow-hidden rounded-lg border border-border/70 bg-gradient-to-b from-muted/25 to-background">
+              <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-full w-full">
+                <line x1="0" y1="0" x2="100" y2="0" className="stroke-border/50" strokeWidth="0.4" />
+                <line x1="0" y1="50" x2="100" y2="50" className="stroke-border/50" strokeWidth="0.4" />
+                <line x1="0" y1="100" x2="100" y2="100" className="stroke-border/50" strokeWidth="0.4" />
+
+                <polygon points={chart.area} fill="hsl(var(--primary) / 0.14)" />
+                <polyline
+                  points={chart.line}
+                  fill="none"
+                  stroke="hsl(var(--primary))"
+                  strokeWidth="1.8"
+                  vectorEffect="non-scaling-stroke"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+
+              {stats && (
+                <div className="pointer-events-none absolute right-2 top-2 space-y-1 rounded-md bg-background/80 px-2 py-1 text-[10px] text-muted-foreground shadow-sm ring-1 ring-border/60">
+                  <div>max: {valueFormatter(stats.max)}</div>
+                  <div>mid: {valueFormatter((stats.max + stats.min) / 2)}</div>
+                  <div>min: {valueFormatter(stats.min)}</div>
+                </div>
+              )}
+
+              {failed && <span className="absolute bottom-2 right-2 text-[10px] text-muted-foreground">degraded source</span>}
+            </div>
+
+            {stats && (
+              <div className="grid gap-2 text-xs sm:grid-cols-3">
+                <div className="rounded-md border border-border/70 bg-muted/30 px-3 py-2">
+                  <p className="text-muted-foreground">Min</p>
+                  <p className="font-medium tabular-nums">{valueFormatter(stats.min)}</p>
+                </div>
+                <div className="rounded-md border border-border/70 bg-muted/30 px-3 py-2">
+                  <p className="text-muted-foreground">Average</p>
+                  <p className="font-medium tabular-nums">{valueFormatter(stats.avg)}</p>
+                </div>
+                <div className="rounded-md border border-border/70 bg-muted/30 px-3 py-2">
+                  <p className="text-muted-foreground">Max</p>
+                  <p className="font-medium tabular-nums">{valueFormatter(stats.max)}</p>
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+              <span>{formatWindowLabel(values.length)}</span>
+              <span>Now</span>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -181,7 +278,7 @@ export default function DashboardPage() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Badge variant="outline">{refreshing ? "Refreshing" : "Live · 5s"}</Badge>
+          <Badge variant="outline">{refreshing ? "Refreshing" : "Live | 5s"}</Badge>
           <span>Updated: {formatDate(data?.collected_at)}</span>
         </div>
       </div>
@@ -193,55 +290,59 @@ export default function DashboardPage() {
         </Alert>
       )}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4" aria-label="System metrics">
-        <MetricCard
+      <section className="space-y-4" aria-label="System metrics">
+        <MetricChartCard
           label="CPU"
-          value={system ? `${system.cpu_usage_percent.toFixed(1)}%` : "--"}
-          hint={system ? `${system.source}${system.is_stale ? " · stale" : " · live"}` : "No sample yet"}
+          current={system ? `${system.cpu_usage_percent.toFixed(1)}%` : "--"}
+          context={system ? `${system.source}${system.is_stale ? " | stale" : " | live"}` : "No sample yet"}
           loading={loading}
           failed={hasHardFailure}
           values={cpuSeries}
+          valueFormatter={(value) => `${value.toFixed(1)}%`}
+          trendFormatter={(values) => formatTrend(values, (delta) => `${delta.toFixed(1)} pp`) }
           icon={<Cpu className="size-4" />}
         />
 
-        <MetricCard
+        <MetricChartCard
           label="MEMORY"
-          value={system ? `${system.memory_used_percent.toFixed(1)}%` : "--"}
-          hint={system ? `${formatBytes(system.memory_used_bytes)} of ${formatBytes(system.memory_total_bytes)}` : "No sample yet"}
+          current={system ? `${system.memory_used_percent.toFixed(1)}%` : "--"}
+          context={system ? `${formatBytes(system.memory_used_bytes)} of ${formatBytes(system.memory_total_bytes)}` : "No sample yet"}
           loading={loading}
           failed={hasHardFailure}
           values={memorySeries}
+          valueFormatter={(value) => `${value.toFixed(1)}%`}
+          trendFormatter={(values) => formatTrend(values, (delta) => `${delta.toFixed(1)} pp`) }
           icon={<MemoryStick className="size-4" />}
         />
 
-        <MetricCard
+        <MetricChartCard
           label="UPTIME"
-          value={system ? formatUptime(system.uptime_seconds) : "--"}
-          hint={system ? `Collected: ${formatDate(system.collected_at)}` : "No sample yet"}
+          current={system ? formatUptime(system.uptime_seconds) : "--"}
+          context={system ? `Collected: ${formatDate(system.collected_at)}` : "No sample yet"}
           loading={loading}
           failed={hasHardFailure}
           values={uptimeSeries}
+          valueFormatter={(value) => formatUptime(value)}
+          trendFormatter={(values) => formatTrend(values, (delta) => formatUptime(delta))}
           icon={<Clock3 className="size-4" />}
         />
 
-        <MetricCard
+        <MetricChartCard
           label="NETWORK"
-          value={system ? formatRate((system.network_rx_bps || 0) + (system.network_tx_bps || 0)) : "--"}
-          hint={
+          current={system ? formatRate((system.network_rx_bps || 0) + (system.network_tx_bps || 0)) : "--"}
+          context={
             system
-              ? `RX ${formatRate(system.network_rx_bps || 0)} · TX ${formatRate(system.network_tx_bps || 0)}`
+              ? `RX ${formatRate(system.network_rx_bps || 0)} | TX ${formatRate(system.network_tx_bps || 0)}`
               : "No sample yet"
           }
           loading={loading}
           failed={hasHardFailure}
           values={networkSeries}
+          valueFormatter={(value) => formatRate(value)}
+          trendFormatter={(values) => formatTrend(values, (delta) => formatRate(delta))}
           icon={<Activity className="size-4" />}
         />
       </section>
     </div>
   );
 }
-
-
-
-

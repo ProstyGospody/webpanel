@@ -5,10 +5,13 @@ import { useEffect, useMemo, useState } from "react";
 import { apiFetch, toJSONBody } from "@/lib/api";
 import type { Hy2ConfigValidation, Hy2Settings, Hy2SettingsPayload, Hy2SettingsValidation } from "@/lib/types";
 import { formatDate } from "@/lib/format";
-import { Button, Card, InlineMessage, PageHeader, SwitchField, TextField } from "@/components/ui";
+import { Button, Card, InlineMessage, PageHeader, SelectField, TextField } from "@/components/ui";
 import { ConfirmDialog } from "@/components/dialog";
 import { useToast } from "@/components/toast-provider";
 import { SectionTabs } from "@/components/section-tabs";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 
 type ValidatePayload = {
   settings_validation: Hy2SettingsValidation;
@@ -101,6 +104,44 @@ function normalizeSettings(input: Hy2Settings, options: NormalizeOptions = { gen
   return next;
 }
 
+function ModeToggle({
+  id,
+  title,
+  description,
+  checked,
+  disabled,
+  disabledHint,
+  onChange,
+}: {
+  id: string;
+  title: string;
+  description: string;
+  checked: boolean;
+  disabled: boolean;
+  disabledHint?: string;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1">
+          <Label htmlFor={id} className="text-sm font-medium">
+            {title}
+          </Label>
+          <p className="text-xs text-muted-foreground">{description}</p>
+          {disabledHint && <p className="text-xs text-muted-foreground">{disabledHint}</p>}
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="text-[11px]">
+            {checked ? "Enabled" : "Disabled"}
+          </Badge>
+          <Switch id={id} checked={checked} onCheckedChange={onChange} disabled={disabled} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function HysteriaSettingsPage() {
   const { push } = useToast();
 
@@ -145,6 +186,9 @@ export default function HysteriaSettingsPage() {
   const canSave = useMemo(() => {
     return settingsValidation ? settingsValidation.valid : true;
   }, [settingsValidation]);
+
+  const obfsBlocked = settings.masquerade_enabled && !settings.obfs_enabled;
+  const masqueradeBlocked = settings.obfs_enabled && !settings.masquerade_enabled;
 
   function update<K extends keyof Hy2Settings>(key: K, value: Hy2Settings[K]) {
     setSettings((prev) => {
@@ -228,8 +272,8 @@ export default function HysteriaSettingsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Hysteria 2"
-        subtitle="Native runtime settings: port, SNI, OBFS and Masquerade with validation-first apply flow."
+        title="Hysteria"
+        subtitle="Configure runtime fields and transport mode switching with validation before restart."
       />
 
       <SectionTabs items={tabs} />
@@ -246,6 +290,7 @@ export default function HysteriaSettingsPage() {
             value={settings.port}
             onChange={(event) => update("port", Number(event.target.value || 0))}
             disabled={loading}
+            supportingText="Inbound listening port for hysteria-server."
           />
 
           <TextField
@@ -253,72 +298,90 @@ export default function HysteriaSettingsPage() {
             value={settings.sni}
             onChange={(event) => update("sni", event.target.value)}
             disabled={loading}
+            supportingText="Primary TLS host advertised to clients."
           />
         </div>
       </Card>
 
-      <Card title="OBFS" subtitle="Optional transport obfuscation. Incompatible with Masquerade.">
-        <SwitchField
-          label="Enable OBFS"
-          supportingText="When enabled, Masquerade is disabled automatically."
-          checked={settings.obfs_enabled}
-          onChange={(value) => update("obfs_enabled", value)}
-          disabled={loading}
-        />
+      <Card title="Transport modes" subtitle="OBFS and Masquerade are mutually exclusive modes.">
+        <div className="space-y-4">
+          <ModeToggle
+            id="obfs-enabled"
+            title="OBFS"
+            description="Enable protocol obfuscation for compatible clients."
+            checked={settings.obfs_enabled}
+            disabled={loading || obfsBlocked}
+            disabledHint={obfsBlocked ? "Disable Masquerade first to enable OBFS." : undefined}
+            onChange={(value) => update("obfs_enabled", value)}
+          />
 
-        {settings.obfs_enabled && (
-          <div className="grid gap-4 md:grid-cols-2" style={{ marginTop: 8 }}>
-            <label className="grid gap-2">
-              <span className="text-sm font-medium">OBFS type</span>
-              <select className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50" value={settings.obfs_type || "salamander"} onChange={(event) => update("obfs_type", event.target.value)}>
-                <option value="salamander">salamander</option>
-              </select>
-              <span className="text-xs text-muted-foreground">Secure obfuscation mode used by compatible clients.</span>
-            </label>
+          {settings.obfs_enabled && (
+            <div className="grid gap-4 md:grid-cols-2">
+              <SelectField
+                label="OBFS type"
+                value={settings.obfs_type || "salamander"}
+                disabled={loading}
+                supportingText="Current UI supports salamander mode."
+                onChange={(event) => update("obfs_type", event.target.value)}
+                options={[{ value: "salamander", label: "salamander" }]}
+              />
+              <TextField
+                label="OBFS password"
+                value={settings.obfs_password || ""}
+                onChange={(event) => update("obfs_password", event.target.value)}
+                disabled={loading}
+                placeholder="Auto-generated when empty"
+                supportingText="Generated automatically during validate/save when empty."
+              />
+            </div>
+          )}
 
-            <TextField
-              label="OBFS password"
-              value={settings.obfs_password || ""}
-              onChange={(event) => update("obfs_password", event.target.value)}
-              placeholder="Auto-generated when empty"
-              supportingText="Generated automatically on validation/save if empty."
-            />
-          </div>
-        )}
-      </Card>
+          <ModeToggle
+            id="masquerade-enabled"
+            title="Masquerade"
+            description="Enable proxy camouflage mode for fallback-friendly ingress."
+            checked={settings.masquerade_enabled}
+            disabled={loading || masqueradeBlocked}
+            disabledHint={masqueradeBlocked ? "Disable OBFS first to enable Masquerade." : undefined}
+            onChange={(value) => update("masquerade_enabled", value)}
+          />
 
-      <Card title="Masquerade" subtitle="Proxy mode URL camouflage. Incompatible with OBFS.">
-        <SwitchField
-          label="Enable Masquerade"
-          supportingText="When enabled, OBFS is disabled automatically."
-          checked={settings.masquerade_enabled}
-          onChange={(value) => update("masquerade_enabled", value)}
-          disabled={loading}
-        />
-
-        {settings.masquerade_enabled && (
-          <div className="grid gap-4 md:grid-cols-2" style={{ marginTop: 8 }}>
-            <TextField
-              label="Masquerade URL"
-              value={settings.masquerade_url || ""}
-              onChange={(event) => update("masquerade_url", event.target.value)}
-              placeholder="https://www.cloudflare.com"
-              supportingText="Target URL used for traffic camouflage."
-            />
-
-            <SwitchField
-              label="rewriteHost"
-              supportingText="Rewrite host header when masquerade mode is active."
-              checked={settings.masquerade_rewrite_host}
-              onChange={(value) => update("masquerade_rewrite_host", value)}
-            />
-          </div>
-        )}
+          {settings.masquerade_enabled && (
+            <div className="grid gap-4 md:grid-cols-2">
+              <SelectField
+                label="Masquerade type"
+                value={settings.masquerade_type || "proxy"}
+                disabled={loading}
+                supportingText="Proxy mode is required by current backend validation."
+                onChange={(event) => update("masquerade_type", event.target.value)}
+                options={[{ value: "proxy", label: "proxy" }]}
+              />
+              <TextField
+                label="Masquerade URL"
+                value={settings.masquerade_url || ""}
+                onChange={(event) => update("masquerade_url", event.target.value)}
+                disabled={loading}
+                placeholder="https://www.cloudflare.com"
+                supportingText="Absolute http/https URL used for camouflage target."
+              />
+              <div className="md:col-span-2">
+                <ModeToggle
+                  id="masquerade-rewrite-host"
+                  title="Rewrite host header"
+                  description="Rewrite upstream host header while masquerade mode is active."
+                  checked={settings.masquerade_rewrite_host}
+                  disabled={loading}
+                  onChange={(value) => update("masquerade_rewrite_host", value)}
+                />
+              </div>
+            </div>
+          )}
+        </div>
       </Card>
 
       <Card
         title="Apply flow"
-        subtitle="Validate, save, then apply runtime config with explicit confirmation."
+        subtitle="Validate, save and apply with explicit restart confirmation."
         action={
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outlined" type="button" onClick={validateSettings} disabled={validating || loading}>
@@ -357,13 +420,39 @@ export default function HysteriaSettingsPage() {
           </InlineMessage>
         )}
 
-        <div className="grid gap-4 md:grid-cols-2" style={{ marginTop: 12 }}>
-          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-secondary px-3 text-xs font-medium text-secondary-foreground">Validation: {settingsValidation?.valid ? "OK" : "Check fields"}</div>
-          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-secondary px-3 text-xs font-medium text-secondary-foreground">Config: {configValidation?.valid ? "OK" : "Check config"}</div>
-          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-medium text-muted-foreground">Updated: {formatDate(new Date().toISOString())}</div>
-          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-medium text-muted-foreground">Client port: {clientParams?.port || "-"}</div>
-          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-medium text-muted-foreground">Client SNI: {clientParams?.sni || "-"}</div>
-          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-medium text-muted-foreground">Client OBFS: {clientParams?.obfs_type || "disabled"}</div>
+        <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-secondary px-3 text-xs font-medium text-secondary-foreground">
+            Settings validation: {settingsValidation?.valid ? "OK" : "Check fields"}
+          </div>
+          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-secondary px-3 text-xs font-medium text-secondary-foreground">
+            Config validation: {configValidation?.valid ? "OK" : "Check config"}
+          </div>
+          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-medium text-muted-foreground">
+            Source file: {path || "-"}
+          </div>
+          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-medium text-muted-foreground">
+            Client port: {clientParams?.port || "-"}
+          </div>
+          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-medium text-muted-foreground">
+            Client SNI: {clientParams?.sni || "-"}
+          </div>
+          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-medium text-muted-foreground">
+            Client OBFS: {clientParams?.obfs_type || "disabled"}
+          </div>
+        </div>
+      </Card>
+
+      <Card title="Current state" subtitle="Saved values currently rendered in UI.">
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-medium text-muted-foreground">
+            OBFS: {settings.obfs_enabled ? "enabled" : "disabled"}
+          </div>
+          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-medium text-muted-foreground">
+            Masquerade: {settings.masquerade_enabled ? "enabled" : "disabled"}
+          </div>
+          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-medium text-muted-foreground">
+            Rendered: {formatDate(new Date().toISOString())}
+          </div>
         </div>
       </Card>
 
@@ -379,5 +468,3 @@ export default function HysteriaSettingsPage() {
     </div>
   );
 }
-
-

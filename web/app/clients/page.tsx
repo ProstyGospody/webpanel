@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
@@ -182,46 +182,85 @@ export default function ClientsPage() {
         {filtered.length === 0 ? (
           <EmptyState title="No clients found" description="Create a client or refine your search query." icon="group_off" />
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Updated</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+          <>
+            <div className="hidden md:block">
+              <Table className="min-w-[820px] table-fixed">
+                <colgroup>
+                  <col className="w-[30%]" />
+                  <col className="w-[26%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[18%]" />
+                  <col className="w-[12%]" />
+                </colgroup>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Updated</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((client) => (
+                    <TableRow key={client.id}>
+                      <TableCell className="align-top">
+                        <Link href={`/clients/${client.id}`} className="font-medium hover:underline">
+                          {client.name}
+                        </Link>
+                      </TableCell>
+                      <TableCell className="align-top whitespace-normal break-all text-xs text-muted-foreground">{client.email || "-"}</TableCell>
+                      <TableCell className="align-top">
+                        <StatusBadge enabled={client.is_active} />
+                      </TableCell>
+                      <TableCell className="align-top text-xs text-muted-foreground">{formatDate(client.updated_at)}</TableCell>
+                      <TableCell className="align-top">
+                        <div className="flex justify-end">
+                          {client.is_active ? (
+                            <Button variant="danger" onClick={() => setPendingStateChange({ client, enable: false })}>
+                              Disable
+                            </Button>
+                          ) : (
+                            <Button variant="tonal" onClick={() => setPendingStateChange({ client, enable: true })}>
+                              Enable
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            <div className="grid gap-3 md:hidden">
               {filtered.map((client) => (
-                <TableRow key={client.id}>
-                  <TableCell>
-                    <Link href={`/clients/${client.id}`} className="font-medium hover:underline">
+                <article key={client.id} className="space-y-2 rounded-xl border border-border/70 bg-muted/30 p-4">
+                  <div>
+                    <Link href={`/clients/${client.id}`} className="text-sm font-semibold hover:underline">
                       {client.name}
                     </Link>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{client.email || "-"}</TableCell>
-                  <TableCell>
+                    <p className="mt-1 whitespace-normal break-all text-xs text-muted-foreground">{client.email || "-"}</p>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
                     <StatusBadge enabled={client.is_active} />
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{formatDate(client.updated_at)}</TableCell>
-                  <TableCell>
-                    <div className="flex justify-end">
-                      {client.is_active ? (
-                        <Button variant="danger" onClick={() => setPendingStateChange({ client, enable: false })}>
-                          Disable
-                        </Button>
-                      ) : (
-                        <Button variant="tonal" onClick={() => setPendingStateChange({ client, enable: true })}>
-                          Enable
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
+                    <span className="text-xs text-muted-foreground">{formatDate(client.updated_at)}</span>
+                  </div>
+                  <div className="flex justify-end">
+                    {client.is_active ? (
+                      <Button variant="danger" onClick={() => setPendingStateChange({ client, enable: false })}>
+                        Disable
+                      </Button>
+                    ) : (
+                      <Button variant="tonal" onClick={() => setPendingStateChange({ client, enable: true })}>
+                        Enable
+                      </Button>
+                    )}
+                  </div>
+                </article>
               ))}
-            </TableBody>
-          </Table>
+            </div>
+          </>
         )}
       </Card>
 
@@ -247,4 +286,3 @@ export default function ClientsPage() {
     </div>
   );
 }
-

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
@@ -21,6 +21,7 @@ import { Dialog, ConfirmDialog } from "@/components/dialog";
 import { useToast } from "@/components/toast-provider";
 import { OverflowMenu } from "@/components/overflow-menu";
 import { SectionTabs } from "@/components/section-tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type Hy2Overview = {
   enabled_accounts: number;
@@ -307,7 +308,7 @@ export default function HysteriaUsersPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Hysteria 2"
+        title="Hysteria"
         subtitle="Manage users in dialog workflows and keep URI, QR and runtime settings in sync."
         actions={
           <Button onClick={openCreate} icon="add">
@@ -338,42 +339,49 @@ export default function HysteriaUsersPage() {
           <EmptyState title="No Hysteria users" description="Create the first user to issue access credentials." icon="person_off" />
         ) : (
           <>
-            <div className="hidden w-full min-w-[760px] md:block">
-              <table className="w-full min-w-[760px] text-sm">
-                <thead>
-                  <tr>
-                    <th>User</th>
-                    <th>Status</th>
-                    <th>Traffic</th>
-                    <th>Last seen</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+            <div className="hidden md:block">
+              <Table className="min-w-[900px] table-fixed">
+                <colgroup>
+                  <col className="w-[33%]" />
+                  <col className="w-[22%]" />
+                  <col className="w-[18%]" />
+                  <col className="w-[15%]" />
+                  <col className="w-[12%]" />
+                </colgroup>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>User</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Traffic</TableHead>
+                    <TableHead>Last seen</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {accounts.map((item) => {
                     const online = (item.online_count || 0) > 0;
                     const busy = busyID === item.id;
                     return (
-                      <tr key={item.id}>
-                        <td>
-                          <div className="font-semibold">{item.client_name || item.hy2_identity}</div>
-                          <div className="text-[0.8125rem] break-all text-muted-foreground">
-                            Identity: {item.hy2_identity}
-                          </div>
-                        </td>
-                        <td>
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      <TableRow key={item.id}>
+                        <TableCell className="align-top">
+                          <div className="font-medium leading-5">{item.client_name || item.hy2_identity}</div>
+                          <div className="mt-1 whitespace-normal break-all text-xs text-muted-foreground">Identity: {item.hy2_identity}</div>
+                        </TableCell>
+                        <TableCell className="align-top">
+                          <div className="flex flex-wrap gap-1.5">
                             <StatusBadge enabled={item.is_enabled} />
                             <StatusBadge tone={onlineBadgeClass(online)}>{online ? "Online" : "Offline"}</StatusBadge>
                           </div>
-                        </td>
-                        <td>
-                          <div>TX: {formatBytes(item.last_tx_bytes || 0)}</div>
-                          <div>RX: {formatBytes(item.last_rx_bytes || 0)}</div>
-                        </td>
-                        <td>{formatDate(item.last_seen_at)}</td>
-                        <td>
-                          <div className="flex flex-wrap items-center justify-end gap-2">
+                        </TableCell>
+                        <TableCell className="align-top">
+                          <div className="text-xs leading-5 text-muted-foreground">
+                            <div>TX: {formatBytes(item.last_tx_bytes || 0)}</div>
+                            <div>RX: {formatBytes(item.last_rx_bytes || 0)}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="align-top text-xs text-muted-foreground">{formatDate(item.last_seen_at)}</TableCell>
+                        <TableCell className="align-top">
+                          <div className="flex items-center justify-end gap-2">
                             <Button variant="text" type="button" onClick={() => openEdit(item)} disabled={busy}>
                               Edit
                             </Button>
@@ -408,12 +416,12 @@ export default function HysteriaUsersPage() {
                               ]}
                             />
                           </div>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     );
                   })}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
 
             <div className="grid gap-3 md:hidden">
@@ -582,9 +590,3 @@ export default function HysteriaUsersPage() {
     </div>
   );
 }
-
-
-
-
-
-

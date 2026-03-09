@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
@@ -20,6 +20,7 @@ import { Dialog, ConfirmDialog } from "@/components/dialog";
 import { useToast } from "@/components/toast-provider";
 import { OverflowMenu } from "@/components/overflow-menu";
 import { SectionTabs } from "@/components/section-tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type MTOverview = {
   enabled_secrets: number;
@@ -283,39 +284,44 @@ export default function MTProxyUsersPage() {
           <EmptyState title="No MTProxy users" description="Create the first secret to activate MTProxy access." icon="vpn_key_off" />
         ) : (
           <>
-            <div className="hidden w-full min-w-[760px] md:block">
-              <table className="w-full min-w-[760px] text-sm">
-                <thead>
-                  <tr>
-                    <th>User</th>
-                    <th>Status</th>
-                    <th>Runtime</th>
-                    <th>Last seen</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+            <div className="hidden md:block">
+              <Table className="min-w-[860px] table-fixed">
+                <colgroup>
+                  <col className="w-[34%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[18%]" />
+                  <col className="w-[18%]" />
+                  <col className="w-[16%]" />
+                </colgroup>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>User</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Runtime</TableHead>
+                    <TableHead>Last seen</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {secrets.map((item) => {
                     const busy = busyID === item.id;
                     return (
-                      <tr key={item.id}>
-                        <td>
-                          <div className="font-semibold">{item.label || item.client_name || item.client_id}</div>
-                          <div className="text-[0.8125rem] break-all text-muted-foreground">
-                            Secret: {item.secret}
-                          </div>
-                        </td>
-                        <td>
+                      <TableRow key={item.id}>
+                        <TableCell className="align-top">
+                          <div className="font-medium leading-5">{item.label || item.client_name || item.client_id}</div>
+                          <div className="mt-1 whitespace-normal break-all text-xs text-muted-foreground">Secret: {item.secret}</div>
+                        </TableCell>
+                        <TableCell className="align-top">
                           <StatusBadge enabled={item.is_enabled} />
-                        </td>
-                        <td>
+                        </TableCell>
+                        <TableCell className="align-top">
                           <StatusBadge tone={item.is_runtime_active ? "success" : "neutral"}>
                             {item.is_runtime_active ? "active" : "standby"}
                           </StatusBadge>
-                        </td>
-                        <td>{formatDate(item.last_seen_at)}</td>
-                        <td>
-                          <div className="flex flex-wrap items-center justify-end gap-2">
+                        </TableCell>
+                        <TableCell className="align-top text-xs text-muted-foreground">{formatDate(item.last_seen_at)}</TableCell>
+                        <TableCell className="align-top">
+                          <div className="flex items-center justify-end gap-2">
                             <Button variant="text" type="button" onClick={() => openEdit(item)} disabled={busy}>
                               Edit
                             </Button>
@@ -341,12 +347,12 @@ export default function MTProxyUsersPage() {
                               ]}
                             />
                           </div>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     );
                   })}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
 
             <div className="grid gap-3 md:hidden">
@@ -462,9 +468,3 @@ export default function MTProxyUsersPage() {
     </div>
   );
 }
-
-
-
-
-
-
