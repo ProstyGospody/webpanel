@@ -34,6 +34,7 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -346,12 +347,14 @@ export function AppShell({ children }: PropsWithChildren) {
                 <span className="hidden text-sm md:inline">Admin</span>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>
-                  <div className="flex flex-col">
-                    <span className="text-xs text-muted-foreground">Signed in as</span>
-                    <span className="truncate text-sm font-medium">{admin?.email || "admin"}</span>
-                  </div>
-                </DropdownMenuLabel>
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>
+                    <div className="flex flex-col">
+                      <span className="text-xs text-muted-foreground">Signed in as</span>
+                      <span className="truncate text-sm font-medium">{admin?.email || "admin"}</span>
+                    </div>
+                  </DropdownMenuLabel>
+                </DropdownMenuGroup>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => router.push("/settings")}>
                   <Settings className="size-4" />
@@ -371,5 +374,7 @@ export function AppShell({ children }: PropsWithChildren) {
     </SidebarProvider>
   );
 }
+
+
 
 
