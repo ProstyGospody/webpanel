@@ -6,6 +6,8 @@ import { PropsWithChildren, useEffect, useMemo, useState } from "react";
 
 import { APIError, apiFetch, toJSONBody } from "@/lib/api";
 import type { Admin } from "@/lib/types";
+import { useToast } from "@/components/toast-provider";
+import { useTheme } from "@/components/theme-provider";
 
 const nav = [
   { href: "/", label: "Dashboard" },
@@ -16,13 +18,28 @@ const nav = [
   { href: "/audit", label: "Audit" },
 ];
 
+function isActiveLink(pathname: string, href: string): boolean {
+  if (href === "/") {
+    return pathname === "/";
+  }
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
 export function AppShell({ children }: PropsWithChildren) {
   const router = useRouter();
   const pathname = usePathname();
+  const { push } = useToast();
+  const { theme, toggleTheme, ready } = useTheme();
+
   const [loading, setLoading] = useState(true);
   const [admin, setAdmin] = useState<Admin | null>(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const isPublic = useMemo(() => pathname === "/login", [pathname]);
+
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,7 +77,13 @@ export function AppShell({ children }: PropsWithChildren) {
   }
 
   if (loading) {
-    return <div className="p-8 text-sm text-slate-700">Loading admin session...</div>;
+    return (
+      <div className="shell-loading">
+        <div className="card max-w-md">
+          <div className="text-sm text-muted">Loading admin session...</div>
+        </div>
+      </div>
+    );
   }
 
   async function onLogout() {
@@ -74,36 +97,87 @@ export function AppShell({ children }: PropsWithChildren) {
     }
   }
 
+  function onThemeToggle() {
+    const next = toggleTheme();
+    push(`Theme changed: ${next}`, "info");
+  }
+
+  const renderNavLinks = (isMobile = false) => (
+    <>
+      {nav.map((item) => {
+        const active = isActiveLink(pathname, item.href);
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={`nav-link ${active ? "nav-link-active" : ""} ${isMobile ? "nav-link-mobile" : ""}`}
+            onClick={() => isMobile && setMobileNavOpen(false)}
+          >
+            {item.label}
+          </Link>
+        );
+      })}
+    </>
+  );
+
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-panel-border bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-4">
-            <div className="text-base font-semibold">Proxy Panel</div>
-            <nav className="flex flex-wrap gap-1 text-sm">
-              {nav.map((item) => {
-                const active = pathname === item.href;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`rounded px-2 py-1 ${active ? "bg-blue-100 text-blue-900" : "text-slate-700 hover:bg-slate-100"}`}
-                  >
-                    {item.label}
-                  </Link>
-                );
-              })}
-            </nav>
+    <div className="app-shell">
+      <header className="app-header">
+        <div className="app-header-inner">
+          <div className="app-header-left">
+            <button className="btn btn-muted md:hidden" onClick={() => setMobileNavOpen(true)} aria-label="Open navigation">
+              Menu
+            </button>
+            <div className="brand-block">
+              <div className="brand-title">Proxy Panel</div>
+              <div className="brand-subtitle">Hysteria 2 and MTProxy control</div>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-slate-600">{admin?.email || "admin"}</span>
+
+          <nav className="hidden items-center gap-1 md:flex" aria-label="Main navigation">
+            {renderNavLinks(false)}
+          </nav>
+
+          <div className="app-header-right">
+            <button className="btn btn-muted" onClick={onThemeToggle} disabled={!ready}>
+              {theme === "dark" ? "Light" : "Dark"}
+            </button>
+            <span className="hidden text-sm text-muted sm:inline">{admin?.email || "admin"}</span>
             <button className="btn btn-muted" onClick={onLogout}>
               Logout
             </button>
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-7xl p-4">{children}</main>
+
+      {mobileNavOpen && (
+        <>
+          <div className="mobile-nav-backdrop" onClick={() => setMobileNavOpen(false)} />
+          <aside className="mobile-nav-panel" aria-label="Mobile navigation">
+            <div className="mobile-nav-header">
+              <div className="text-sm font-semibold">Navigation</div>
+              <button className="btn btn-muted" onClick={() => setMobileNavOpen(false)}>
+                Close
+              </button>
+            </div>
+            <div className="mobile-nav-links">{renderNavLinks(true)}</div>
+            <div className="mobile-nav-footer">
+              <div className="text-xs text-muted">{admin?.email || "admin"}</div>
+              <div className="flex gap-2">
+                <button className="btn btn-muted" onClick={onThemeToggle}>
+                  {theme === "dark" ? "Light" : "Dark"}
+                </button>
+                <button className="btn btn-muted" onClick={onLogout}>
+                  Logout
+                </button>
+              </div>
+            </div>
+          </aside>
+        </>
+      )}
+
+      <main className="app-main">{children}</main>
     </div>
   );
 }
+

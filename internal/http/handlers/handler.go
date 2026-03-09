@@ -27,6 +27,7 @@ type Handler struct {
 	serviceManager   *services.ServiceManager
 	runtimeManager   *services.MTProxyRuntimeManager
 	hy2ConfigManager *services.HysteriaConfigManager
+	systemMetrics    *services.SystemMetricsCollector
 }
 
 func New(
@@ -39,6 +40,7 @@ func New(
 	serviceManager *services.ServiceManager,
 	runtimeManager *services.MTProxyRuntimeManager,
 	hy2ConfigManager *services.HysteriaConfigManager,
+	systemMetrics *services.SystemMetricsCollector,
 ) *Handler {
 	return &Handler{
 		cfg:              cfg,
@@ -50,6 +52,7 @@ func New(
 		serviceManager:   serviceManager,
 		runtimeManager:   runtimeManager,
 		hy2ConfigManager: hy2ConfigManager,
+		systemMetrics:    systemMetrics,
 	}
 }
 
@@ -355,3 +358,4 @@ func generateHy2Identity() string {
 	}
 	return "hy2-" + raw
 }
+

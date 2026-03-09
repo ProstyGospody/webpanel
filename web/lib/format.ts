@@ -23,6 +23,32 @@ export function formatDate(value?: string | null): string {
   return date.toLocaleString();
 }
 
+export function formatUptime(seconds?: number | null): string {
+  if (seconds === null || seconds === undefined || Number.isNaN(seconds) || seconds < 0) {
+    return "-";
+  }
+
+  const total = Math.floor(seconds);
+  const days = Math.floor(total / 86400);
+  const hours = Math.floor((total % 86400) / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+
+  const parts: string[] = [];
+  if (days > 0) {
+    parts.push(`${days}d`);
+  }
+  if (hours > 0 || parts.length > 0) {
+    parts.push(`${hours}h`);
+  }
+  if (minutes > 0 || parts.length > 0) {
+    parts.push(`${minutes}m`);
+  }
+  parts.push(`${secs}s`);
+
+  return parts.join(" ");
+}
+
 export async function copyToClipboard(text: string): Promise<void> {
   if (navigator.clipboard && navigator.clipboard.writeText) {
     await navigator.clipboard.writeText(text);
@@ -39,3 +65,4 @@ export async function copyToClipboard(text: string): Promise<void> {
   document.execCommand("copy");
   document.body.removeChild(textarea);
 }
+

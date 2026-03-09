@@ -84,9 +84,12 @@ func NewRouter(
 			secured.Post("/services/{name}/restart", h.RestartService)
 			secured.Post("/services/{name}/reload", h.ReloadService)
 
+			secured.Get("/system/metrics", h.GetSystemMetrics)
+
 			secured.Get("/audit", h.ListAudit)
 		})
 	})
 
 	return r
 }
+

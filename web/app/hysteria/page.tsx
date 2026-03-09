@@ -5,7 +5,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { apiFetch, toJSONBody } from "@/lib/api";
 import { copyToClipboard, formatBytes, formatDate } from "@/lib/format";
 import type { Client, Hy2Account } from "@/lib/types";
-import { StatusBadge } from "@/components/ui";
+import { Card, MetricCard, StatusBadge } from "@/components/ui";
 import { useToast } from "@/components/toast-provider";
 
 type Hy2Overview = {
@@ -59,17 +59,36 @@ type Hy2AccountViewPayload = {
   client_params?: Hy2ClientParams;
 };
 
+type Hy2TrafficPoint = {
+  id: number;
+  hy2_account_id: string;
+  tx_bytes: number;
+  rx_bytes: number;
+  online_count: number;
+  snapshot_at: string;
+};
+
+function onlineBadgeClass(online: boolean): string {
+  return `badge ${online ? "badge-online" : "badge-offline"}`;
+}
+
 export default function HysteriaPage() {
   const { push } = useToast();
+
   const [accounts, setAccounts] = useState<Hy2Account[]>([]);
   const [overview, setOverview] = useState<Hy2Overview | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
+
   const [clientID, setClientID] = useState("");
   const [authPayload, setAuthPayload] = useState("");
   const [hy2Identity, setHy2Identity] = useState("");
   const [editingID, setEditingID] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+
   const [tab, setTab] = useState<"users" | "config">("users");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [savingUser, setSavingUser] = useState(false);
+  const [activeAccountAction, setActiveAccountAction] = useState<string | null>(null);
 
   const [uriModalOpen, setURIModalOpen] = useState(false);
   const [showQRCode, setShowQRCode] = useState(false);
@@ -78,6 +97,12 @@ export default function HysteriaPage() {
   const [currentURITitle, setCurrentURITitle] = useState("");
   const [currentClientParams, setCurrentClientParams] = useState<Hy2ClientParams | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const [trafficModalOpen, setTrafficModalOpen] = useState(false);
+  const [trafficTitle, setTrafficTitle] = useState("");
+  const [trafficRows, setTrafficRows] = useState<Hy2TrafficPoint[]>([]);
+  const [trafficLoading, setTrafficLoading] = useState(false);
+  const [trafficError, setTrafficError] = useState<string | null>(null);
 
   const [configPath, setConfigPath] = useState("");
   const [configText, setConfigText] = useState("");
@@ -93,10 +118,14 @@ export default function HysteriaPage() {
     setCopiedKey(key);
     window.setTimeout(() => {
       setCopiedKey((current) => (current === key ? null : current));
-    }, 1500);
+    }, 1600);
   }
 
-  async function loadAll() {
+  async function loadAll(showLoader = true) {
+    if (showLoader) {
+      setLoading(true);
+    }
+
     const [accountResp, overviewResp, clientsResp, configResp] = await Promise.all([
       apiFetch<{ items: Hy2Account[] }>("/api/hy2/accounts"),
       apiFetch<Hy2Overview>("/api/hy2/stats/overview"),
@@ -114,18 +143,35 @@ export default function HysteriaPage() {
     if (!clientID && clientsResp.items && clientsResp.items.length > 0) {
       setClientID(clientsResp.items[0].id);
     }
+
+    if (showLoader) {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
-    loadAll().catch((err: unknown) => {
+    loadAll(true).catch((err: unknown) => {
       const msg = err instanceof Error ? err.message : "Failed to load hysteria data";
       setError(msg);
+      setLoading(false);
       push(msg, "error");
     });
   }, [push]);
 
+  async function withAccountAction(accountID: string, task: () => Promise<void>) {
+    setActiveAccountAction(accountID);
+    try {
+      await task();
+    } finally {
+      setActiveAccountAction((current) => (current === accountID ? null : current));
+    }
+  }
+
   async function submitForm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setSavingUser(true);
+    setError(null);
+
     try {
       if (editingID) {
         await apiFetch(`/api/hy2/accounts/${editingID}`, {
@@ -135,7 +181,7 @@ export default function HysteriaPage() {
             hy2_identity: hy2Identity,
           }),
         });
-        push("Updated", "success");
+        push("User updated", "success");
       } else {
         await apiFetch("/api/hy2/accounts", {
           method: "POST",
@@ -145,14 +191,17 @@ export default function HysteriaPage() {
             hy2_identity: hy2Identity || null,
           }),
         });
-        push("Created", "success");
+        push("User created", "success");
       }
+
       clearForm();
-      await loadAll();
+      await loadAll(false);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to save Hysteria account";
       setError(msg);
       push(msg, "error");
+    } finally {
+      setSavingUser(false);
     }
   }
 
@@ -174,74 +223,121 @@ export default function HysteriaPage() {
       return;
     }
     const endpoint = enabled ? "enable" : "disable";
-    try {
-      await apiFetch(`/api/hy2/accounts/${id}/${endpoint}`, {
-        method: "POST",
-        body: toJSONBody({}),
-      });
-      push(enabled ? "Enabled" : "Disabled", "success");
-      await loadAll();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to change account status";
-      setError(msg);
-      push(msg, "error");
-    }
+
+    await withAccountAction(id, async () => {
+      try {
+        await apiFetch(`/api/hy2/accounts/${id}/${endpoint}`, {
+          method: "POST",
+          body: toJSONBody({}),
+        });
+        push(enabled ? "User enabled" : "User disabled", "success");
+        await loadAll(false);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Failed to change account status";
+        setError(msg);
+        push(msg, "error");
+      }
+    });
   }
 
   async function removeAccount(id: string) {
-    if (!confirm("Delete this Hysteria account?")) {
+    if (!confirm("Delete this Hysteria account? This action cannot be undone.")) {
       return;
     }
-    try {
-      await apiFetch(`/api/hy2/accounts/${id}`, {
-        method: "DELETE",
-        body: toJSONBody({}),
-      });
-      push("Deleted", "success");
-      await loadAll();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to delete account";
-      setError(msg);
-      push(msg, "error");
-    }
+
+    await withAccountAction(id, async () => {
+      try {
+        await apiFetch(`/api/hy2/accounts/${id}`, {
+          method: "DELETE",
+          body: toJSONBody({}),
+        });
+        push("User deleted", "success");
+        await loadAll(false);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Failed to delete account";
+        setError(msg);
+        push(msg, "error");
+      }
+    });
   }
 
   async function kick(id: string) {
     if (!confirm("Kick active session for this account?")) {
       return;
     }
-    try {
-      await apiFetch(`/api/hy2/accounts/${id}/kick`, {
-        method: "POST",
-        body: toJSONBody({}),
-      });
-      push("Session kicked", "success");
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to kick session";
-      setError(msg);
-      push(msg, "error");
-    }
+
+    await withAccountAction(id, async () => {
+      try {
+        await apiFetch(`/api/hy2/accounts/${id}/kick`, {
+          method: "POST",
+          body: toJSONBody({}),
+        });
+        push("Session kicked", "success");
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Failed to kick session";
+        setError(msg);
+        push(msg, "error");
+      }
+    });
   }
 
   async function openURI(account: Hy2Account, withQR: boolean) {
+    await withAccountAction(account.id, async () => {
+      try {
+        const payload = await apiFetch<Hy2AccountViewPayload>(`/api/hy2/accounts/${account.id}`);
+        setCurrentURI(payload.uri);
+        setCurrentSingBoxJSON(JSON.stringify(payload.singbox_outbound || {}, null, 2));
+        setCurrentURITitle(account.client_name || account.hy2_identity);
+        setCurrentClientParams(payload.client_params || null);
+        setShowQRCode(withQR);
+        setURIModalOpen(true);
+        push(withQR ? "QR opened" : "Connection details opened", "info");
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Failed to load URI";
+        setError(msg);
+        push(msg, "error");
+      }
+    });
+  }
+
+  async function copyAccountURI(account: Hy2Account) {
+    await withAccountAction(account.id, async () => {
+      try {
+        const payload = await apiFetch<Hy2AccountViewPayload>(`/api/hy2/accounts/${account.id}`);
+        await copyToClipboard(payload.uri);
+        markCopied(`uri-${account.id}`);
+        push("URI copied", "success");
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Failed to copy URI";
+        setError(msg);
+        push(msg, "error");
+      }
+    });
+  }
+
+  async function openTraffic(account: Hy2Account) {
+    setTrafficModalOpen(true);
+    setTrafficTitle(account.client_name || account.hy2_identity);
+    setTrafficRows([]);
+    setTrafficError(null);
+    setTrafficLoading(true);
+
     try {
-      const payload = await apiFetch<Hy2AccountViewPayload>(`/api/hy2/accounts/${account.id}`);
-      setCurrentURI(payload.uri);
-      setCurrentSingBoxJSON(JSON.stringify(payload.singbox_outbound || {}, null, 2));
-      setCurrentURITitle(account.client_name || account.hy2_identity);
-      setCurrentClientParams(payload.client_params || null);
-      setShowQRCode(withQR);
-      setURIModalOpen(true);
+      const payload = await apiFetch<{ items: Hy2TrafficPoint[] }>(`/api/hy2/stats/history?account_id=${account.id}&limit=30`);
+      setTrafficRows(payload.items || []);
+      push("Traffic opened", "info");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to load URI";
-      setError(msg);
+      const msg = err instanceof Error ? err.message : "Failed to load traffic";
+      setTrafficError(msg);
       push(msg, "error");
+    } finally {
+      setTrafficLoading(false);
     }
   }
 
-  async function copyURI(uri: string, key: string) {
+  async function copyURI(value: string, key: string) {
     try {
-      await copyToClipboard(uri);
+      await copyToClipboard(value);
       markCopied(key);
       push("Copied", "success");
     } catch {
@@ -272,8 +368,8 @@ export default function HysteriaPage() {
         body: toJSONBody({ content: configText }),
       });
       setConfigValidation(payload.validation);
-      push("Saved", "success");
-      await loadAll();
+      push("Config saved", "success");
+      await loadAll(false);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to save config";
       setError(msg);
@@ -287,14 +383,15 @@ export default function HysteriaPage() {
     if (!confirm("Restart hysteria-server and apply current config?")) {
       return;
     }
+
     setApplyingConfig(true);
     try {
       await apiFetch("/api/hy2/config/apply", {
         method: "POST",
         body: toJSONBody({}),
       });
-      push("Applied", "success");
-      await loadAll();
+      push("Config applied", "success");
+      await loadAll(false);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to apply config";
       setError(msg);
@@ -306,39 +403,41 @@ export default function HysteriaPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Hysteria 2</h1>
-      {error && <div className="rounded bg-red-100 p-2 text-sm text-red-800">{error}</div>}
-
-      <div className="grid gap-4 md:grid-cols-4">
-        <div className="card">
-          <div className="text-sm text-slate-600">Enabled Accounts</div>
-          <div className="text-2xl font-semibold">{overview?.enabled_accounts ?? 0}</div>
-        </div>
-        <div className="card">
-          <div className="text-sm text-slate-600">Online</div>
-          <div className="text-2xl font-semibold">{overview?.online_count ?? 0}</div>
-        </div>
-        <div className="card">
-          <div className="text-sm text-slate-600">Total TX</div>
-          <div className="text-xl font-semibold">{formatBytes(overview?.total_tx_bytes ?? 0)}</div>
-        </div>
-        <div className="card">
-          <div className="text-sm text-slate-600">Total RX</div>
-          <div className="text-xl font-semibold">{formatBytes(overview?.total_rx_bytes ?? 0)}</div>
+      <div className="page-header">
+        <div>
+          <h1 className="text-2xl font-semibold">Hysteria 2 Users</h1>
+          <p className="text-sm text-muted">Manage users, status, QR/URI and traffic from one clean list.</p>
         </div>
       </div>
 
-      <div className="card">
-        <div className="mb-3 flex gap-2">
-          <button className={tab === "users" ? "btn btn-primary" : "btn btn-muted"} onClick={() => setTab("users")}>Users</button>
-          <button className={tab === "config" ? "btn btn-primary" : "btn btn-muted"} onClick={() => setTab("config")}>Config</button>
-        </div>
+      {error && <div className="alert alert-error">{error}</div>}
 
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard label="Enabled Users" value={String(overview?.enabled_accounts ?? 0)} />
+        <MetricCard label="Online" value={String(overview?.online_count ?? 0)} />
+        <MetricCard label="Total TX" value={formatBytes(overview?.total_tx_bytes ?? 0)} />
+        <MetricCard label="Total RX" value={formatBytes(overview?.total_rx_bytes ?? 0)} />
+      </div>
+
+      <Card
+        title="Hysteria Workspace"
+        subtitle="User operations and config management"
+        action={
+          <div className="flex gap-2">
+            <button className={tab === "users" ? "btn btn-primary" : "btn btn-muted"} type="button" onClick={() => setTab("users")}>
+              Users
+            </button>
+            <button className={tab === "config" ? "btn btn-primary" : "btn btn-muted"} type="button" onClick={() => setTab("config")}>
+              Config
+            </button>
+          </div>
+        }
+      >
         {tab === "users" && (
           <div className="space-y-4">
-            <form className="grid gap-2 md:grid-cols-4" onSubmit={submitForm}>
-              <div>
-                <label className="mb-1 block text-sm">Client</label>
+            <form className="grid gap-3 md:grid-cols-4" onSubmit={submitForm}>
+              <label className="block">
+                <span className="mb-1 block text-sm text-muted">Client</span>
                 <select className="input" value={clientID} onChange={(e) => setClientID(e.target.value)} required disabled={Boolean(editingID)}>
                   {sortedClients.map((client) => (
                     <option key={client.id} value={client.id}>
@@ -346,17 +445,22 @@ export default function HysteriaPage() {
                     </option>
                   ))}
                 </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-sm">Auth payload</label>
-                <input className="input" value={authPayload} onChange={(e) => setAuthPayload(e.target.value)} placeholder="auto if empty" />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm">Identity</label>
-                <input className="input" value={hy2Identity} onChange={(e) => setHy2Identity(e.target.value)} placeholder="auto if empty" />
-              </div>
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-sm text-muted">Auth payload</span>
+                <input className="input" value={authPayload} onChange={(e) => setAuthPayload(e.target.value)} placeholder="Auto-generated if empty" />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-sm text-muted">Identity</span>
+                <input className="input" value={hy2Identity} onChange={(e) => setHy2Identity(e.target.value)} placeholder="Auto-generated if empty" />
+              </label>
+
               <div className="flex items-end gap-2">
-                <button className="btn btn-primary" type="submit">{editingID ? "Update" : "Add user"}</button>
+                <button className="btn btn-primary" type="submit" disabled={savingUser}>
+                  {savingUser ? "Saving..." : editingID ? "Update user" : "Add user"}
+                </button>
                 {editingID && (
                   <button className="btn btn-muted" type="button" onClick={clearForm}>
                     Cancel
@@ -365,69 +469,153 @@ export default function HysteriaPage() {
               </div>
             </form>
 
-            <div className="overflow-x-auto">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Identity</th>
-                    <th>Client</th>
-                    <th>Status</th>
-                    <th>Online</th>
-                    <th>Traffic</th>
-                    <th>Last seen</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {accounts.length === 0 && (
-                    <tr>
-                      <td colSpan={7} className="text-center text-slate-500">
-                        No Hysteria accounts
-                      </td>
-                    </tr>
-                  )}
+            {loading ? (
+              <div className="skeleton-grid">
+                <div className="skeleton-line" />
+                <div className="skeleton-line" />
+                <div className="skeleton-line" />
+              </div>
+            ) : accounts.length === 0 ? (
+              <div className="empty-state">No Hysteria users yet.</div>
+            ) : (
+              <>
+                <div className="hidden overflow-x-auto md:block">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>User</th>
+                        <th>Status</th>
+                        <th>Online</th>
+                        <th>Traffic</th>
+                        <th>Last seen</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {accounts.map((item) => {
+                        const online = (item.online_count || 0) > 0;
+                        const busy = activeAccountAction === item.id;
+                        return (
+                          <tr key={item.id}>
+                            <td>
+                              <div className="font-medium">{item.client_name || item.hy2_identity}</div>
+                              <div className="text-xs text-muted">Identity: {item.hy2_identity}</div>
+                              <div className="text-xs text-muted">ID: {item.id}</div>
+                            </td>
+                            <td>
+                              <StatusBadge enabled={item.is_enabled} />
+                            </td>
+                            <td>
+                              <span className={onlineBadgeClass(online)}>{online ? "Online" : "Offline"}</span>
+                            </td>
+                            <td>
+                              <div className="text-sm">TX: {formatBytes(item.last_tx_bytes || 0)}</div>
+                              <div className="text-sm">RX: {formatBytes(item.last_rx_bytes || 0)}</div>
+                            </td>
+                            <td>{formatDate(item.last_seen_at)}</td>
+                            <td>
+                              <div className="flex flex-wrap gap-2">
+                                <button className="btn btn-muted" type="button" onClick={() => startEdit(item)} disabled={busy}>
+                                  Edit
+                                </button>
+                                <button className="btn btn-muted" type="button" onClick={() => openURI(item, true)} disabled={busy}>
+                                  QR
+                                </button>
+                                <button className="btn btn-muted" type="button" onClick={() => copyAccountURI(item)} disabled={busy}>
+                                  {copiedKey === `uri-${item.id}` ? "Copied" : "Copy URI"}
+                                </button>
+                                <button className="btn btn-muted" type="button" onClick={() => openTraffic(item)} disabled={busy}>
+                                  Traffic
+                                </button>
+                                <button className="btn btn-muted" type="button" onClick={() => openURI(item, false)} disabled={busy}>
+                                  Details
+                                </button>
+                                <button className="btn btn-muted" type="button" onClick={() => kick(item.id)} disabled={busy}>
+                                  Kick
+                                </button>
+                                {item.is_enabled ? (
+                                  <button className="btn btn-danger" type="button" onClick={() => toggle(item.id, false)} disabled={busy}>
+                                    Disable
+                                  </button>
+                                ) : (
+                                  <button className="btn btn-muted" type="button" onClick={() => toggle(item.id, true)} disabled={busy}>
+                                    Enable
+                                  </button>
+                                )}
+                                <button className="btn btn-danger" type="button" onClick={() => removeAccount(item.id)} disabled={busy}>
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="space-y-3 md:hidden">
                   {accounts.map((item) => {
                     const online = (item.online_count || 0) > 0;
+                    const busy = activeAccountAction === item.id;
+
                     return (
-                      <tr key={item.id}>
-                        <td className="max-w-xs truncate">{item.hy2_identity}</td>
-                        <td>{item.client_name || item.client_id}</td>
-                        <td>
+                      <article key={item.id} className="list-row">
+                        <div className="space-y-1">
+                          <div className="font-medium">{item.client_name || item.hy2_identity}</div>
+                          <div className="text-xs text-muted">Identity: {item.hy2_identity}</div>
+                          <div className="text-xs text-muted">ID: {item.id}</div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
                           <StatusBadge enabled={item.is_enabled} />
-                        </td>
-                        <td>
-                          <span className={`badge ${online ? "badge-online" : "badge-offline"}`}>{online ? "online" : "offline"}</span>
-                        </td>
-                        <td>
-                          TX: {formatBytes(item.last_tx_bytes || 0)}
-                          <br />
-                          RX: {formatBytes(item.last_rx_bytes || 0)}
-                        </td>
-                        <td>{formatDate(item.last_seen_at)}</td>
-                        <td className="space-x-2">
-                          <button className="btn btn-muted" onClick={() => openURI(item, false)}>URI</button>
-                          <button className="btn btn-muted" onClick={() => openURI(item, true)}>QR</button>
-                          <button className="btn btn-muted" onClick={() => startEdit(item)}>Edit</button>
-                          <button className="btn btn-danger" onClick={() => removeAccount(item.id)}>Delete</button>
-                          <button className="btn btn-muted" onClick={() => kick(item.id)}>Kick</button>
+                          <span className={onlineBadgeClass(online)}>{online ? "Online" : "Offline"}</span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>TX: {formatBytes(item.last_tx_bytes || 0)}</div>
+                          <div>RX: {formatBytes(item.last_rx_bytes || 0)}</div>
+                        </div>
+                        <div className="text-xs text-muted">Last seen: {formatDate(item.last_seen_at)}</div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <button className="btn btn-muted" type="button" onClick={() => startEdit(item)} disabled={busy}>
+                            Edit
+                          </button>
+                          <button className="btn btn-muted" type="button" onClick={() => openURI(item, true)} disabled={busy}>
+                            QR
+                          </button>
+                          <button className="btn btn-muted" type="button" onClick={() => copyAccountURI(item)} disabled={busy}>
+                            {copiedKey === `uri-${item.id}` ? "Copied" : "Copy URI"}
+                          </button>
+                          <button className="btn btn-muted" type="button" onClick={() => openTraffic(item)} disabled={busy}>
+                            Traffic
+                          </button>
                           {item.is_enabled ? (
-                            <button className="btn btn-danger" onClick={() => toggle(item.id, false)}>Disable</button>
+                            <button className="btn btn-danger" type="button" onClick={() => toggle(item.id, false)} disabled={busy}>
+                              Disable
+                            </button>
                           ) : (
-                            <button className="btn btn-muted" onClick={() => toggle(item.id, true)}>Enable</button>
+                            <button className="btn btn-muted" type="button" onClick={() => toggle(item.id, true)} disabled={busy}>
+                              Enable
+                            </button>
                           )}
-                        </td>
-                      </tr>
+                          <button className="btn btn-danger" type="button" onClick={() => removeAccount(item.id)} disabled={busy}>
+                            Delete
+                          </button>
+                        </div>
+                      </article>
                     );
                   })}
-                </tbody>
-              </table>
-            </div>
+                </div>
+              </>
+            )}
           </div>
         )}
 
         {tab === "config" && (
           <div className="space-y-3">
-            <div className="text-sm text-slate-600">Source of truth: {configPath || "-"}</div>
+            <div className="text-sm text-muted">Source of truth: {configPath || "-"}</div>
             <textarea
               className="input min-h-[360px] font-mono text-xs"
               value={configText}
@@ -435,29 +623,38 @@ export default function HysteriaPage() {
               spellCheck={false}
             />
             <div className="flex flex-wrap gap-2">
-              <button className="btn btn-muted" onClick={validateConfig}>Preview / Validate</button>
-              <button className="btn btn-primary" onClick={saveConfig} disabled={savingConfig}>{savingConfig ? "Saving..." : "Save"}</button>
-              <button className="btn btn-danger" onClick={applyConfig} disabled={applyingConfig}>{applyingConfig ? "Applying..." : "Apply / Restart"}</button>
+              <button className="btn btn-muted" type="button" onClick={validateConfig}>
+                Preview / Validate
+              </button>
+              <button className="btn btn-primary" type="button" onClick={saveConfig} disabled={savingConfig}>
+                {savingConfig ? "Saving..." : "Save"}
+              </button>
+              <button className="btn btn-danger" type="button" onClick={applyConfig} disabled={applyingConfig}>
+                {applyingConfig ? "Applying..." : "Apply / Restart"}
+              </button>
             </div>
 
             {configValidation && (
-              <div className="rounded border border-slate-300 p-3 text-sm">
-                <div className="mb-2 font-medium">Validation: {configValidation.valid ? "OK" : "FAILED"}</div>
+              <div className="list-row text-sm">
+                <div className="font-medium">Validation: {configValidation.valid ? "OK" : "FAILED"}</div>
+
                 {configValidation.errors.length > 0 && (
-                  <div className="mb-2 rounded bg-red-50 p-2 text-red-800">
+                  <div className="alert alert-error">
                     {configValidation.errors.map((item) => (
                       <div key={item}>{item}</div>
                     ))}
                   </div>
                 )}
+
                 {configValidation.warnings.length > 0 && (
-                  <div className="mb-2 rounded bg-amber-50 p-2 text-amber-900">
+                  <div className="alert alert-warn">
                     {configValidation.warnings.map((item) => (
                       <div key={item}>{item}</div>
                     ))}
                   </div>
                 )}
-                <div className="grid gap-1 text-xs text-slate-600 md:grid-cols-2">
+
+                <div className="grid gap-1 text-xs text-muted md:grid-cols-2">
                   <div>listen: {configValidation.summary.listen || "-"}</div>
                   <div>port: {configValidation.summary.port || "-"}</div>
                   <div>auth: {configValidation.summary.auth_type || "-"}</div>
@@ -470,7 +667,7 @@ export default function HysteriaPage() {
             )}
           </div>
         )}
-      </div>
+      </Card>
 
       {uriModalOpen && (
         <>
@@ -478,12 +675,23 @@ export default function HysteriaPage() {
           <div className="modal-panel space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold">{currentURITitle}</h2>
-              <button className="btn btn-muted" onClick={() => setURIModalOpen(false)}>Close</button>
+              <button className="btn btn-muted" type="button" onClick={() => setURIModalOpen(false)}>
+                Close
+              </button>
             </div>
-            <textarea className="input min-h-24 font-mono text-xs" value={currentURI} readOnly />
-            <textarea className="input min-h-24 font-mono text-xs" value={currentSingBoxJSON} readOnly />
+
+            <div>
+              <div className="mb-1 text-xs text-muted">URI</div>
+              <textarea className="input min-h-20 font-mono text-xs" value={currentURI} readOnly />
+            </div>
+
+            <div>
+              <div className="mb-1 text-xs text-muted">sing-box outbound</div>
+              <textarea className="input min-h-20 font-mono text-xs" value={currentSingBoxJSON} readOnly />
+            </div>
+
             {currentClientParams && (
-              <div className="rounded border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700">
+              <div className="list-row text-xs text-muted">
                 <div>server: {currentClientParams.server || "-"}</div>
                 <div>port: {currentClientParams.port || "-"}</div>
                 <div>sni: {currentClientParams.sni || "-"}</div>
@@ -493,17 +701,68 @@ export default function HysteriaPage() {
                 <div>alpn: {(currentClientParams.alpn || []).join(", ") || "-"}</div>
               </div>
             )}
+
             <div className="flex flex-wrap gap-2">
-              <button className="btn btn-primary" onClick={() => copyURI(currentURI, "uri")}>{copiedKey === "uri" ? "Copied" : "Copy URI (Standard)"}</button>
-              <button className="btn btn-primary" onClick={() => copyURI(currentSingBoxJSON, "singbox")}>{copiedKey === "singbox" ? "Copied" : "Copy sing-box outbound"}</button>
-              <button className="btn btn-muted" onClick={() => setShowQRCode((prev) => !prev)}>{showQRCode ? "Hide QR" : "Show QR"}</button>
+              <button className="btn btn-primary" type="button" onClick={() => copyURI(currentURI, "uri")}>
+                {copiedKey === "uri" ? "Copied" : "Copy URI"}
+              </button>
+              <button className="btn btn-primary" type="button" onClick={() => copyURI(currentSingBoxJSON, "singbox")}>
+                {copiedKey === "singbox" ? "Copied" : "Copy sing-box"}
+              </button>
+              <button className="btn btn-muted" type="button" onClick={() => setShowQRCode((prev) => !prev)}>
+                {showQRCode ? "Hide QR" : "Show QR"}
+              </button>
             </div>
+
             {showQRCode && currentURI && (
               <img
                 src={`https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(currentURI)}`}
                 alt="Hysteria QR code"
-                className="h-64 w-64 rounded border border-slate-200"
+                className="h-64 w-64 rounded-lg border"
               />
+            )}
+          </div>
+        </>
+      )}
+
+      {trafficModalOpen && (
+        <>
+          <div className="modal-backdrop" onClick={() => setTrafficModalOpen(false)} />
+          <div className="modal-panel space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Traffic: {trafficTitle}</h2>
+              <button className="btn btn-muted" type="button" onClick={() => setTrafficModalOpen(false)}>
+                Close
+              </button>
+            </div>
+
+            {trafficLoading && <div className="text-sm text-muted">Loading traffic...</div>}
+            {trafficError && <div className="alert alert-error">{trafficError}</div>}
+            {!trafficLoading && !trafficError && trafficRows.length === 0 && <div className="empty-state">No traffic snapshots.</div>}
+
+            {!trafficLoading && trafficRows.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Time</th>
+                      <th>TX</th>
+                      <th>RX</th>
+                      <th>Online</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {trafficRows.map((row) => (
+                      <tr key={row.id}>
+                        <td>{formatDate(row.snapshot_at)}</td>
+                        <td>{formatBytes(row.tx_bytes)}</td>
+                        <td>{formatBytes(row.rx_bytes)}</td>
+                        <td>{row.online_count}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </>
@@ -511,3 +770,4 @@ export default function HysteriaPage() {
     </div>
   );
 }
+

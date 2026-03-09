@@ -36,8 +36,9 @@ func NewServer(cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, repo 
 	serviceManager := services.NewServiceManager(cfg.SystemctlPath, cfg.SudoPath, cfg.JournalctlPath, cfg.ManagedServices)
 	runtimeManager := services.NewMTProxyRuntimeManager(repo, cfg.MTProxySecretsPath, "mtproxy", serviceManager)
 	hy2ConfigManager := services.NewHysteriaConfigManager(cfg.Hy2ConfigPath)
+	systemMetrics := services.NewSystemMetricsCollector()
 
-	h := handlers.New(cfg, logger, repo, rateLimiter, hy2Client, mtProxyClient, serviceManager, runtimeManager, hy2ConfigManager)
+	h := handlers.New(cfg, logger, repo, rateLimiter, hy2Client, mtProxyClient, serviceManager, runtimeManager, hy2ConfigManager, systemMetrics)
 	router := httpserver.NewRouter(cfg, logger, repo, h)
 
 	httpSrv := &http.Server{
@@ -86,3 +87,4 @@ func (s *Server) Shutdown(ctx context.Context) error {
 func (s *Server) SyncMTProxy(ctx context.Context, force bool) error {
 	return s.runtimeManager.Sync(ctx, force)
 }
+

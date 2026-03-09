@@ -35,11 +35,13 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
-      <div className="w-full max-w-md rounded-xl border border-slate-300 bg-white p-6 shadow-sm">
+    <div className="auth-shell">
+      <div className="auth-card">
         <h1 className="mb-2 text-xl font-semibold">Proxy Panel Login</h1>
-        <p className="mb-4 text-sm text-slate-600">Sign in with admin account</p>
-        {error && <div className="mb-3 rounded bg-red-100 p-2 text-sm text-red-800">{error}</div>}
+        <p className="mb-4 text-sm text-muted">Sign in with admin account</p>
+
+        {error && <div className="mb-3 alert alert-error">{error}</div>}
+
         <form className="space-y-3" onSubmit={onSubmit}>
           <label className="block">
             <span className="mb-1 block text-sm">Email</span>
@@ -56,6 +58,7 @@ export default function LoginPage() {
               required
             />
           </label>
+
           <button disabled={loading} className="btn btn-primary w-full" type="submit">
             {loading ? "Signing in..." : "Sign in"}
           </button>

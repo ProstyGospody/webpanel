@@ -58,3 +58,13 @@ export type AuditLog = {
   payload_json: string;
   created_at: string;
 };
+
+export type SystemMetrics = {
+  cpu_usage_percent: number;
+  memory_used_bytes: number;
+  memory_total_bytes: number;
+  memory_used_percent: number;
+  uptime_seconds: number;
+  collected_at: string;
+};
+
