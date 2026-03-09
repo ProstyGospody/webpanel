@@ -84,20 +84,26 @@ export default function ClientsPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Clients</h1>
-      {error && <div className="rounded bg-red-100 p-2 text-sm text-red-800">{error}</div>}
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Clients</h1>
+          <p className="page-subtitle">Manage client records and access state across Hysteria 2 and MTProxy.</p>
+        </div>
+      </div>
+
+      {error && <div className="alert alert-warn">{error}</div>}
 
       <form className="card grid gap-3 md:grid-cols-5" onSubmit={onCreate}>
         <div className="md:col-span-2">
-          <label className="mb-1 block text-sm">Client name</label>
+          <label className="mb-1 block text-sm text-muted">Client name</label>
           <input className="input" value={name} onChange={(e) => setName(e.target.value)} required />
         </div>
         <div>
-          <label className="mb-1 block text-sm">Email</label>
+          <label className="mb-1 block text-sm text-muted">Email</label>
           <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
         </div>
         <div>
-          <label className="mb-1 block text-sm">Note</label>
+          <label className="mb-1 block text-sm text-muted">Note</label>
           <input className="input" value={note} onChange={(e) => setNote(e.target.value)} />
         </div>
         <div className="flex items-end">
@@ -128,7 +134,7 @@ export default function ClientsPage() {
           <tbody>
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={5} className="text-center text-slate-500">
+                <td colSpan={5} className="text-center text-muted">
                   No clients found
                 </td>
               </tr>
@@ -164,3 +170,4 @@ export default function ClientsPage() {
     </div>
   );
 }
+

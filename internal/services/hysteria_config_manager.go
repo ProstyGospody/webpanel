@@ -1,6 +1,8 @@
 package services
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"net"
 	"net/url"
@@ -284,10 +286,15 @@ func (m *HysteriaConfigManager) ExtractSettings(content string, fallbackHost str
 }
 
 func (m *HysteriaConfigManager) ValidateSettings(input Hy2Settings) Hy2SettingsValidation {
+	conflict := input.ObfsEnabled && input.MasqueradeEnabled
 	settings := normalizeSettings(input)
 	validation := Hy2SettingsValidation{
 		Errors:   make([]string, 0, 4),
-		Warnings: make([]string, 0, 2),
+		Warnings: make([]string, 0, 3),
+	}
+
+	if conflict {
+		validation.Warnings = append(validation.Warnings, "obfs and masquerade cannot be enabled together; masquerade has been disabled")
 	}
 
 	if settings.Port <= 0 || settings.Port > 65535 {
@@ -333,7 +340,7 @@ func (m *HysteriaConfigManager) ValidateSettings(input Hy2Settings) Hy2SettingsV
 
 func (m *HysteriaConfigManager) ApplySettings(content string, input Hy2Settings) (string, Hy2SettingsValidation) {
 	settings := normalizeSettings(input)
-	validation := m.ValidateSettings(settings)
+	validation := m.ValidateSettings(input)
 	if !validation.Valid {
 		return content, validation
 	}
@@ -561,23 +568,46 @@ func normalizeSettings(input Hy2Settings) Hy2Settings {
 		MasqueradeRewriteHost: input.MasqueradeRewriteHost,
 	}
 
-	if settings.ObfsEnabled && settings.ObfsType == "" {
-		settings.ObfsType = "salamander"
+	if settings.ObfsEnabled {
+		if settings.ObfsType == "" {
+			settings.ObfsType = "salamander"
+		}
+		if settings.ObfsPassword == "" {
+			settings.ObfsPassword = generateObfsPassword()
+		}
+		settings.MasqueradeEnabled = false
+		settings.MasqueradeType = ""
+		settings.MasqueradeURL = ""
 	}
+
+	if settings.MasqueradeEnabled {
+		if settings.MasqueradeType == "" {
+			settings.MasqueradeType = "proxy"
+		}
+		settings.ObfsEnabled = false
+		settings.ObfsType = ""
+		settings.ObfsPassword = ""
+	}
+
 	if !settings.ObfsEnabled {
 		settings.ObfsType = ""
 		settings.ObfsPassword = ""
 	}
 
-	if settings.MasqueradeEnabled && settings.MasqueradeType == "" {
-		settings.MasqueradeType = "proxy"
-	}
 	if !settings.MasqueradeEnabled {
 		settings.MasqueradeType = ""
 		settings.MasqueradeURL = ""
 	}
 
 	return settings
+}
+
+func generateObfsPassword() string {
+	raw := make([]byte, 18)
+	if _, err := rand.Read(raw); err != nil {
+		return fmt.Sprintf("obfs-%d", time.Now().UTC().UnixNano())
+	}
+	return base64.RawURLEncoding.EncodeToString(raw)
 }
 
 func splitConfigLines(content string) []string {

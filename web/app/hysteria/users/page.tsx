@@ -319,7 +319,7 @@ export default function HysteriaUsersPage() {
                       <tr key={item.id}>
                         <td>
                           <div className="font-medium">{item.client_name || item.hy2_identity}</div>
-                          <div className="text-xs text-muted">Identity: {item.hy2_identity}</div>
+                          <div className="text-xs text-muted break-all">Identity: {item.hy2_identity}</div>
                         </td>
                         <td>
                           <div className="flex flex-wrap gap-2">
@@ -363,7 +363,7 @@ export default function HysteriaUsersPage() {
                   <article key={item.id} className="list-row space-y-2">
                     <div>
                       <div className="font-medium">{item.client_name || item.hy2_identity}</div>
-                      <div className="text-xs text-muted">Identity: {item.hy2_identity}</div>
+                      <div className="text-xs text-muted break-all">Identity: {item.hy2_identity}</div>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <StatusBadge enabled={item.is_enabled} />
@@ -478,18 +478,18 @@ export default function HysteriaUsersPage() {
         <div className="space-y-3">
           <div>
             <div className="mb-1 text-xs text-muted">hysteria2 URI</div>
-            <textarea className="input min-h-20 font-mono text-xs" value={uriValue} readOnly />
+            <textarea className="input min-h-20 font-mono text-xs break-all" value={uriValue} readOnly />
           </div>
 
           {uriV2Ray && (
             <div>
               <div className="mb-1 text-xs text-muted">V2RayNG hy2 URI</div>
-              <textarea className="input min-h-20 font-mono text-xs" value={uriV2Ray} readOnly />
+              <textarea className="input min-h-20 font-mono text-xs break-all" value={uriV2Ray} readOnly />
             </div>
           )}
 
           {uriClientParams && (
-            <div className="list-row text-xs text-muted">
+            <div className="list-row text-xs text-muted break-all">
               server: {uriClientParams.server || "-"} | port: {uriClientParams.port || "-"} | sni: {uriClientParams.sni || "-"}
             </div>
           )}
@@ -498,7 +498,7 @@ export default function HysteriaUsersPage() {
             <img
               src={`https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(uriValue)}`}
               alt="Hysteria QR code"
-              className="h-56 w-56 rounded-md border"
+              className="h-56 w-56 rounded-md"
             />
           )}
         </div>
@@ -506,3 +506,4 @@ export default function HysteriaUsersPage() {
     </div>
   );
 }
+

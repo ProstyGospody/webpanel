@@ -174,8 +174,11 @@ export default function ClientDetailsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Client: {payload.client.name}</h1>
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Client: {payload.client.name}</h1>
+          <p className="page-subtitle">Email: {payload.client.email || "-"}</p>
+        </div>
         <div className="space-x-2">
           {payload.client.is_active ? (
             <button className="btn btn-danger" onClick={() => setClientState(false)}>
@@ -189,16 +192,15 @@ export default function ClientDetailsPage() {
         </div>
       </div>
 
-      {error && <div className="rounded bg-red-100 p-2 text-sm text-red-800">{error}</div>}
+      {error && <div className="alert alert-warn">{error}</div>}
 
       <section className="card space-y-3">
-        <div className="flex items-center gap-4 text-sm">
+        <div className="flex flex-wrap items-center gap-4 text-sm">
           <StatusBadge enabled={payload.client.is_active} />
-          <span>Email: {payload.client.email || "-"}</span>
           <span>Updated: {formatDate(payload.client.updated_at)}</span>
         </div>
         <form className="space-y-2" onSubmit={updateClient}>
-          <label className="block text-sm">Note</label>
+          <label className="block text-sm text-muted">Note</label>
           <textarea className="input min-h-20" value={note} onChange={(e) => setNote(e.target.value)} />
           <button className="btn btn-primary" type="submit">
             Save note
@@ -207,8 +209,8 @@ export default function ClientDetailsPage() {
       </section>
 
       <section className="card space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Hysteria Accounts</h2>
+        <div className="card-header">
+          <h2 className="card-title">Hysteria Accounts</h2>
           <button className="btn btn-primary" onClick={createHy2}>
             Add Hysteria access
           </button>
@@ -226,7 +228,7 @@ export default function ClientDetailsPage() {
           <tbody>
             {payload.hy2_accounts.length === 0 && (
               <tr>
-                <td colSpan={5} className="text-center text-slate-500">
+                <td colSpan={5} className="text-center text-muted">
                   No Hysteria accounts
                 </td>
               </tr>
@@ -263,8 +265,8 @@ export default function ClientDetailsPage() {
       </section>
 
       <section className="card space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">MTProxy Secrets</h2>
+        <div className="card-header">
+          <h2 className="card-title">MTProxy Secrets</h2>
           <button className="btn btn-primary" onClick={createSecret}>
             Add MTProxy secret
           </button>
@@ -281,7 +283,7 @@ export default function ClientDetailsPage() {
           <tbody>
             {payload.mtproxy_secrets.length === 0 && (
               <tr>
-                <td colSpan={4} className="text-center text-slate-500">
+                <td colSpan={4} className="text-center text-muted">
                   No MTProxy secrets
                 </td>
               </tr>
@@ -315,3 +317,4 @@ export default function ClientDetailsPage() {
     </div>
   );
 }
+

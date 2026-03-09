@@ -26,6 +26,75 @@ const EMPTY_SETTINGS: Hy2Settings = {
   masquerade_rewrite_host: true,
 };
 
+const DEFAULT_OBFS_TYPE = "salamander";
+const DEFAULT_MASQUERADE_TYPE = "proxy";
+const DEFAULT_MASQUERADE_URL = "https://www.cloudflare.com";
+const PASSWORD_ALPHABET = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+function generateObfsPassword(length = 18): string {
+  if (typeof window !== "undefined" && window.crypto?.getRandomValues) {
+    const bytes = new Uint8Array(length);
+    window.crypto.getRandomValues(bytes);
+    return Array.from(bytes, (byte) => PASSWORD_ALPHABET[byte % PASSWORD_ALPHABET.length]).join("");
+  }
+
+  let fallback = "";
+  for (let i = 0; i < length; i += 1) {
+    fallback += PASSWORD_ALPHABET[Math.floor(Math.random() * PASSWORD_ALPHABET.length)];
+  }
+  return fallback;
+}
+
+type NormalizeOptions = {
+  generateObfsPassword: boolean;
+  prefer?: "obfs" | "masquerade";
+};
+
+function normalizeSettings(input: Hy2Settings, options: NormalizeOptions = { generateObfsPassword: false }): Hy2Settings {
+  const next: Hy2Settings = {
+    ...input,
+    sni: (input.sni || "").trim(),
+    obfs_type: (input.obfs_type || "").trim().toLowerCase(),
+    obfs_password: (input.obfs_password || "").trim(),
+    masquerade_type: (input.masquerade_type || "").trim().toLowerCase(),
+    masquerade_url: (input.masquerade_url || "").trim(),
+  };
+
+  if (next.obfs_enabled && next.masquerade_enabled) {
+    if (options.prefer === "masquerade") {
+      next.obfs_enabled = false;
+    } else {
+      next.masquerade_enabled = false;
+    }
+  }
+
+  if (next.obfs_enabled) {
+    if (!next.obfs_type) {
+      next.obfs_type = DEFAULT_OBFS_TYPE;
+    }
+    if (!next.obfs_password && options.generateObfsPassword) {
+      next.obfs_password = generateObfsPassword();
+    }
+  } else {
+    next.obfs_type = "";
+    next.obfs_password = "";
+  }
+
+  if (next.masquerade_enabled) {
+    if (!next.masquerade_type) {
+      next.masquerade_type = DEFAULT_MASQUERADE_TYPE;
+    }
+    if (!next.masquerade_url) {
+      next.masquerade_url = DEFAULT_MASQUERADE_URL;
+    }
+  } else {
+    next.masquerade_type = "";
+    next.masquerade_url = "";
+  }
+
+  return next;
+}
+
 export default function HysteriaSettingsPage() {
   const { push } = useToast();
 
@@ -47,7 +116,7 @@ export default function HysteriaSettingsPage() {
     try {
       const payload = await apiFetch<Hy2SettingsPayload>("/api/hy2/settings");
       setPath(payload.path || "");
-      setSettings(payload.settings || EMPTY_SETTINGS);
+      setSettings(normalizeSettings(payload.settings || EMPTY_SETTINGS));
       setSettingsValidation(payload.settings_validation || null);
       setConfigValidation(payload.config_validation || null);
       setClientParams(payload.client_params || null);
@@ -72,15 +141,28 @@ export default function HysteriaSettingsPage() {
   }, [settingsValidation]);
 
   function update<K extends keyof Hy2Settings>(key: K, value: Hy2Settings[K]) {
-    setSettings((prev) => ({ ...prev, [key]: value }));
+    setSettings((prev) => {
+      const next = { ...prev, [key]: value };
+      const normalizeOptions: NormalizeOptions = { generateObfsPassword: false };
+      if (key === "obfs_enabled" && Boolean(value)) {
+        normalizeOptions.generateObfsPassword = true;
+        normalizeOptions.prefer = "obfs";
+      }
+      if (key === "masquerade_enabled" && Boolean(value)) {
+        normalizeOptions.prefer = "masquerade";
+      }
+      return normalizeSettings(next, normalizeOptions);
+    });
   }
 
   async function validateSettings() {
     setValidating(true);
     try {
+      const nextSettings = normalizeSettings(settings, { generateObfsPassword: true });
+      setSettings(nextSettings);
       const payload = await apiFetch<ValidatePayload>("/api/hy2/settings/validate", {
         method: "POST",
-        body: toJSONBody(settings),
+        body: toJSONBody(nextSettings),
       });
       setSettingsValidation(payload.settings_validation || null);
       setConfigValidation(payload.config_validation || null);
@@ -97,12 +179,14 @@ export default function HysteriaSettingsPage() {
   async function saveSettings() {
     setSaving(true);
     try {
+      const nextSettings = normalizeSettings(settings, { generateObfsPassword: true });
+      setSettings(nextSettings);
       const payload = await apiFetch<Hy2SettingsPayload>("/api/hy2/settings", {
         method: "PUT",
-        body: toJSONBody(settings),
+        body: toJSONBody(nextSettings),
       });
       setPath(payload.path || "");
-      setSettings(payload.settings || settings);
+      setSettings(normalizeSettings(payload.settings || nextSettings));
       setSettingsValidation(payload.settings_validation || null);
       setConfigValidation(payload.config_validation || null);
       setClientParams(payload.client_params || null);
@@ -168,7 +252,7 @@ export default function HysteriaSettingsPage() {
         </div>
       </Card>
 
-      <Card title="OBFS" subtitle="Optional transport obfuscation.">
+      <Card title="OBFS" subtitle="Optional transport obfuscation. Incompatible with Masquerade.">
         <div className="space-y-3">
           <label className="flex items-center gap-2 text-sm">
             <input
@@ -179,6 +263,8 @@ export default function HysteriaSettingsPage() {
             />
             Enable OBFS
           </label>
+
+          {settings.obfs_enabled && <div className="text-sm text-muted">Masquerade is automatically disabled while OBFS is enabled.</div>}
 
           {settings.obfs_enabled && (
             <div className="grid gap-3 md:grid-cols-2">
@@ -195,6 +281,7 @@ export default function HysteriaSettingsPage() {
                   className="input"
                   value={settings.obfs_password || ""}
                   onChange={(event) => update("obfs_password", event.target.value)}
+                  placeholder="Auto-generated when empty"
                 />
               </label>
             </div>
@@ -202,7 +289,7 @@ export default function HysteriaSettingsPage() {
         </div>
       </Card>
 
-      <Card title="Masquerade" subtitle="Proxy mode URL camouflage.">
+      <Card title="Masquerade" subtitle="Proxy mode URL camouflage. Incompatible with OBFS.">
         <div className="space-y-3">
           <label className="flex items-center gap-2 text-sm">
             <input
@@ -213,6 +300,8 @@ export default function HysteriaSettingsPage() {
             />
             Enable Masquerade
           </label>
+
+          {settings.masquerade_enabled && <div className="text-sm text-muted">OBFS is automatically disabled while Masquerade is enabled.</div>}
 
           {settings.masquerade_enabled && (
             <>
@@ -302,3 +391,4 @@ export default function HysteriaSettingsPage() {
     </div>
   );
 }
+

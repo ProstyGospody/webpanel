@@ -1,8 +1,8 @@
 package services
 
 import (
-    "strings"
-    "testing"
+	"strings"
+	"testing"
 )
 
 func TestHysteriaConfigManagerParseCaseInsensitivePaths(t *testing.T) {
@@ -167,6 +167,17 @@ tls:
 		t.Fatalf("settings should be valid: %#v", validation)
 	}
 
+	warningFound := false
+	for _, warning := range validation.Warnings {
+		if warning == "obfs and masquerade cannot be enabled together; masquerade has been disabled" {
+			warningFound = true
+			break
+		}
+	}
+	if !warningFound {
+		t.Fatalf("expected conflict warning, got: %#v", validation.Warnings)
+	}
+
 	summary := manager.Parse(next)
 	if summary.Port != 8443 {
 		t.Fatalf("unexpected port: %d", summary.Port)
@@ -180,11 +191,55 @@ tls:
 	if summary.ObfsPassword != "secret-pass" {
 		t.Fatalf("unexpected obfs password: %s", summary.ObfsPassword)
 	}
-	if summary.MasqueradeType != "proxy" {
-		t.Fatalf("unexpected masquerade type: %s", summary.MasqueradeType)
+	if summary.MasqueradeType != "" {
+		t.Fatalf("masquerade must be disabled when obfs is enabled: %s", summary.MasqueradeType)
 	}
-	if summary.MasqueradeURL != "https://www.cloudflare.com" {
-		t.Fatalf("unexpected masquerade url: %s", summary.MasqueradeURL)
+	if summary.MasqueradeURL != "" {
+		t.Fatalf("masquerade url must be empty when obfs is enabled: %s", summary.MasqueradeURL)
+	}
+	if strings.Contains(next, "masquerade:") {
+		t.Fatalf("masquerade block must be removed when obfs is enabled: %s", next)
+	}
+}
+
+func TestHysteriaConfigManagerApplySettingsGeneratesObfsPasswordWhenMissing(t *testing.T) {
+	cfg := `listen: :443
+
+auth:
+  type: http
+  http:
+    url: http://127.0.0.1:18080/internal/hy2/auth
+
+tls:
+  sni: hy2.example.com
+`
+
+	manager := NewHysteriaConfigManager("/tmp/unused")
+	next, validation := manager.ApplySettings(cfg, Hy2Settings{
+		Port:                  443,
+		SNI:                   "hy2.example.com",
+		ObfsEnabled:           true,
+		ObfsType:              "salamander",
+		ObfsPassword:          "",
+		MasqueradeEnabled:     false,
+		MasqueradeType:        "",
+		MasqueradeURL:         "",
+		MasqueradeRewriteHost: true,
+	})
+
+	if !validation.Valid {
+		t.Fatalf("settings should be valid: %#v", validation)
+	}
+
+	summary := manager.Parse(next)
+	if summary.ObfsType != "salamander" {
+		t.Fatalf("unexpected obfs type: %s", summary.ObfsType)
+	}
+	if strings.TrimSpace(summary.ObfsPassword) == "" {
+		t.Fatalf("obfs password should be auto-generated")
+	}
+	if len(summary.ObfsPassword) < 8 {
+		t.Fatalf("generated obfs password is too short: %s", summary.ObfsPassword)
 	}
 }
 
@@ -210,12 +265,12 @@ masquerade:
 
 	manager := NewHysteriaConfigManager("/tmp/unused")
 	next, validation := manager.ApplySettings(cfg, Hy2Settings{
-		Port:                 443,
-		SNI:                  "hy2.example.com",
-		ObfsEnabled:          false,
-		MasqueradeEnabled:    false,
-		MasqueradeType:       "",
-		MasqueradeURL:        "",
+		Port:                  443,
+		SNI:                   "hy2.example.com",
+		ObfsEnabled:           false,
+		MasqueradeEnabled:     false,
+		MasqueradeType:        "",
+		MasqueradeURL:         "",
 		MasqueradeRewriteHost: true,
 	})
 
@@ -230,3 +285,4 @@ masquerade:
 		t.Fatalf("masquerade block should be removed: %s", next)
 	}
 }
+

@@ -264,7 +264,7 @@ export default function MTProxyUsersPage() {
                       <tr key={item.id}>
                         <td>
                           <div className="font-medium">{item.label || item.client_name || item.client_id}</div>
-                          <div className="text-xs text-muted">Secret: {item.secret}</div>
+                          <div className="text-xs text-muted break-all">Secret: {item.secret}</div>
                         </td>
                         <td>
                           <StatusBadge enabled={item.is_enabled} />
@@ -301,7 +301,7 @@ export default function MTProxyUsersPage() {
                 return (
                   <article key={item.id} className="list-row space-y-2">
                     <div className="font-medium">{item.label || item.client_name || item.client_id}</div>
-                    <div className="text-xs text-muted">Secret: {item.secret}</div>
+                    <div className="text-xs text-muted break-all">Secret: {item.secret}</div>
                     <div className="flex flex-wrap gap-2">
                       <StatusBadge enabled={item.is_enabled} />
                       <span className={`badge ${item.is_runtime_active ? "badge-online" : "badge-neutral"}`}>
@@ -390,3 +390,4 @@ export default function MTProxyUsersPage() {
     </div>
   );
 }
+
