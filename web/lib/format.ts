@@ -12,6 +12,13 @@ export function formatBytes(value?: number | null): string {
   return `${num.toFixed(idx === 0 ? 0 : 2)} ${units[idx]}`;
 }
 
+export function formatRate(bytesPerSec?: number | null): string {
+  if (bytesPerSec === null || bytesPerSec === undefined || Number.isNaN(bytesPerSec) || bytesPerSec < 0) {
+    return "-";
+  }
+  return `${formatBytes(bytesPerSec)}/s`;
+}
+
 export function formatDate(value?: string | null): string {
   if (!value) {
     return "-";
@@ -65,4 +72,3 @@ export async function copyToClipboard(text: string): Promise<void> {
   document.execCommand("copy");
   document.body.removeChild(textarea);
 }
-

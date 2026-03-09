@@ -9,14 +9,48 @@ import type { Admin } from "@/lib/types";
 import { useToast } from "@/components/toast-provider";
 import { useTheme } from "@/components/theme-provider";
 
-const nav = [
-  { href: "/", label: "Dashboard" },
-  { href: "/clients", label: "Clients" },
-  { href: "/hysteria", label: "Hysteria 2" },
-  { href: "/mtproxy", label: "MTProxy" },
-  { href: "/services", label: "Services" },
-  { href: "/audit", label: "Audit" },
+type NavSection = {
+  title: string;
+  items: Array<{ href: string; label: string }>;
+};
+
+const navSections: NavSection[] = [
+  {
+    title: "Overview",
+    items: [{ href: "/", label: "Dashboard" }],
+  },
+  {
+    title: "Hysteria 2",
+    items: [
+      { href: "/hysteria/users", label: "Users" },
+      { href: "/hysteria/settings", label: "Settings" },
+    ],
+  },
+  {
+    title: "MTProxy",
+    items: [
+      { href: "/mtproxy/users", label: "Users" },
+      { href: "/mtproxy/settings", label: "Settings" },
+    ],
+  },
+  {
+    title: "Operations",
+    items: [
+      { href: "/services", label: "Services" },
+      { href: "/audit", label: "Audit" },
+    ],
+  },
 ];
+
+function normalizePathname(pathname: string): string {
+  if (pathname === "/hysteria") {
+    return "/hysteria/users";
+  }
+  if (pathname === "/mtproxy") {
+    return "/mtproxy/users";
+  }
+  return pathname;
+}
 
 function isActiveLink(pathname: string, href: string): boolean {
   if (href === "/") {
@@ -27,7 +61,7 @@ function isActiveLink(pathname: string, href: string): boolean {
 
 export function AppShell({ children }: PropsWithChildren) {
   const router = useRouter();
-  const pathname = usePathname();
+  const pathname = normalizePathname(usePathname());
   const { push } = useToast();
   const { theme, toggleTheme, ready } = useTheme();
 
@@ -79,7 +113,7 @@ export function AppShell({ children }: PropsWithChildren) {
   if (loading) {
     return (
       <div className="shell-loading">
-        <div className="card max-w-md">
+        <div className="card card-muted max-w-md">
           <div className="text-sm text-muted">Loading admin session...</div>
         </div>
       </div>
@@ -102,82 +136,79 @@ export function AppShell({ children }: PropsWithChildren) {
     push(`Theme changed: ${next}`, "info");
   }
 
-  const renderNavLinks = (isMobile = false) => (
-    <>
-      {nav.map((item) => {
-        const active = isActiveLink(pathname, item.href);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`nav-link ${active ? "nav-link-active" : ""} ${isMobile ? "nav-link-mobile" : ""}`}
-            onClick={() => isMobile && setMobileNavOpen(false)}
-          >
-            {item.label}
-          </Link>
-        );
-      })}
-    </>
+  const renderNav = (onNavigate?: () => void) => (
+    <div className="nav-sections">
+      {navSections.map((section) => (
+        <section key={section.title} className="nav-section">
+          <div className="nav-section-title">{section.title}</div>
+          <div className="nav-links">
+            {section.items.map((item) => {
+              const active = isActiveLink(pathname, item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`nav-link ${active ? "nav-link-active" : ""}`}
+                  onClick={onNavigate}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      ))}
+    </div>
   );
 
   return (
     <div className="app-shell">
-      <header className="app-header">
-        <div className="app-header-inner">
-          <div className="app-header-left">
-            <button className="btn btn-muted md:hidden" onClick={() => setMobileNavOpen(true)} aria-label="Open navigation">
+      <aside className="shell-sidebar">
+        <div className="sidebar-brand">
+          <div className="brand-title">Proxy Panel</div>
+          <div className="brand-subtitle">Hysteria 2 + MTProxy</div>
+        </div>
+        {renderNav()}
+        <div className="sidebar-footer text-xs text-muted">{admin?.email || "admin"}</div>
+      </aside>
+
+      <div className="shell-workspace">
+        <header className="shell-topbar">
+          <div className="shell-topbar-left">
+            <button className="btn btn-ghost mobile-only" onClick={() => setMobileNavOpen(true)} aria-label="Open navigation">
               Menu
             </button>
-            <div className="brand-block">
-              <div className="brand-title">Proxy Panel</div>
-              <div className="brand-subtitle">Hysteria 2 and MTProxy control</div>
-            </div>
+            <div className="topbar-title">Control plane</div>
+            <div className="topbar-subtitle">Single-node Debian 12 operations</div>
           </div>
-
-          <nav className="hidden items-center gap-1 md:flex" aria-label="Main navigation">
-            {renderNavLinks(false)}
-          </nav>
-
-          <div className="app-header-right">
-            <button className="btn btn-muted" onClick={onThemeToggle} disabled={!ready}>
+          <div className="shell-topbar-right">
+            <button className="btn btn-ghost" onClick={onThemeToggle} disabled={!ready}>
               {theme === "dark" ? "Light" : "Dark"}
             </button>
-            <span className="hidden text-sm text-muted sm:inline">{admin?.email || "admin"}</span>
-            <button className="btn btn-muted" onClick={onLogout}>
+            <button className="btn btn-ghost" onClick={onLogout}>
               Logout
             </button>
           </div>
-        </div>
-      </header>
+        </header>
+
+        <main className="app-main">{children}</main>
+      </div>
 
       {mobileNavOpen && (
         <>
           <div className="mobile-nav-backdrop" onClick={() => setMobileNavOpen(false)} />
           <aside className="mobile-nav-panel" aria-label="Mobile navigation">
             <div className="mobile-nav-header">
-              <div className="text-sm font-semibold">Navigation</div>
-              <button className="btn btn-muted" onClick={() => setMobileNavOpen(false)}>
+              <div className="font-semibold">Navigation</div>
+              <button className="btn btn-ghost" onClick={() => setMobileNavOpen(false)}>
                 Close
               </button>
             </div>
-            <div className="mobile-nav-links">{renderNavLinks(true)}</div>
-            <div className="mobile-nav-footer">
-              <div className="text-xs text-muted">{admin?.email || "admin"}</div>
-              <div className="flex gap-2">
-                <button className="btn btn-muted" onClick={onThemeToggle}>
-                  {theme === "dark" ? "Light" : "Dark"}
-                </button>
-                <button className="btn btn-muted" onClick={onLogout}>
-                  Logout
-                </button>
-              </div>
-            </div>
+            {renderNav(() => setMobileNavOpen(false))}
+            <div className="mobile-nav-footer text-xs text-muted">{admin?.email || "admin"}</div>
           </aside>
         </>
       )}
-
-      <main className="app-main">{children}</main>
     </div>
   );
 }
-

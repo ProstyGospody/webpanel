@@ -69,6 +69,10 @@ func NewRouter(
 			secured.Post("/hy2/config/validate", h.ValidateHy2Config)
 			secured.Put("/hy2/config", h.SaveHy2Config)
 			secured.Post("/hy2/config/apply", h.ApplyHy2Config)
+			secured.Get("/hy2/settings", h.GetHy2Settings)
+			secured.Post("/hy2/settings/validate", h.ValidateHy2Settings)
+			secured.Put("/hy2/settings", h.SaveHy2Settings)
+			secured.Post("/hy2/settings/apply", h.ApplyHy2Settings)
 
 			secured.Get("/mtproxy/secrets", h.ListMTProxySecrets)
 			secured.Post("/mtproxy/secrets", h.CreateMTProxySecret)
@@ -78,6 +82,7 @@ func NewRouter(
 			secured.Post("/mtproxy/secrets/{id}/enable", h.EnableMTProxySecret)
 			secured.Post("/mtproxy/secrets/{id}/disable", h.DisableMTProxySecret)
 			secured.Get("/mtproxy/stats/overview", h.MTProxyStatsOverview)
+			secured.Get("/mtproxy/settings", h.GetMTProxySettings)
 
 			secured.Get("/services", h.ListServices)
 			secured.Get("/services/{name}", h.GetService)
@@ -85,6 +90,7 @@ func NewRouter(
 			secured.Post("/services/{name}/reload", h.ReloadService)
 
 			secured.Get("/system/metrics", h.GetSystemMetrics)
+			secured.Get("/system/live", h.GetSystemLive)
 
 			secured.Get("/audit", h.ListAudit)
 		})
@@ -92,4 +98,3 @@ func NewRouter(
 
 	return r
 }
-

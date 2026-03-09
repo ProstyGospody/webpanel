@@ -2,22 +2,61 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"sort"
 	"time"
 
 	"proxy-panel/internal/http/render"
+	"proxy-panel/internal/services"
 )
 
-func (h *Handler) GetSystemMetrics(w http.ResponseWriter, r *http.Request) {
-	if h.systemMetrics == nil {
-		render.Error(w, http.StatusServiceUnavailable, "system metrics collector is not configured")
-		return
-	}
+type liveSystemMetrics struct {
+	CPUUsagePercent   float64   `json:"cpu_usage_percent"`
+	MemoryUsedBytes   int64     `json:"memory_used_bytes"`
+	MemoryTotalBytes  int64     `json:"memory_total_bytes"`
+	MemoryUsedPercent float64   `json:"memory_used_percent"`
+	UptimeSeconds     int64     `json:"uptime_seconds"`
+	NetworkRxBps      float64   `json:"network_rx_bps"`
+	NetworkTxBps      float64   `json:"network_tx_bps"`
+	CollectedAt       time.Time `json:"collected_at"`
+	Source            string    `json:"source"`
+	IsStale           bool      `json:"is_stale"`
+}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+type liveServiceStatus struct {
+	ServiceName string    `json:"service_name"`
+	Status      string    `json:"status"`
+	LastCheckAt time.Time `json:"last_check_at"`
+	Source      string    `json:"source"`
+	IsStale     bool      `json:"is_stale"`
+	Error       string    `json:"error,omitempty"`
+}
+
+type liveHy2Overview struct {
+	EnabledAccounts int64     `json:"enabled_accounts"`
+	TotalTxBytes    int64     `json:"total_tx_bytes"`
+	TotalRxBytes    int64     `json:"total_rx_bytes"`
+	OnlineCount     int64     `json:"online_count"`
+	CollectedAt     time.Time `json:"collected_at"`
+	Source          string    `json:"source"`
+	IsStale         bool      `json:"is_stale"`
+}
+
+type liveMTProxyOverview struct {
+	EnabledSecrets   int64      `json:"enabled_secrets"`
+	ConnectionsTotal *int64     `json:"connections_total"`
+	UsersTotal       *int64     `json:"users_total"`
+	CollectedAt      *time.Time `json:"collected_at,omitempty"`
+	Source           string     `json:"source"`
+	IsStale          bool       `json:"is_stale"`
+}
+
+func (h *Handler) GetSystemMetrics(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 4*time.Second)
 	defer cancel()
 
-	snapshot, err := h.systemMetrics.Snapshot(ctx)
+	snapshot, _, _, _, err := h.collectSystemMetrics(ctx)
 	if err != nil {
 		h.logger.Warn("failed to collect system metrics", "error", err)
 		render.Error(w, http.StatusServiceUnavailable, "failed to collect system metrics")
@@ -25,5 +64,283 @@ func (h *Handler) GetSystemMetrics(w http.ResponseWriter, r *http.Request) {
 	}
 
 	render.JSON(w, http.StatusOK, snapshot)
+}
+
+func (h *Handler) GetSystemLive(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 6*time.Second)
+	defer cancel()
+
+	generatedAt := time.Now().UTC()
+	errors := make([]string, 0, 4)
+
+	snapshot, networkRx, networkTx, source, err := h.collectSystemMetrics(ctx)
+	if err != nil {
+		h.logger.Warn("failed to collect live system metrics", "error", err)
+		errors = append(errors, "system metrics unavailable")
+		snapshot = services.SystemMetrics{CollectedAt: generatedAt}
+		source = "unavailable"
+	}
+
+	hy2, hy2Err := h.collectHy2Live(ctx)
+	if hy2Err != "" {
+		errors = append(errors, hy2Err)
+	}
+
+	mtproxy, mtErr := h.collectMTProxyLive(ctx)
+	if mtErr != "" {
+		errors = append(errors, mtErr)
+	}
+
+	serviceStatuses := h.collectProxyServiceStatuses(ctx)
+	for _, service := range serviceStatuses {
+		if service.Error != "" {
+			errors = append(errors, service.ServiceName+" status unavailable")
+		}
+	}
+
+	render.JSON(w, http.StatusOK, map[string]any{
+		"collected_at": generatedAt,
+		"system": liveSystemMetrics{
+			CPUUsagePercent:   snapshot.CPUUsagePercent,
+			MemoryUsedBytes:   snapshot.MemoryUsedBytes,
+			MemoryTotalBytes:  snapshot.MemoryTotalBytes,
+			MemoryUsedPercent: snapshot.MemoryUsedPercent,
+			UptimeSeconds:     snapshot.UptimeSeconds,
+			NetworkRxBps:      networkRx,
+			NetworkTxBps:      networkTx,
+			CollectedAt:       snapshot.CollectedAt,
+			Source:            source,
+			IsStale:           time.Since(snapshot.CollectedAt) > 15*time.Second,
+		},
+		"hysteria": hy2,
+		"mtproxy":  mtproxy,
+		"services": serviceStatuses,
+		"errors":   errors,
+	})
+}
+
+func (h *Handler) collectSystemMetrics(ctx context.Context) (services.SystemMetrics, float64, float64, string, error) {
+	if h.prometheus != nil {
+		snapshot, rx, tx, err := h.collectPrometheusMetrics(ctx)
+		if err == nil {
+			return snapshot, rx, tx, "prometheus", nil
+		}
+		h.logger.Warn("prometheus metrics failed, falling back to procfs", "error", err)
+	}
+
+	if h.systemMetrics == nil {
+		return services.SystemMetrics{}, 0, 0, "unavailable", fmt.Errorf("system metrics collector is not configured")
+	}
+
+	snapshot, err := h.systemMetrics.Snapshot(ctx)
+	if err != nil {
+		return services.SystemMetrics{}, 0, 0, "procfs", err
+	}
+	return snapshot, 0, 0, "procfs", nil
+}
+
+func (h *Handler) collectPrometheusMetrics(ctx context.Context) (services.SystemMetrics, float64, float64, error) {
+	cpu, cpuAt, err := h.prometheus.QueryFloat(ctx, `100 * (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[1m])))`)
+	if err != nil {
+		return services.SystemMetrics{}, 0, 0, err
+	}
+
+	memTotal, memTotalAt, err := h.prometheus.QueryFloat(ctx, `node_memory_MemTotal_bytes`)
+	if err != nil {
+		return services.SystemMetrics{}, 0, 0, err
+	}
+
+	memAvailable, memAvailableAt, err := h.prometheus.QueryFloat(ctx, `node_memory_MemAvailable_bytes`)
+	if err != nil {
+		return services.SystemMetrics{}, 0, 0, err
+	}
+
+	uptime, uptimeAt, err := h.prometheus.QueryFloat(ctx, `node_time_seconds - node_boot_time_seconds`)
+	if err != nil {
+		return services.SystemMetrics{}, 0, 0, err
+	}
+
+	collectedAt := latestTime(cpuAt, memTotalAt, memAvailableAt, uptimeAt)
+
+	used := memTotal - memAvailable
+	if used < 0 {
+		used = 0
+	}
+
+	usedPercent := 0.0
+	if memTotal > 0 {
+		usedPercent = (used * 100) / memTotal
+	}
+
+	rx, _, _ := h.prometheus.QueryFloat(ctx, `sum(rate(node_network_receive_bytes_total{device!~"^(lo|docker.*|veth.*|br.*|virbr.*|zt.*)$"}[1m]))`)
+	tx, _, _ := h.prometheus.QueryFloat(ctx, `sum(rate(node_network_transmit_bytes_total{device!~"^(lo|docker.*|veth.*|br.*|virbr.*|zt.*)$"}[1m]))`)
+
+	if cpu < 0 {
+		cpu = 0
+	}
+	if cpu > 100 {
+		cpu = 100
+	}
+
+	if usedPercent < 0 {
+		usedPercent = 0
+	}
+	if usedPercent > 100 {
+		usedPercent = 100
+	}
+
+	return services.SystemMetrics{
+		CPUUsagePercent:   cpu,
+		MemoryUsedBytes:   int64(used),
+		MemoryTotalBytes:  int64(memTotal),
+		MemoryUsedPercent: usedPercent,
+		UptimeSeconds:     int64(uptime),
+		CollectedAt:       collectedAt,
+	}, rx, tx, nil
+}
+
+func (h *Handler) collectHy2Live(ctx context.Context) (liveHy2Overview, string) {
+	base, err := h.repo.GetHy2StatsOverview(ctx)
+	if err != nil {
+		return liveHy2Overview{Source: "unavailable", IsStale: true, CollectedAt: time.Now().UTC()}, "hysteria overview unavailable"
+	}
+
+	resp := liveHy2Overview{
+		EnabledAccounts: base.EnabledAccounts,
+		TotalTxBytes:    base.TotalTxBytes,
+		TotalRxBytes:    base.TotalRxBytes,
+		OnlineCount:     base.OnlineCount,
+		CollectedAt:     time.Now().UTC(),
+		Source:          "snapshot",
+		IsStale:         true,
+	}
+
+	if h.hy2Client == nil {
+		return resp, "hysteria live stats client is not configured"
+	}
+
+	traffic, trafficErr := h.hy2Client.FetchTraffic(ctx)
+	online, onlineErr := h.hy2Client.FetchOnline(ctx)
+	if trafficErr != nil || onlineErr != nil {
+		return resp, "hysteria live stats fallback to snapshots"
+	}
+
+	var totalTx int64
+	var totalRx int64
+	var totalOnline int64
+
+	for _, item := range traffic {
+		totalTx += item.TxBytes
+		totalRx += item.RxBytes
+	}
+	for _, count := range online {
+		totalOnline += int64(count)
+	}
+
+	resp.TotalTxBytes = totalTx
+	resp.TotalRxBytes = totalRx
+	resp.OnlineCount = totalOnline
+	resp.Source = "live"
+	resp.IsStale = false
+	resp.CollectedAt = time.Now().UTC()
+
+	return resp, ""
+}
+
+func (h *Handler) collectMTProxyLive(ctx context.Context) (liveMTProxyOverview, string) {
+	base, err := h.repo.GetMTProxyStatsOverview(ctx)
+	if err != nil {
+		return liveMTProxyOverview{Source: "unavailable", IsStale: true}, "mtproxy overview unavailable"
+	}
+
+	resp := liveMTProxyOverview{
+		EnabledSecrets:   base.EnabledSecrets,
+		ConnectionsTotal: base.ConnectionsTotal,
+		UsersTotal:       base.UsersTotal,
+		Source:           "snapshot",
+		IsStale:          true,
+	}
+
+	if h.mtProxyClient == nil {
+		return resp, "mtproxy live stats client is not configured"
+	}
+
+	stats, fetchErr := h.mtProxyClient.FetchStats(ctx)
+	if fetchErr != nil {
+		return resp, "mtproxy live stats fallback to snapshots"
+	}
+
+	now := time.Now().UTC()
+	resp.ConnectionsTotal = stats.ConnectionsTotal
+	resp.UsersTotal = stats.UsersTotal
+	resp.CollectedAt = &now
+	resp.Source = "live"
+	resp.IsStale = false
+
+	return resp, ""
+}
+
+func (h *Handler) collectProxyServiceStatuses(ctx context.Context) []liveServiceStatus {
+	targets := make([]string, 0, 2)
+	for _, candidate := range []string{"hysteria-server", "mtproxy"} {
+		if _, ok := h.serviceManager.ManagedServices[candidate]; ok {
+			targets = append(targets, candidate)
+		}
+	}
+	sort.Strings(targets)
+
+	states := make([]liveServiceStatus, 0, len(targets))
+	for _, name := range targets {
+		details, err := h.serviceManager.Status(ctx, name)
+		if err == nil {
+			raw := h.serviceManager.ToJSON(details)
+			_ = h.repo.UpsertServiceState(ctx, name, details.StatusText, nil, raw)
+			states = append(states, liveServiceStatus{
+				ServiceName: name,
+				Status:      details.StatusText,
+				LastCheckAt: details.CheckedAt,
+				Source:      "live",
+				IsStale:     false,
+			})
+			continue
+		}
+
+		cached, cacheErr := h.repo.GetServiceState(ctx, name)
+		if cacheErr == nil {
+			states = append(states, liveServiceStatus{
+				ServiceName: name,
+				Status:      cached.Status,
+				LastCheckAt: cached.LastCheckAt,
+				Source:      "cache",
+				IsStale:     true,
+				Error:       err.Error(),
+			})
+			continue
+		}
+
+		states = append(states, liveServiceStatus{
+			ServiceName: name,
+			Status:      "failed",
+			LastCheckAt: time.Now().UTC(),
+			Source:      "error",
+			IsStale:     true,
+			Error:       err.Error(),
+		})
+	}
+
+	return states
+}
+
+func latestTime(values ...time.Time) time.Time {
+	latest := time.Time{}
+	for _, value := range values {
+		if value.After(latest) {
+			latest = value
+		}
+	}
+	if latest.IsZero() {
+		return time.Now().UTC()
+	}
+	return latest
 }
 

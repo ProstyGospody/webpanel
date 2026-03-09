@@ -45,6 +45,9 @@ type Config struct {
 	MTProxySecretsPath  string
 	MTProxyBinaryPath   string
 	Hy2BinaryPath       string
+	PrometheusEnabled   bool
+	PrometheusURL       string
+	PrometheusQueryTTL  time.Duration
 }
 
 func Load() (Config, error) {
@@ -67,13 +70,13 @@ func Load() (Config, error) {
 		Hy2ConfigPath:       getEnv("HY2_CONFIG_PATH", "/etc/proxy-panel/hysteria/server.yaml"),
 		Hy2StatsURL:         strings.TrimRight(getEnv("HY2_STATS_URL", "http://127.0.0.1:8999"), "/"),
 		Hy2StatsSecret:      getEnv("HY2_STATS_SECRET", ""),
-		Hy2PollInterval:     getEnvDuration("HY2_POLL_INTERVAL", 1*time.Minute),
+		Hy2PollInterval:     getEnvDuration("HY2_POLL_INTERVAL", 10*time.Second),
 		MTProxyPublicHost:   getEnv("MTPROXY_PUBLIC_HOST", ""),
 		MTProxyPort:         getEnvInt("MTPROXY_PORT", 443),
 		MTProxyTLSDomain:    getEnv("MTPROXY_TLS_DOMAIN", ""),
 		MTProxyStatsURL:     strings.TrimRight(getEnv("MTPROXY_STATS_URL", "http://127.0.0.1:3129"), "/"),
 		MTProxyStatsToken:   getEnv("MTPROXY_STATS_TOKEN", ""),
-		MTProxyPollInterval: getEnvDuration("MTPROXY_POLL_INTERVAL", 1*time.Minute),
+		MTProxyPollInterval: getEnvDuration("MTPROXY_POLL_INTERVAL", 10*time.Second),
 		ServicePollInterval: getEnvDuration("SERVICE_POLL_INTERVAL", 30*time.Second),
 		ManagedServices:     parseCSV(getEnv("MANAGED_SERVICES", "proxy-panel-api,proxy-panel-web,hysteria-server,mtproxy")),
 		SystemctlPath:       getEnv("SYSTEMCTL_PATH", "/usr/bin/systemctl"),
@@ -85,6 +88,9 @@ func Load() (Config, error) {
 		MTProxySecretsPath:  getEnv("MTPROXY_SECRETS_PATH", "/etc/proxy-panel/mtproxy/secrets.list"),
 		MTProxyBinaryPath:   getEnv("MTPROXY_BINARY_PATH", "/usr/local/bin/mtproto-proxy"),
 		Hy2BinaryPath:       getEnv("HY2_BINARY_PATH", "/usr/local/bin/hysteria"),
+		PrometheusEnabled:   getEnvBool("PROMETHEUS_ENABLED", false),
+		PrometheusURL:       strings.TrimRight(getEnv("PROMETHEUS_URL", "http://127.0.0.1:9090"), "/"),
+		PrometheusQueryTTL:  getEnvDuration("PROMETHEUS_QUERY_TIMEOUT", 2*time.Second),
 	}
 
 	if cfg.DatabaseURL == "" {

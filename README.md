@@ -11,6 +11,7 @@ Control plane stack:
 - `panel-web`: Next.js 15 + TypeScript + Tailwind
 - PostgreSQL
 - Caddy (TLS reverse proxy for panel)
+- Prometheus + node_exporter (live host metrics)
 - systemd
 
 ## One-command deploy
@@ -30,7 +31,7 @@ sudo bash ./deploy/install.sh --reconfigure
 `deploy/install.sh` is idempotent and performs:
 
 1. Debian 12 + root checks
-2. Installs dependencies (Go, Node, PostgreSQL, Caddy, build tools)
+2. Installs dependencies (Go, Node, PostgreSQL, Caddy, Prometheus, node_exporter, build tools)
 3. Installs Hysteria 2 and MTProxy binaries
 4. Creates system users: `proxy-panel`, `hysteria`, `mtproxy`
 5. Generates secrets and runtime env file
@@ -39,8 +40,9 @@ sudo bash ./deploy/install.sh --reconfigure
 8. Applies DB migrations
 9. Bootstraps initial admin
 10. Installs systemd units + restricted sudoers policy
-11. Starts services
-12. Runs smoke checks
+11. Renders runtime configs (including Prometheus scrape config)
+12. Starts services
+13. Runs smoke checks
 
 ## Interactive questions asked by deploy
 
@@ -62,6 +64,7 @@ Everything else is generated or defaulted automatically.
 - Hysteria config: `/etc/proxy-panel/hysteria/server.yaml`
 - MTProxy runtime env: `/etc/proxy-panel/mtproxy/runtime.env`
 - MTProxy secrets runtime list: `/etc/proxy-panel/mtproxy/secrets.list`
+- Prometheus config: `/etc/prometheus/prometheus.yml`
 
 ## Service names
 
@@ -69,12 +72,14 @@ Everything else is generated or defaulted automatically.
 - `proxy-panel-web.service`
 - `hysteria-server.service`
 - `mtproxy.service`
+- `prometheus.service`
+- `prometheus-node-exporter.service`
 - `caddy.service`
 
 Check status:
 
 ```bash
-systemctl status proxy-panel-api proxy-panel-web hysteria-server mtproxy caddy
+systemctl status proxy-panel-api proxy-panel-web hysteria-server mtproxy prometheus prometheus-node-exporter caddy
 ```
 
 Restart examples:
@@ -84,6 +89,8 @@ systemctl restart proxy-panel-api
 systemctl restart proxy-panel-web
 systemctl restart hysteria-server
 systemctl restart mtproxy
+systemctl restart prometheus
+systemctl restart prometheus-node-exporter
 ```
 
 ## Smoke check

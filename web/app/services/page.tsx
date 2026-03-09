@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { apiFetch, toJSONBody } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import type { ServiceState } from "@/lib/types";
+import { Card } from "@/components/ui";
 import { useToast } from "@/components/toast-provider";
 
 type ServiceDetails = {
@@ -13,6 +14,8 @@ type ServiceDetails = {
   checked_at: string;
   last_logs?: string[];
 };
+
+const POLL_INTERVAL_MS = 10000;
 
 export default function ServicesPage() {
   const { push } = useToast();
@@ -33,17 +36,29 @@ export default function ServicesPage() {
   }
 
   useEffect(() => {
+    let cancelled = false;
+
     loadServices().catch((err: unknown) => {
       const msg = err instanceof Error ? err.message : "Failed to load services";
       setError(msg);
       push(msg, "error");
     });
+
+    const timer = window.setInterval(() => {
+      if (!cancelled) {
+        loadServices().catch(() => {
+          // ignore periodic errors
+        });
+      }
+    }, POLL_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
   }, [push]);
 
   async function runAction(name: string, action: "restart" | "reload") {
-    if (!confirm(`Run ${action} for ${name}?`)) {
-      return;
-    }
     try {
       await apiFetch(`/api/services/${name}/${action}`, {
         method: "POST",
@@ -61,66 +76,73 @@ export default function ServicesPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Services</h1>
-      {error && <div className="rounded bg-red-100 p-2 text-sm text-red-800">{error}</div>}
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Services</h1>
+          <p className="page-subtitle">Control systemd state and inspect recent service logs.</p>
+        </div>
+      </div>
+
+      {error && <div className="alert alert-warn">{error}</div>}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="card overflow-x-auto">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Service</th>
-                <th>Status</th>
-                <th>Checked</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {services.length === 0 && (
+        <Card title="Managed Services" subtitle="Auto-refresh every 10 seconds.">
+          <div className="overflow-x-auto">
+            <table className="table">
+              <thead>
                 <tr>
-                  <td colSpan={4} className="text-center text-slate-500">
-                    No services found
-                  </td>
+                  <th>Service</th>
+                  <th>Status</th>
+                  <th>Checked</th>
+                  <th>Actions</th>
                 </tr>
-              )}
-              {services.map((service) => {
-                const name = service.service_name || "unknown";
-                return (
-                  <tr key={name}>
-                    <td>
-                      <button className="text-left font-medium hover:underline" onClick={() => loadService(name)}>
-                        {name}
-                      </button>
-                    </td>
-                    <td>{service.status}</td>
-                    <td>{formatDate(service.last_check_at)}</td>
-                    <td className="space-x-2">
-                      <button className="btn btn-muted" onClick={() => runAction(name, "reload")}>Reload</button>
-                      <button className="btn btn-danger" onClick={() => runAction(name, "restart")}>Restart</button>
+              </thead>
+              <tbody>
+                {services.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="text-center text-muted">
+                      No services found
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                )}
+                {services.map((service) => {
+                  const name = service.service_name || "unknown";
+                  return (
+                    <tr key={name}>
+                      <td>
+                        <button className="btn btn-ghost" onClick={() => loadService(name)}>
+                          {name}
+                        </button>
+                      </td>
+                      <td>{service.status}</td>
+                      <td>{formatDate(service.last_check_at)}</td>
+                      <td>
+                        <div className="flex flex-wrap gap-2">
+                          <button className="btn btn-ghost" onClick={() => runAction(name, "reload")}>Reload</button>
+                          <button className="btn btn-danger" onClick={() => runAction(name, "restart")}>Restart</button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
 
-        <div className="card">
-          <h2 className="mb-3 text-lg font-semibold">Service Details</h2>
-          {!selected && <div className="text-sm text-slate-600">Select a service to see logs.</div>}
-          {selected && !details && <div className="text-sm">Loading {selected}...</div>}
+        <Card title="Service Logs" subtitle="Last 120 lines for selected service.">
+          {!selected && <div className="empty-state">Select a service to see logs.</div>}
+          {selected && !details && <div className="text-sm text-muted">Loading {selected}...</div>}
           {details && (
             <div className="space-y-2">
               <div className="text-sm">
-                <strong>{details.name}</strong> · {details.status_text}
+                <strong>{details.name}</strong> | {details.status_text}
               </div>
-              <div className="text-xs text-slate-500">Checked: {formatDate(details.checked_at)}</div>
-              <pre className="max-h-96 overflow-auto rounded border border-slate-300 bg-slate-950 p-3 text-xs text-slate-100">
-                {(details.last_logs || []).join("\n") || "No logs"}
-              </pre>
+              <div className="text-xs text-muted">Checked: {formatDate(details.checked_at)}</div>
+              <pre className="input max-h-96 overflow-auto text-xs">{(details.last_logs || []).join("\n") || "No logs"}</pre>
             </div>
           )}
-        </div>
+        </Card>
       </div>
     </div>
   );

@@ -68,3 +68,112 @@ export type SystemMetrics = {
   collected_at: string;
 };
 
+export type LiveSystemMetrics = SystemMetrics & {
+  network_rx_bps: number;
+  network_tx_bps: number;
+  source: "prometheus" | "procfs" | "unavailable" | string;
+  is_stale: boolean;
+};
+
+export type LiveHy2Overview = {
+  enabled_accounts: number;
+  total_tx_bytes: number;
+  total_rx_bytes: number;
+  online_count: number;
+  collected_at: string;
+  source: "live" | "snapshot" | "unavailable" | string;
+  is_stale: boolean;
+};
+
+export type LiveMTProxyOverview = {
+  enabled_secrets: number;
+  connections_total?: number | null;
+  users_total?: number | null;
+  collected_at?: string | null;
+  source: "live" | "snapshot" | "unavailable" | string;
+  is_stale: boolean;
+};
+
+export type LiveServiceStatus = {
+  service_name: string;
+  status: string;
+  last_check_at: string;
+  source: "live" | "cache" | "error" | string;
+  is_stale: boolean;
+  error?: string;
+};
+
+export type LiveDashboardPayload = {
+  collected_at: string;
+  system: LiveSystemMetrics;
+  hysteria: LiveHy2Overview;
+  mtproxy: LiveMTProxyOverview;
+  services: LiveServiceStatus[];
+  errors: string[];
+};
+
+export type Hy2Settings = {
+  port: number;
+  sni: string;
+  obfs_enabled: boolean;
+  obfs_type?: string;
+  obfs_password?: string;
+  masquerade_enabled: boolean;
+  masquerade_type?: string;
+  masquerade_url?: string;
+  masquerade_rewrite_host: boolean;
+};
+
+export type Hy2SettingsValidation = {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+};
+
+export type Hy2ConfigValidation = {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+  summary: {
+    listen?: string;
+    port?: number;
+    auth_type?: string;
+    auth_http_url?: string;
+    primary_domain?: string;
+    sni?: string;
+    insecure?: boolean;
+    pin_sha256?: string;
+    obfs_type?: string;
+    obfs_password?: string;
+    alpn?: string[];
+    masquerade_type?: string;
+    masquerade_url?: string;
+    masquerade_rewrite_host?: boolean;
+  };
+};
+
+export type Hy2SettingsPayload = {
+  path: string;
+  settings: Hy2Settings;
+  settings_validation: Hy2SettingsValidation;
+  config_validation: Hy2ConfigValidation;
+  client_params: {
+    server: string;
+    port: number;
+    sni: string;
+    insecure: boolean;
+    pin_sha256?: string;
+    obfs_type?: string;
+    obfs_password?: string;
+    alpn?: string[];
+  };
+};
+
+export type MTProxySettingsPayload = {
+  public_host: string;
+  port: number;
+  tls_domain: string;
+  stats_url: string;
+  stats_token_config: boolean;
+  runtime_secret_id?: string;
+};

@@ -1,6 +1,9 @@
 package services
 
-import "testing"
+import (
+    "strings"
+    "testing"
+)
 
 func TestHysteriaConfigManagerParseCaseInsensitivePaths(t *testing.T) {
 	cfg := `listen: :8443
@@ -132,5 +135,98 @@ obfs:
 	}
 	if summary.ObfsPassword != "legacy-pass" {
 		t.Fatalf("unexpected obfs password: %s", summary.ObfsPassword)
+	}
+}
+
+func TestHysteriaConfigManagerApplySettingsUpdatesCoreFields(t *testing.T) {
+	cfg := `listen: :443
+
+auth:
+  type: http
+  http:
+    url: http://127.0.0.1:18080/internal/hy2/auth
+
+tls:
+  sni: old.example.com
+`
+
+	manager := NewHysteriaConfigManager("/tmp/unused")
+	next, validation := manager.ApplySettings(cfg, Hy2Settings{
+		Port:                  8443,
+		SNI:                   "new.example.com",
+		ObfsEnabled:           true,
+		ObfsType:              "salamander",
+		ObfsPassword:          "secret-pass",
+		MasqueradeEnabled:     true,
+		MasqueradeType:        "proxy",
+		MasqueradeURL:         "https://www.cloudflare.com",
+		MasqueradeRewriteHost: true,
+	})
+
+	if !validation.Valid {
+		t.Fatalf("settings should be valid: %#v", validation)
+	}
+
+	summary := manager.Parse(next)
+	if summary.Port != 8443 {
+		t.Fatalf("unexpected port: %d", summary.Port)
+	}
+	if summary.SNI != "new.example.com" {
+		t.Fatalf("unexpected sni: %s", summary.SNI)
+	}
+	if summary.ObfsType != "salamander" {
+		t.Fatalf("unexpected obfs type: %s", summary.ObfsType)
+	}
+	if summary.ObfsPassword != "secret-pass" {
+		t.Fatalf("unexpected obfs password: %s", summary.ObfsPassword)
+	}
+	if summary.MasqueradeType != "proxy" {
+		t.Fatalf("unexpected masquerade type: %s", summary.MasqueradeType)
+	}
+	if summary.MasqueradeURL != "https://www.cloudflare.com" {
+		t.Fatalf("unexpected masquerade url: %s", summary.MasqueradeURL)
+	}
+}
+
+func TestHysteriaConfigManagerApplySettingsCanDisableOptionalBlocks(t *testing.T) {
+	cfg := `listen: :443
+
+auth:
+  type: http
+  http:
+    url: http://127.0.0.1:18080/internal/hy2/auth
+
+obfs:
+  type: salamander
+  salamander:
+    password: old-pass
+
+masquerade:
+  type: proxy
+  proxy:
+    url: https://www.cloudflare.com
+    rewriteHost: true
+`
+
+	manager := NewHysteriaConfigManager("/tmp/unused")
+	next, validation := manager.ApplySettings(cfg, Hy2Settings{
+		Port:                 443,
+		SNI:                  "hy2.example.com",
+		ObfsEnabled:          false,
+		MasqueradeEnabled:    false,
+		MasqueradeType:       "",
+		MasqueradeURL:        "",
+		MasqueradeRewriteHost: true,
+	})
+
+	if !validation.Valid {
+		t.Fatalf("settings should be valid: %#v", validation)
+	}
+
+	if strings.Contains(next, "obfs:") {
+		t.Fatalf("obfs block should be removed: %s", next)
+	}
+	if strings.Contains(next, "masquerade:") {
+		t.Fatalf("masquerade block should be removed: %s", next)
 	}
 }

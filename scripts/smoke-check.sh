@@ -12,12 +12,18 @@ fi
 PANEL_API_PORT="${PANEL_API_PORT:-18080}"
 MTPROXY_PORT="${MTPROXY_PORT:-443}"
 MTPROXY_STATS_PORT="${MTPROXY_STATS_PORT:-3129}"
+PROMETHEUS_URL="${PROMETHEUS_URL:-http://127.0.0.1:9090}"
+PROMETHEUS_ENABLED="${PROMETHEUS_ENABLED:-true}"
 SMOKE_ADMIN_EMAIL="${SMOKE_ADMIN_EMAIL:-${INITIAL_ADMIN_EMAIL:-}}"
 SMOKE_ADMIN_PASSWORD="${SMOKE_ADMIN_PASSWORD:-${INITIAL_ADMIN_PASSWORD:-}}"
 CURL_CONNECT_TIMEOUT="${CURL_CONNECT_TIMEOUT:-3}"
 CURL_MAX_TIME="${CURL_MAX_TIME:-10}"
 
 services=(proxy-panel-api proxy-panel-web hysteria-server mtproxy caddy)
+if [[ "${PROMETHEUS_ENABLED}" == "true" ]]; then
+  services+=(prometheus prometheus-node-exporter)
+fi
+
 echo "[step] checking systemd services"
 for service in "${services[@]}"; do
   state="$(systemctl is-active "${service}.service" || true)"
@@ -45,6 +51,13 @@ fi
 curl -fsS --connect-timeout "${CURL_CONNECT_TIMEOUT}" --max-time "${CURL_MAX_TIME}" "http://127.0.0.1:${MTPROXY_STATS_PORT}/stats" >/dev/null || \
 curl -fsS --connect-timeout "${CURL_CONNECT_TIMEOUT}" --max-time "${CURL_MAX_TIME}" "http://127.0.0.1:${MTPROXY_STATS_PORT}/" >/dev/null
 echo "[ok] mtproxy listener and local stats check passed"
+
+if [[ "${PROMETHEUS_ENABLED}" == "true" ]]; then
+  echo "[step] checking prometheus and node_exporter"
+  curl -fsS --connect-timeout "${CURL_CONNECT_TIMEOUT}" --max-time "${CURL_MAX_TIME}" "${PROMETHEUS_URL}/api/v1/query?query=up" >/dev/null
+  curl -fsS --connect-timeout "${CURL_CONNECT_TIMEOUT}" --max-time "${CURL_MAX_TIME}" "http://127.0.0.1:9100/metrics" >/dev/null
+  echo "[ok] prometheus and node_exporter checks passed"
+fi
 
 if [[ -n "${SMOKE_ADMIN_EMAIL}" && -n "${SMOKE_ADMIN_PASSWORD}" ]]; then
   echo "[step] checking admin login flow"

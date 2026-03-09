@@ -305,3 +305,15 @@ func (h *Handler) currentRuntimeMTProxySecretID(r *http.Request) (string, error)
 	}
 	return enabled[0].ID, nil
 }
+
+func (h *Handler) GetMTProxySettings(w http.ResponseWriter, r *http.Request) {
+	runtimeID, _ := h.currentRuntimeMTProxySecretID(r)
+	render.JSON(w, http.StatusOK, map[string]any{
+		"public_host":       h.cfg.MTProxyPublicHost,
+		"port":              h.cfg.MTProxyPort,
+		"tls_domain":        h.cfg.MTProxyTLSDomain,
+		"stats_url":         h.cfg.MTProxyStatsURL,
+		"stats_token_config": strings.TrimSpace(h.cfg.MTProxyStatsToken) != "",
+		"runtime_secret_id": runtimeID,
+	})
+}

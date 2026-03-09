@@ -38,7 +38,24 @@ func NewServer(cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, repo 
 	hy2ConfigManager := services.NewHysteriaConfigManager(cfg.Hy2ConfigPath)
 	systemMetrics := services.NewSystemMetricsCollector()
 
-	h := handlers.New(cfg, logger, repo, rateLimiter, hy2Client, mtProxyClient, serviceManager, runtimeManager, hy2ConfigManager, systemMetrics)
+	var prometheusClient *services.PrometheusClient
+	if cfg.PrometheusEnabled {
+		prometheusClient = services.NewPrometheusClient(cfg.PrometheusURL, cfg.PrometheusQueryTTL)
+	}
+
+	h := handlers.New(
+		cfg,
+		logger,
+		repo,
+		rateLimiter,
+		hy2Client,
+		mtProxyClient,
+		serviceManager,
+		runtimeManager,
+		hy2ConfigManager,
+		prometheusClient,
+		systemMetrics,
+	)
 	router := httpserver.NewRouter(cfg, logger, repo, h)
 
 	httpSrv := &http.Server{
@@ -87,4 +104,3 @@ func (s *Server) Shutdown(ctx context.Context) error {
 func (s *Server) SyncMTProxy(ctx context.Context, force bool) error {
 	return s.runtimeManager.Sync(ctx, force)
 }
-

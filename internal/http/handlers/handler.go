@@ -27,6 +27,7 @@ type Handler struct {
 	serviceManager   *services.ServiceManager
 	runtimeManager   *services.MTProxyRuntimeManager
 	hy2ConfigManager *services.HysteriaConfigManager
+	prometheus       *services.PrometheusClient
 	systemMetrics    *services.SystemMetricsCollector
 }
 
@@ -40,7 +41,8 @@ func New(
 	serviceManager *services.ServiceManager,
 	runtimeManager *services.MTProxyRuntimeManager,
 	hy2ConfigManager *services.HysteriaConfigManager,
-	systemMetrics *services.SystemMetricsCollector,
+	prometheus       *services.PrometheusClient,
+	systemMetrics    *services.SystemMetricsCollector,
 ) *Handler {
 	return &Handler{
 		cfg:              cfg,
@@ -52,7 +54,8 @@ func New(
 		serviceManager:   serviceManager,
 		runtimeManager:   runtimeManager,
 		hy2ConfigManager: hy2ConfigManager,
-		systemMetrics:    systemMetrics,
+		prometheus:      prometheus,
+		systemMetrics:   systemMetrics,
 	}
 }
 
@@ -358,4 +361,7 @@ func generateHy2Identity() string {
 	}
 	return "hy2-" + raw
 }
+
+
+
 

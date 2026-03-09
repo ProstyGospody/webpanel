@@ -77,6 +77,8 @@ install_system_packages() {
     zlib1g-dev \
     postgresql \
     postgresql-contrib \
+    prometheus \
+    prometheus-node-exporter \
     caddy \
     sudo
 }
@@ -306,14 +308,18 @@ collect_configuration() {
   HY2_STATS_URL="http://127.0.0.1:${HY2_STATS_PORT}"
   MTPROXY_STATS_URL="http://127.0.0.1:${MTPROXY_STATS_PORT}"
 
+  PROMETHEUS_ENABLED="${PROMETHEUS_ENABLED:-true}"
+  PROMETHEUS_URL="${PROMETHEUS_URL:-http://127.0.0.1:9090}"
+  PROMETHEUS_QUERY_TIMEOUT="${PROMETHEUS_QUERY_TIMEOUT:-2s}"
+
   SESSION_COOKIE_NAME="${SESSION_COOKIE_NAME:-pp_session}"
   CSRF_COOKIE_NAME="${CSRF_COOKIE_NAME:-pp_csrf}"
   CSRF_HEADER_NAME="${CSRF_HEADER_NAME:-X-CSRF-Token}"
   SESSION_TTL="${SESSION_TTL:-24h}"
   SECURE_COOKIES="${SECURE_COOKIES:-true}"
 
-  HY2_POLL_INTERVAL="${HY2_POLL_INTERVAL:-1m}"
-  MTPROXY_POLL_INTERVAL="${MTPROXY_POLL_INTERVAL:-1m}"
+  HY2_POLL_INTERVAL="${HY2_POLL_INTERVAL:-10s}"
+  MTPROXY_POLL_INTERVAL="${MTPROXY_POLL_INTERVAL:-10s}"
   SERVICE_POLL_INTERVAL="${SERVICE_POLL_INTERVAL:-30s}"
 
   MANAGED_SERVICES="proxy-panel-api,proxy-panel-web,hysteria-server,mtproxy"
@@ -377,6 +383,10 @@ MTPROXY_STATS_PORT=${MTPROXY_STATS_PORT}
 MTPROXY_STATS_URL=${MTPROXY_STATS_URL}
 MTPROXY_STATS_TOKEN=${MTPROXY_STATS_TOKEN}
 MTPROXY_POLL_INTERVAL=${MTPROXY_POLL_INTERVAL}
+
+PROMETHEUS_ENABLED=${PROMETHEUS_ENABLED}
+PROMETHEUS_URL=${PROMETHEUS_URL}
+PROMETHEUS_QUERY_TIMEOUT=${PROMETHEUS_QUERY_TIMEOUT}
 MTPROXY_FALLBACK_SECRET=${MTPROXY_FALLBACK_SECRET}
 
 SERVICE_POLL_INTERVAL=${SERVICE_POLL_INTERVAL}
@@ -520,6 +530,41 @@ EOF
   chmod 0660 "${MTPROXY_DIR}/runtime.env" "${MTPROXY_SECRETS_PATH}"
 }
 
+configure_prometheus() {
+  action "Configuring Prometheus and node_exporter"
+
+  local exporter_bin
+  exporter_bin="$(command -v prometheus-node-exporter || true)"
+  if [[ -z "${exporter_bin}" ]]; then
+    fatal "prometheus-node-exporter binary is not installed"
+  fi
+
+  cat > /etc/prometheus/prometheus.yml <<'EOF'
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ['127.0.0.1:9090']
+
+  - job_name: node_exporter
+    static_configs:
+      - targets: ['127.0.0.1:9100']
+EOF
+
+  mkdir -p /etc/systemd/system/prometheus-node-exporter.service.d
+  cat > /etc/systemd/system/prometheus-node-exporter.service.d/override.conf <<EOF
+[Service]
+EnvironmentFile=
+ExecStart=
+ExecStart=${exporter_bin} --web.listen-address=127.0.0.1:9100
+EOF
+
+  systemctl daemon-reload
+}
+
 install_sudoers_policy() {
   action "Installing restricted sudoers policy"
 
@@ -569,6 +614,8 @@ bootstrap_admin() {
 start_services() {
   action "Starting services"
   systemctl enable --now caddy
+  systemctl enable --now prometheus
+  systemctl enable --now prometheus-node-exporter
   systemctl enable --now hysteria-server.service
   systemctl enable --now mtproxy.service
   systemctl enable --now proxy-panel-api.service
@@ -595,10 +642,12 @@ Systemd services:
   - proxy-panel-web.service
   - hysteria-server.service
   - mtproxy.service
+  - prometheus.service
+  - prometheus-node-exporter.service
   - caddy.service
 
 Useful commands:
-  systemctl status proxy-panel-api proxy-panel-web hysteria-server mtproxy caddy
+  systemctl status proxy-panel-api proxy-panel-web hysteria-server mtproxy prometheus prometheus-node-exporter caddy
   journalctl -u proxy-panel-api -n 100 --no-pager
   bash ${SRC_DIR}/scripts/smoke-check.sh ${ENV_FILE}
   sudo bash ${REPO_ROOT}/deploy/install.sh --reconfigure
@@ -628,6 +677,7 @@ main() {
   build_frontend
 
   render_runtime_configs
+  configure_prometheus
   install_sudoers_policy
   install_systemd_units
 
