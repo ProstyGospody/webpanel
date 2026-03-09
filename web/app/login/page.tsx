@@ -1,9 +1,10 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { APIError, apiFetch, toJSONBody } from "@/lib/api";
+import { Button, InlineMessage, TextField } from "@/components/ui";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -35,35 +36,35 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="auth-shell">
-      <div className="auth-card">
-        <h1 className="mb-2 text-2xl font-semibold leading-tight">Proxy Panel Login</h1>
-        <p className="mb-4 text-sm text-muted">Sign in with admin account</p>
+    <div className="md-auth-shell">
+      <section className="md-auth-card" aria-labelledby="login-title">
+        <h1 id="login-title" className="md-auth-title">Proxy Panel Login</h1>
+        <p className="md-auth-subtitle">Sign in with admin account credentials.</p>
 
-        {error && <div className="mb-3 alert alert-error">{error}</div>}
+        {error && <InlineMessage tone="error">{error}</InlineMessage>}
 
-        <form className="space-y-3" onSubmit={onSubmit}>
-          <label className="block">
-            <span className="mb-1 block text-sm text-muted">Email</span>
-            <input className="input" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-sm text-muted">Password</span>
-            <input
-              className="input"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </label>
-
-          <button disabled={loading} className="btn btn-primary w-full" type="submit">
+        <form onSubmit={onSubmit} style={{ display: "grid", gap: 12, marginTop: 16 }}>
+          <TextField
+            label="Email"
+            type="email"
+            autoComplete="username"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            required
+          />
+          <TextField
+            label="Password"
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            required
+          />
+          <Button type="submit" fullWidth disabled={loading}>
             {loading ? "Signing in..." : "Sign in"}
-          </button>
+          </Button>
         </form>
-      </div>
+      </section>
     </div>
   );
 }

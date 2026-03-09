@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -8,60 +8,68 @@ import { APIError, apiFetch, toJSONBody } from "@/lib/api";
 import type { Admin } from "@/lib/types";
 import { useToast } from "@/components/toast-provider";
 import { useTheme } from "@/components/theme-provider";
+import { Button, IconButton, MaterialIcon, cn } from "@/components/ui";
 
-type NavSection = {
-  title: string;
-  items: Array<{ href: string; label: string }>;
+type Destination = {
+  href: string;
+  label: string;
+  icon: string;
 };
 
-const navSections: NavSection[] = [
-  {
-    title: "Overview",
-    items: [{ href: "/", label: "Dashboard" }],
-  },
-  {
-    title: "Hysteria 2",
-    items: [
-      { href: "/hysteria/users", label: "Users" },
-      { href: "/hysteria/settings", label: "Settings" },
-    ],
-  },
-  {
-    title: "MTProxy",
-    items: [
-      { href: "/mtproxy/users", label: "Users" },
-      { href: "/mtproxy/settings", label: "Settings" },
-    ],
-  },
-  {
-    title: "Operations",
-    items: [
-      { href: "/services", label: "Services" },
-      { href: "/audit", label: "Audit" },
-    ],
-  },
+const destinations: Destination[] = [
+  { href: "/", label: "Dashboard", icon: "space_dashboard" },
+  { href: "/clients", label: "Clients", icon: "group" },
+  { href: "/hysteria", label: "Hysteria 2", icon: "bolt" },
+  { href: "/mtproxy", label: "MTProxy", icon: "vpn_key" },
+  { href: "/services", label: "Services", icon: "dns" },
+  { href: "/audit", label: "Audit", icon: "history" },
+  { href: "/settings", label: "Settings", icon: "settings" },
 ];
 
 function normalizePathname(pathname: string): string {
-  if (pathname === "/hysteria") {
-    return "/hysteria/users";
+  if (pathname === "/hysteria/users" || pathname === "/hysteria/settings") {
+    return "/hysteria";
   }
-  if (pathname === "/mtproxy") {
-    return "/mtproxy/users";
+  if (pathname === "/mtproxy/users" || pathname === "/mtproxy/settings") {
+    return "/mtproxy";
   }
   return pathname;
 }
 
-function isActiveLink(pathname: string, href: string): boolean {
+function isActiveDestination(pathname: string, href: string): boolean {
   if (href === "/") {
     return pathname === "/";
   }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+function getPageSubtitle(pathname: string): string {
+  if (pathname.startsWith("/hysteria")) {
+    return "Hysteria runtime and account control";
+  }
+  if (pathname.startsWith("/mtproxy")) {
+    return "MTProxy secrets and runtime context";
+  }
+  if (pathname.startsWith("/services")) {
+    return "Systemd operations and log diagnostics";
+  }
+  if (pathname.startsWith("/audit")) {
+    return "Administrative history and change trace";
+  }
+  if (pathname.startsWith("/settings")) {
+    return "Panel and protocol configuration";
+  }
+  if (pathname.startsWith("/clients")) {
+    return "Client identities and access lifecycle";
+  }
+  return "Single-node Debian 12 operations";
+}
+
 export function AppShell({ children }: PropsWithChildren) {
   const router = useRouter();
-  const pathname = normalizePathname(usePathname());
+  const rawPathname = usePathname();
+  const pathname = normalizePathname(rawPathname);
+
   const { push } = useToast();
   const { theme, toggleTheme, ready } = useTheme();
 
@@ -76,7 +84,23 @@ export function AppShell({ children }: PropsWithChildren) {
   }, [pathname]);
 
   useEffect(() => {
+    if (!mobileNavOpen) {
+      return;
+    }
+
+    function onEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setMobileNavOpen(false);
+      }
+    }
+
+    document.addEventListener("keydown", onEscape);
+    return () => document.removeEventListener("keydown", onEscape);
+  }, [mobileNavOpen]);
+
+  useEffect(() => {
     let cancelled = false;
+
     if (isPublic) {
       setLoading(false);
       return;
@@ -104,7 +128,7 @@ export function AppShell({ children }: PropsWithChildren) {
     return () => {
       cancelled = true;
     };
-  }, [isPublic, pathname, router]);
+  }, [isPublic, router]);
 
   if (isPublic) {
     return <>{children}</>;
@@ -112,13 +136,18 @@ export function AppShell({ children }: PropsWithChildren) {
 
   if (loading) {
     return (
-      <div className="shell-loading">
-        <div className="card card-muted max-w-md">
-          <div className="text-sm text-muted">Loading admin session...</div>
-        </div>
+      <div className="app-shell" style={{ display: "grid", placeItems: "center", padding: 16 }}>
+        <section className="md-card md-card--outlined" style={{ width: "min(420px, 100%)" }}>
+          <div className="md-card__content" style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span className="md-circular-progress" aria-hidden />
+            <span>Loading admin session...</span>
+          </div>
+        </section>
       </div>
     );
   }
+
+  const currentDestination = destinations.find((item) => isActiveDestination(pathname, item.href)) || destinations[0];
 
   async function onLogout() {
     try {
@@ -136,79 +165,94 @@ export function AppShell({ children }: PropsWithChildren) {
     push(`Theme changed: ${next}`, "info");
   }
 
-  const renderNav = (onNavigate?: () => void) => (
-    <div className="nav-sections">
-      {navSections.map((section) => (
-        <section key={section.title} className="nav-section">
-          <div className="nav-section-title">{section.title}</div>
-          <div className="nav-links">
-            {section.items.map((item) => {
-              const active = isActiveLink(pathname, item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`nav-link ${active ? "nav-link-active" : ""}`}
-                  onClick={onNavigate}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-          </div>
-        </section>
-      ))}
+  const drawerItems = (
+    <div className="md-destination-list">
+      {destinations.map((item) => {
+        const active = isActiveDestination(pathname, item.href);
+        return (
+          <Link key={item.href} href={item.href} className={cn("md-nav-item", active && "md-nav-item--active")}>
+            <span className="md-nav-item__icon">
+              <MaterialIcon name={item.icon} filled={active} />
+            </span>
+            <span className="md-nav-item__label">{item.label}</span>
+          </Link>
+        );
+      })}
     </div>
   );
 
   return (
     <div className="app-shell">
-      <aside className="shell-sidebar">
-        <div className="sidebar-brand">
-          <div className="brand-title">Proxy Panel</div>
-          <div className="brand-subtitle">Hysteria 2 + MTProxy</div>
-        </div>
-        {renderNav()}
-        <div className="sidebar-footer text-xs text-muted">{admin?.email || "admin"}</div>
-      </aside>
-
-      <div className="shell-workspace">
-        <header className="shell-topbar">
-          <div className="shell-topbar-left">
-            <button className="btn btn-ghost mobile-only" onClick={() => setMobileNavOpen(true)} aria-label="Open navigation">
-              Menu
-            </button>
-            <div className="topbar-title">Control plane</div>
-            <div className="topbar-subtitle">Single-node Debian 12 operations</div>
-          </div>
-          <div className="shell-topbar-right">
-            <button className="btn btn-ghost" onClick={onThemeToggle} disabled={!ready}>
-              {theme === "dark" ? "Light" : "Dark"}
-            </button>
-            <button className="btn btn-ghost" onClick={onLogout}>
-              Logout
-            </button>
-          </div>
-        </header>
-
-        <main className="app-main">{children}</main>
-      </div>
-
       {mobileNavOpen && (
         <>
-          <div className="mobile-nav-backdrop" onClick={() => setMobileNavOpen(false)} />
-          <aside className="mobile-nav-panel" aria-label="Mobile navigation">
-            <div className="mobile-nav-header">
-              <div className="font-semibold">Navigation</div>
-              <button className="btn btn-ghost" onClick={() => setMobileNavOpen(false)}>
-                Close
-              </button>
+          <div className="md-modal-scrim" onClick={() => setMobileNavOpen(false)} />
+          <aside className="md-modal-drawer" aria-label="Navigation drawer">
+            <div className="md-modal-drawer__header">
+              <div className="md-nav-brand__title">Navigation</div>
+              <IconButton icon="close" label="Close navigation" onClick={() => setMobileNavOpen(false)} />
             </div>
-            {renderNav(() => setMobileNavOpen(false))}
-            <div className="mobile-nav-footer text-xs text-muted">{admin?.email || "admin"}</div>
+            {drawerItems}
+            <div className="md-modal-drawer__footer">{admin?.email || "admin"}</div>
           </aside>
         </>
       )}
+
+      <div className="md-scaffold">
+        <aside className="md-navigation-drawer" aria-label="Primary destinations">
+          <div className="md-nav-brand">
+            <h1 className="md-nav-brand__title">Proxy Panel</h1>
+            <p className="md-nav-brand__subtitle">Hysteria 2 + MTProxy</p>
+          </div>
+          {drawerItems}
+          <div className="md-nav-footer">{admin?.email || "admin"}</div>
+        </aside>
+
+        <aside className="md-navigation-rail" aria-label="Primary destinations">
+          {destinations.map((item) => {
+            const active = isActiveDestination(pathname, item.href);
+            return (
+              <Link key={item.href} href={item.href} className={cn("md-rail-item", active && "md-rail-item--active")}>
+                <span className="md-rail-item__icon">
+                  <MaterialIcon name={item.icon} filled={active} />
+                </span>
+                <span className="md-rail-item__label">{item.label}</span>
+              </Link>
+            );
+          })}
+        </aside>
+
+        <div className="md-scaffold-main">
+          <header className="md-top-app-bar">
+            <div className="md-top-app-bar__leading">
+              <IconButton
+                className="md-only-compact"
+                icon="menu"
+                label="Open navigation"
+                onClick={() => setMobileNavOpen(true)}
+              />
+              <div>
+                <p className="md-top-app-bar__title">{currentDestination.label}</p>
+                <p className="md-top-app-bar__subtitle">{getPageSubtitle(pathname)}</p>
+              </div>
+            </div>
+
+            <div className="md-top-app-bar__actions">
+              <IconButton
+                icon={theme === "dark" ? "light_mode" : "dark_mode"}
+                label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+                onClick={onThemeToggle}
+                disabled={!ready}
+              />
+              <Button variant="text" icon="logout" onClick={onLogout}>
+                Logout
+              </Button>
+            </div>
+          </header>
+
+          <main className="md-content">{children}</main>
+        </div>
+      </div>
     </div>
   );
 }
+

@@ -1,6 +1,8 @@
-"use client";
+﻿"use client";
 
 import { createContext, PropsWithChildren, useCallback, useContext, useMemo, useState } from "react";
+
+import { MaterialIcon } from "@/components/ui";
 
 type ToastTone = "success" | "error" | "info";
 
@@ -24,18 +26,24 @@ export function ToastProvider({ children }: PropsWithChildren) {
     setItems((prev) => [...prev, { id, tone, message }]);
     window.setTimeout(() => {
       setItems((prev) => prev.filter((item) => item.id !== id));
-    }, 2400);
+    }, 3000);
   }, []);
 
   const value = useMemo<ToastContextValue>(() => ({ push }), [push]);
+  const toneIcon: Record<ToastTone, string> = {
+    success: "check_circle",
+    error: "error",
+    info: "info",
+  };
 
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="toast-stack" role="status" aria-live="polite">
+      <div className="md-snackbar-stack" role="status" aria-live="polite">
         {items.map((item) => (
-          <div key={item.id} className={`toast toast-${item.tone}`}>
-            {item.message}
+          <div key={item.id} className={`md-snackbar md-snackbar--${item.tone}`}>
+            <MaterialIcon name={toneIcon[item.tone]} />
+            <span>{item.message}</span>
           </div>
         ))}
       </div>
@@ -50,3 +58,4 @@ export function useToast() {
   }
   return ctx;
 }
+

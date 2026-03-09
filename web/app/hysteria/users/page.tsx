@@ -1,13 +1,26 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { apiFetch, toJSONBody } from "@/lib/api";
 import { copyToClipboard, formatBytes, formatDate } from "@/lib/format";
 import type { Client, Hy2Account } from "@/lib/types";
-import { Card, MetricCard, StatusBadge } from "@/components/ui";
+import {
+  Button,
+  Card,
+  EmptyState,
+  InlineMessage,
+  MetricCard,
+  PageHeader,
+  SelectField,
+  StatusBadge,
+  TextField,
+  TextareaField,
+} from "@/components/ui";
 import { Dialog, ConfirmDialog } from "@/components/dialog";
 import { useToast } from "@/components/toast-provider";
+import { OverflowMenu } from "@/components/overflow-menu";
+import { SectionTabs } from "@/components/section-tabs";
 
 type Hy2Overview = {
   enabled_accounts: number;
@@ -42,9 +55,14 @@ type AccountFormState = {
 
 const POLL_INTERVAL_MS = 10000;
 
-function onlineBadgeClass(online: boolean): string {
-  return `badge ${online ? "badge-online" : "badge-offline"}`;
+function onlineBadgeClass(online: boolean): "success" | "neutral" {
+  return online ? "success" : "neutral";
 }
+
+const tabs = [
+  { href: "/hysteria/users", label: "Users", icon: "group" },
+  { href: "/hysteria/settings", label: "Settings", icon: "settings" },
+];
 
 export default function HysteriaUsersPage() {
   const { push } = useToast();
@@ -109,8 +127,7 @@ export default function HysteriaUsersPage() {
 
       setError(null);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to load Hysteria users";
-      setError(message);
+      setError(err instanceof Error ? err.message : "Failed to load Hysteria users");
     } finally {
       if (showLoader) {
         setLoading(false);
@@ -269,39 +286,41 @@ export default function HysteriaUsersPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Hysteria 2 Users</h1>
-          <p className="page-subtitle">Manage users in modal workflows and keep URI/QR in sync with runtime settings.</p>
-        </div>
-        <button className="btn btn-primary" type="button" onClick={openCreate}>
-          Create User
-        </button>
-      </div>
+    <div className="md-page-stack">
+      <PageHeader
+        title="Hysteria 2"
+        subtitle="Manage users in dialog workflows and keep URI, QR and runtime settings in sync."
+        actions={
+          <Button onClick={openCreate} icon="add">
+            Create user
+          </Button>
+        }
+      />
 
-      {error && <div className="alert alert-warn">{error}</div>}
+      <SectionTabs items={tabs} />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {error && <InlineMessage tone="warning">{error}</InlineMessage>}
+
+      <div className="md-metric-grid">
         <MetricCard label="Enabled" value={String(overview?.enabled_accounts ?? 0)} />
         <MetricCard label="Online" value={String(overview?.online_count ?? 0)} />
         <MetricCard label="Total TX" value={formatBytes(overview?.total_tx_bytes ?? 0)} />
         <MetricCard label="Total RX" value={formatBytes(overview?.total_rx_bytes ?? 0)} />
       </div>
 
-      <Card title="Users" subtitle="Core actions: Edit, Delete, QR and Copy URI.">
+      <Card title="Users" subtitle="Primary action: Edit. Secondary actions are grouped in an overflow menu.">
         {loading ? (
-          <div className="skeleton-grid">
-            <div className="skeleton-line" />
-            <div className="skeleton-line" />
-            <div className="skeleton-line" />
+          <div className="md-skeleton">
+            <div className="md-skeleton__line" />
+            <div className="md-skeleton__line" />
+            <div className="md-skeleton__line" />
           </div>
         ) : accounts.length === 0 ? (
-          <div className="empty-state">No Hysteria users yet.</div>
+          <EmptyState title="No Hysteria users" description="Create the first user to issue access credentials." icon="person_off" />
         ) : (
           <>
-            <div className="hidden overflow-x-auto md:block">
-              <table className="table">
+            <div className="hidden md-data-table-wrap md:block">
+              <table className="md-data-table">
                 <thead>
                   <tr>
                     <th>User</th>
@@ -318,34 +337,57 @@ export default function HysteriaUsersPage() {
                     return (
                       <tr key={item.id}>
                         <td>
-                          <div className="font-medium">{item.client_name || item.hy2_identity}</div>
-                          <div className="text-xs text-muted break-all">Identity: {item.hy2_identity}</div>
-                        </td>
-                        <td>
-                          <div className="flex flex-wrap gap-2">
-                            <StatusBadge enabled={item.is_enabled} />
-                            <span className={onlineBadgeClass(online)}>{online ? "Online" : "Offline"}</span>
+                          <div style={{ fontWeight: 600 }}>{item.client_name || item.hy2_identity}</div>
+                          <div className="text-muted" style={{ fontSize: "0.8125rem", wordBreak: "break-all" }}>
+                            Identity: {item.hy2_identity}
                           </div>
                         </td>
                         <td>
-                          <div className="text-sm">TX: {formatBytes(item.last_tx_bytes || 0)}</div>
-                          <div className="text-sm">RX: {formatBytes(item.last_rx_bytes || 0)}</div>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                            <StatusBadge enabled={item.is_enabled} />
+                            <StatusBadge tone={onlineBadgeClass(online)}>{online ? "Online" : "Offline"}</StatusBadge>
+                          </div>
+                        </td>
+                        <td>
+                          <div>TX: {formatBytes(item.last_tx_bytes || 0)}</div>
+                          <div>RX: {formatBytes(item.last_rx_bytes || 0)}</div>
                         </td>
                         <td>{formatDate(item.last_seen_at)}</td>
                         <td>
-                          <div className="flex flex-wrap gap-2">
-                            <button className="btn btn-ghost" type="button" onClick={() => openEdit(item)} disabled={busy}>
+                          <div className="md-row-actions">
+                            <Button variant="text" type="button" onClick={() => openEdit(item)} disabled={busy}>
                               Edit
-                            </button>
-                            <button className="btn btn-ghost" type="button" onClick={() => openQR(item)} disabled={busy}>
-                              QR
-                            </button>
-                            <button className="btn btn-ghost" type="button" onClick={() => copyURI(item)} disabled={busy}>
-                              {copiedKey === `uri-${item.id}` ? "Copied" : "Copy URI"}
-                            </button>
-                            <button className="btn btn-danger" type="button" onClick={() => askDelete(item)} disabled={busy}>
-                              Delete
-                            </button>
+                            </Button>
+                            <OverflowMenu
+                              items={[
+                                {
+                                  id: "qr",
+                                  label: "Show QR",
+                                  icon: "qr_code_2",
+                                  disabled: busy,
+                                  onSelect: () => {
+                                    void openQR(item);
+                                  },
+                                },
+                                {
+                                  id: "copy",
+                                  label: copiedKey === `uri-${item.id}` ? "URI copied" : "Copy URI",
+                                  icon: "content_copy",
+                                  disabled: busy,
+                                  onSelect: () => {
+                                    void copyURI(item);
+                                  },
+                                },
+                                {
+                                  id: "delete",
+                                  label: "Delete",
+                                  icon: "delete",
+                                  danger: true,
+                                  disabled: busy,
+                                  onSelect: () => askDelete(item),
+                                },
+                              ]}
+                            />
                           </div>
                         </td>
                       </tr>
@@ -355,35 +397,62 @@ export default function HysteriaUsersPage() {
               </table>
             </div>
 
-            <div className="space-y-3 md:hidden">
+            <div className="md-list md:hidden">
               {accounts.map((item) => {
                 const online = (item.online_count || 0) > 0;
                 const busy = busyID === item.id;
                 return (
-                  <article key={item.id} className="list-row space-y-2">
+                  <article key={item.id} className="md-list-item">
                     <div>
-                      <div className="font-medium">{item.client_name || item.hy2_identity}</div>
-                      <div className="text-xs text-muted break-all">Identity: {item.hy2_identity}</div>
+                      <h3 className="md-list-item__headline">{item.client_name || item.hy2_identity}</h3>
+                      <p className="md-list-item__supporting" style={{ wordBreak: "break-all" }}>
+                        Identity: {item.hy2_identity}
+                      </p>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                       <StatusBadge enabled={item.is_enabled} />
-                      <span className={onlineBadgeClass(online)}>{online ? "Online" : "Offline"}</span>
+                      <StatusBadge tone={onlineBadgeClass(online)}>{online ? "Online" : "Offline"}</StatusBadge>
                     </div>
-                    <div className="text-sm">TX: {formatBytes(item.last_tx_bytes || 0)} | RX: {formatBytes(item.last_rx_bytes || 0)}</div>
-                    <div className="text-xs text-muted">Last seen: {formatDate(item.last_seen_at)}</div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button className="btn btn-ghost" type="button" onClick={() => openEdit(item)} disabled={busy}>
+                    <p className="md-list-item__supporting" style={{ margin: 0 }}>
+                      TX: {formatBytes(item.last_tx_bytes || 0)} | RX: {formatBytes(item.last_rx_bytes || 0)}
+                    </p>
+                    <p className="md-list-item__supporting" style={{ margin: 0 }}>
+                      Last seen: {formatDate(item.last_seen_at)}
+                    </p>
+                    <div className="md-page-actions">
+                      <Button variant="tonal" type="button" onClick={() => openEdit(item)} disabled={busy}>
                         Edit
-                      </button>
-                      <button className="btn btn-ghost" type="button" onClick={() => openQR(item)} disabled={busy}>
-                        QR
-                      </button>
-                      <button className="btn btn-ghost" type="button" onClick={() => copyURI(item)} disabled={busy}>
-                        {copiedKey === `uri-${item.id}` ? "Copied" : "Copy URI"}
-                      </button>
-                      <button className="btn btn-danger" type="button" onClick={() => askDelete(item)} disabled={busy}>
-                        Delete
-                      </button>
+                      </Button>
+                      <OverflowMenu
+                        items={[
+                          {
+                            id: "qr",
+                            label: "Show QR",
+                            icon: "qr_code_2",
+                            disabled: busy,
+                            onSelect: () => {
+                              void openQR(item);
+                            },
+                          },
+                          {
+                            id: "copy",
+                            label: copiedKey === `uri-${item.id}` ? "URI copied" : "Copy URI",
+                            icon: "content_copy",
+                            disabled: busy,
+                            onSelect: () => {
+                              void copyURI(item);
+                            },
+                          },
+                          {
+                            id: "delete",
+                            label: "Delete",
+                            icon: "delete",
+                            danger: true,
+                            disabled: busy,
+                            onSelect: () => askDelete(item),
+                          },
+                        ]}
+                      />
                     </div>
                   </article>
                 );
@@ -395,63 +464,51 @@ export default function HysteriaUsersPage() {
 
       <Dialog
         open={formOpen}
-        title={editing ? "Edit Hysteria User" : "Create Hysteria User"}
+        title={editing ? "Edit Hysteria user" : "Create Hysteria user"}
         onClose={() => setFormOpen(false)}
-        footer={
+        actions={
           <>
-            <button className="btn btn-ghost" type="button" onClick={() => setFormOpen(false)} disabled={formBusy}>
+            <Button variant="text" type="button" onClick={() => setFormOpen(false)} disabled={formBusy}>
               Cancel
-            </button>
-            <button className="btn btn-primary" type="submit" form="hy2-user-form" disabled={formBusy}>
+            </Button>
+            <Button type="submit" form="hy2-user-form" disabled={formBusy}>
               {formBusy ? "Saving..." : editing ? "Save" : "Create"}
-            </button>
+            </Button>
           </>
         }
       >
-        <form id="hy2-user-form" className="space-y-3" onSubmit={submitForm}>
-          <label className="block">
-            <span className="mb-1 block text-sm text-muted">Client</span>
-            <select
-              className="input"
-              value={formState.client_id}
-              onChange={(event) => setFormState((prev) => ({ ...prev, client_id: event.target.value }))}
-              required
-              disabled={Boolean(editing)}
-            >
-              {sortedClients.map((client) => (
-                <option key={client.id} value={client.id}>
-                  {client.name}
-                </option>
-              ))}
-            </select>
-          </label>
+        <form id="hy2-user-form" className="md-form-grid" onSubmit={submitForm}>
+          <SelectField
+            label="Client"
+            value={formState.client_id}
+            onChange={(event) => setFormState((prev) => ({ ...prev, client_id: event.target.value }))}
+            required
+            disabled={Boolean(editing)}
+            options={sortedClients.map((client) => ({ value: client.id, label: client.name }))}
+          />
 
-          <label className="block">
-            <span className="mb-1 block text-sm text-muted">Auth payload</span>
-            <input
-              className="input"
-              value={formState.auth_payload}
-              onChange={(event) => setFormState((prev) => ({ ...prev, auth_payload: event.target.value }))}
-              placeholder="Auto-generated if empty"
-            />
-          </label>
+          <TextField
+            label="Auth payload"
+            value={formState.auth_payload}
+            onChange={(event) => setFormState((prev) => ({ ...prev, auth_payload: event.target.value }))}
+            placeholder="Auto-generated if empty"
+            supportingText="Optional custom auth payload."
+          />
 
-          <label className="block">
-            <span className="mb-1 block text-sm text-muted">Identity</span>
-            <input
-              className="input"
-              value={formState.hy2_identity}
-              onChange={(event) => setFormState((prev) => ({ ...prev, hy2_identity: event.target.value }))}
-              placeholder="Auto-generated if empty"
-            />
-          </label>
+          <TextField
+            label="Identity"
+            value={formState.hy2_identity}
+            onChange={(event) => setFormState((prev) => ({ ...prev, hy2_identity: event.target.value }))}
+            placeholder="Auto-generated if empty"
+            supportingText="Client identity visible in runtime logs."
+          />
         </form>
       </Dialog>
 
       <ConfirmDialog
         open={deleteOpen}
         title="Delete user"
-        description={`Delete ${deleting?.client_name || deleting?.hy2_identity || "this user"}? This cannot be undone.`}
+        description={`Delete ${deleting?.client_name || deleting?.hy2_identity || "this user"}? This action cannot be undone.`}
         confirmLabel="Delete"
         onClose={() => setDeleteOpen(false)}
         onConfirm={removeUser}
@@ -462,35 +519,30 @@ export default function HysteriaUsersPage() {
         open={uriOpen}
         title={`Connection: ${uriTitle}`}
         onClose={() => setURIOpen(false)}
-        footer={
+        size="lg"
+        actions={
           <>
-            <button className="btn btn-ghost" type="button" onClick={() => copyValue(uriValue, "uri")}> 
+            <Button variant="text" type="button" onClick={() => void copyValue(uriValue, "uri")}> 
               {copiedKey === "uri" ? "Copied" : "Copy URI"}
-            </button>
+            </Button>
             {uriV2Ray && (
-              <button className="btn btn-ghost" type="button" onClick={() => copyValue(uriV2Ray, "uri-v2")}> 
+              <Button variant="text" type="button" onClick={() => void copyValue(uriV2Ray, "uri-v2")}> 
                 {copiedKey === "uri-v2" ? "Copied" : "Copy hy2://"}
-              </button>
+              </Button>
             )}
           </>
         }
       >
-        <div className="space-y-3">
-          <div>
-            <div className="mb-1 text-xs text-muted">hysteria2 URI</div>
-            <textarea className="input min-h-20 font-mono text-xs break-all" value={uriValue} readOnly />
-          </div>
+        <div style={{ display: "grid", gap: 12 }}>
+          <TextareaField label="hysteria2 URI" value={uriValue} readOnly className="md-mono" />
 
-          {uriV2Ray && (
-            <div>
-              <div className="mb-1 text-xs text-muted">V2RayNG hy2 URI</div>
-              <textarea className="input min-h-20 font-mono text-xs break-all" value={uriV2Ray} readOnly />
-            </div>
-          )}
+          {uriV2Ray && <TextareaField label="V2RayNG hy2 URI" value={uriV2Ray} readOnly className="md-mono" />}
 
           {uriClientParams && (
-            <div className="list-row text-xs text-muted break-all">
-              server: {uriClientParams.server || "-"} | port: {uriClientParams.port || "-"} | sni: {uriClientParams.sni || "-"}
+            <div className="md-inline-message md-inline-message--info" style={{ marginTop: 4 }}>
+              <div>
+                server: {uriClientParams.server || "-"} | port: {uriClientParams.port || "-"} | sni: {uriClientParams.sni || "-"}
+              </div>
             </div>
           )}
 
@@ -498,7 +550,7 @@ export default function HysteriaUsersPage() {
             <img
               src={`https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(uriValue)}`}
               alt="Hysteria QR code"
-              className="h-56 w-56 rounded-md"
+              style={{ width: 224, height: 224, borderRadius: 12, objectFit: "contain" }}
             />
           )}
         </div>

@@ -1,23 +1,26 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
 import type { LiveDashboardPayload, LiveServiceStatus } from "@/lib/types";
 import { formatBytes, formatDate, formatRate, formatUptime } from "@/lib/format";
-import { Card, MetricCard } from "@/components/ui";
+import { Card, EmptyState, InlineMessage, LinearProgress, MetricCard, PageHeader, StatusBadge } from "@/components/ui";
 
 const POLL_INTERVAL_MS = 5000;
 
-function serviceBadgeClass(status: string): string {
+function serviceTone(status: string): "success" | "error" | "warning" | "neutral" {
   const normalized = status.toLowerCase();
   if (normalized.includes("active") || normalized.includes("running")) {
-    return "badge badge-online";
+    return "success";
   }
   if (normalized.includes("failed") || normalized.includes("dead") || normalized.includes("inactive")) {
-    return "badge badge-disabled";
+    return "error";
   }
-  return "badge badge-neutral";
+  if (normalized.includes("reloading") || normalized.includes("activating")) {
+    return "warning";
+  }
+  return "neutral";
 }
 
 function findService(services: LiveServiceStatus[], name: string): LiveServiceStatus | null {
@@ -43,8 +46,7 @@ export default function DashboardPage() {
       const backendIssues = (payload.errors || []).filter((item, idx, all) => item && all.indexOf(item) === idx);
       setError(backendIssues.length > 0 ? backendIssues.join(". ") : null);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to load live dashboard";
-      setError(message);
+      setError(err instanceof Error ? err.message : "Failed to load live dashboard");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -77,22 +79,24 @@ export default function DashboardPage() {
   const mtService = useMemo(() => findService(data?.services || [], "mtproxy"), [data]);
 
   return (
-    <div className="space-y-4">
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Dashboard</h1>
-          <p className="page-subtitle">Near-real-time server metrics, proxy status and traffic health.</p>
-        </div>
-        <div className="text-xs text-muted">
-          {refreshing ? "Refreshing..." : "Auto refresh: 5s"}
-          <br />
-          Last update: {formatDate(data?.collected_at)}
-        </div>
-      </div>
+    <div className="md-page-stack">
+      <PageHeader
+        title="Dashboard"
+        subtitle="Near-real-time server metrics, proxy status and traffic health."
+        meta={
+          <>
+            {refreshing ? "Refreshing..." : "Auto refresh: 5s"}
+            <br />
+            Last update: {formatDate(data?.collected_at)}
+          </>
+        }
+      />
 
-      {error && <div className="alert alert-warn">{error}</div>}
+      {(loading || refreshing) && <LinearProgress indeterminate />}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {error && <InlineMessage tone="warning">{error}</InlineMessage>}
+
+      <section className="md-metric-grid" aria-label="System and protocol metrics">
         <MetricCard
           label="Server CPU"
           value={loading ? "Loading..." : `${system?.cpu_usage_percent?.toFixed(1) || "0.0"}%`}
@@ -100,11 +104,7 @@ export default function DashboardPage() {
         />
         <MetricCard
           label="Server RAM"
-          value={
-            loading
-              ? "Loading..."
-              : `${formatBytes(system?.memory_used_bytes)} / ${formatBytes(system?.memory_total_bytes)}`
-          }
+          value={loading ? "Loading..." : `${formatBytes(system?.memory_used_bytes)} / ${formatBytes(system?.memory_total_bytes)}`}
           hint={system ? `${system.memory_used_percent.toFixed(1)}% used` : "-"}
         />
         <MetricCard
@@ -117,9 +117,6 @@ export default function DashboardPage() {
           value={loading ? "Loading..." : `RX ${formatRate(system?.network_rx_bps)}`}
           hint={loading ? "" : `TX ${formatRate(system?.network_tx_bps)}`}
         />
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label="Hysteria Online"
           value={String(data?.hysteria.online_count ?? 0)}
@@ -140,42 +137,53 @@ export default function DashboardPage() {
           value={String(data?.mtproxy.enabled_secrets ?? 0)}
           hint={`${data?.mtproxy.source || "snapshot"}${data?.mtproxy.is_stale ? " - stale" : " - live"}`}
         />
-      </div>
+      </section>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="md-grid-two">
         <Card title="Proxy Services" subtitle="Runtime state from systemd with live fallback to cache.">
-          <div className="space-y-2">
+          <div className="md-list">
             {[hy2Service, mtService].map((item) => {
               if (!item) {
                 return null;
               }
               return (
-                <article key={item.service_name} className="list-row">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="font-medium">{item.service_name}</div>
-                    <span className={serviceBadgeClass(item.status)}>{item.status}</span>
+                <article key={item.service_name} className="md-list-item">
+                  <div className="md-list-item__row">
+                    <div>
+                      <h3 className="md-list-item__headline">{item.service_name}</h3>
+                      <p className="md-list-item__supporting">
+                        Checked: {formatDate(item.last_check_at)} | {item.source}
+                        {item.is_stale ? " (stale)" : ""}
+                      </p>
+                    </div>
+                    <StatusBadge tone={serviceTone(item.status)}>{item.status}</StatusBadge>
                   </div>
-                  <div className="text-xs text-muted">
-                    Checked: {formatDate(item.last_check_at)} | {item.source}
-                    {item.is_stale ? " (stale)" : ""}
-                  </div>
-                  {item.error && <div className="text-xs text-muted">{item.error}</div>}
+                  {item.error && <p className="md-list-item__supporting">{item.error}</p>}
                 </article>
               );
             })}
 
-            {(!data?.services || data.services.length === 0) && !loading && <div className="empty-state">No service data.</div>}
+            {(!data?.services || data.services.length === 0) && !loading && (
+              <EmptyState title="No service data" description="No runtime status is currently available from backend services." icon="dns" />
+            )}
           </div>
         </Card>
 
         <Card title="Live Notes" subtitle="How to read this dashboard.">
-          <div className="space-y-2 text-sm text-muted">
-            <p>System CPU/RAM/uptime comes from Prometheus + node_exporter when configured, with procfs fallback.</p>
-            <p>Hysteria and MTProxy traffic are fetched live from local stats endpoints with snapshot fallback if unavailable.</p>
-            <p>If a section is marked stale, values are fallback/cache and need runtime/API recovery.</p>
+          <div style={{ display: "grid", gap: 10 }}>
+            <p style={{ margin: 0 }}>
+              System CPU, RAM and uptime are collected via Prometheus + node_exporter when configured, with procfs fallback.
+            </p>
+            <p style={{ margin: 0 }}>
+              Hysteria and MTProxy traffic are read from local live endpoints, with cache fallback when runtime sources are unavailable.
+            </p>
+            <p style={{ margin: 0 }}>
+              If a section is marked stale, metrics are fallback values and runtime/API recovery is required.
+            </p>
           </div>
         </Card>
       </div>
     </div>
   );
 }
+

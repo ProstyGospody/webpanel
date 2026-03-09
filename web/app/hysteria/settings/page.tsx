@@ -1,13 +1,14 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch, toJSONBody } from "@/lib/api";
 import type { Hy2ConfigValidation, Hy2Settings, Hy2SettingsPayload, Hy2SettingsValidation } from "@/lib/types";
 import { formatDate } from "@/lib/format";
-import { Card } from "@/components/ui";
+import { Button, Card, InlineMessage, PageHeader, SwitchField, TextField } from "@/components/ui";
 import { ConfirmDialog } from "@/components/dialog";
 import { useToast } from "@/components/toast-provider";
+import { SectionTabs } from "@/components/section-tabs";
 
 type ValidatePayload = {
   settings_validation: Hy2SettingsValidation;
@@ -30,6 +31,11 @@ const DEFAULT_OBFS_TYPE = "salamander";
 const DEFAULT_MASQUERADE_TYPE = "proxy";
 const DEFAULT_MASQUERADE_URL = "https://www.cloudflare.com";
 const PASSWORD_ALPHABET = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+const tabs = [
+  { href: "/hysteria/users", label: "Users", icon: "group" },
+  { href: "/hysteria/settings", label: "Settings", icon: "settings" },
+];
 
 function generateObfsPassword(length = 18): string {
   if (typeof window !== "undefined" && window.crypto?.getRandomValues) {
@@ -220,162 +226,144 @@ export default function HysteriaSettingsPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Hysteria 2 Settings</h1>
-          <p className="page-subtitle">Native runtime settings: PORT, SNI, OBFS and Masquerade.</p>
-        </div>
-      </div>
+    <div className="md-page-stack">
+      <PageHeader
+        title="Hysteria 2"
+        subtitle="Native runtime settings: port, SNI, OBFS and Masquerade with validation-first apply flow."
+      />
 
-      {error && <div className="alert alert-warn">{error}</div>}
+      <SectionTabs items={tabs} />
+
+      {error && <InlineMessage tone="warning">{error}</InlineMessage>}
 
       <Card title="Runtime source" subtitle={path || "-"}>
-        <div className="grid gap-3 md:grid-cols-2">
-          <label className="block">
-            <span className="mb-1 block text-sm text-muted">Port</span>
-            <input
-              className="input"
-              type="number"
-              min={1}
-              max={65535}
-              value={settings.port}
-              onChange={(event) => update("port", Number(event.target.value || 0))}
-              disabled={loading}
-            />
-          </label>
+        <div className="md-form-grid">
+          <TextField
+            label="Port"
+            type="number"
+            min={1}
+            max={65535}
+            value={settings.port}
+            onChange={(event) => update("port", Number(event.target.value || 0))}
+            disabled={loading}
+          />
 
-          <label className="block">
-            <span className="mb-1 block text-sm text-muted">SNI</span>
-            <input className="input" value={settings.sni} onChange={(event) => update("sni", event.target.value)} disabled={loading} />
-          </label>
+          <TextField
+            label="SNI"
+            value={settings.sni}
+            onChange={(event) => update("sni", event.target.value)}
+            disabled={loading}
+          />
         </div>
       </Card>
 
       <Card title="OBFS" subtitle="Optional transport obfuscation. Incompatible with Masquerade.">
-        <div className="space-y-3">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={settings.obfs_enabled}
-              onChange={(event) => update("obfs_enabled", event.target.checked)}
-              disabled={loading}
+        <SwitchField
+          label="Enable OBFS"
+          supportingText="When enabled, Masquerade is disabled automatically."
+          checked={settings.obfs_enabled}
+          onChange={(value) => update("obfs_enabled", value)}
+          disabled={loading}
+        />
+
+        {settings.obfs_enabled && (
+          <div className="md-form-grid" style={{ marginTop: 8 }}>
+            <label className="md-field">
+              <span className="md-field__label">OBFS type</span>
+              <select className="md-field__control" value={settings.obfs_type || "salamander"} onChange={(event) => update("obfs_type", event.target.value)}>
+                <option value="salamander">salamander</option>
+              </select>
+              <span className="md-field__supporting">Material-aligned secure obfuscation mode for clients.</span>
+            </label>
+
+            <TextField
+              label="OBFS password"
+              value={settings.obfs_password || ""}
+              onChange={(event) => update("obfs_password", event.target.value)}
+              placeholder="Auto-generated when empty"
+              supportingText="Generated automatically on validation/save if empty."
             />
-            Enable OBFS
-          </label>
-
-          {settings.obfs_enabled && <div className="text-sm text-muted">Masquerade is automatically disabled while OBFS is enabled.</div>}
-
-          {settings.obfs_enabled && (
-            <div className="grid gap-3 md:grid-cols-2">
-              <label className="block">
-                <span className="mb-1 block text-sm text-muted">OBFS type</span>
-                <select className="input" value={settings.obfs_type || "salamander"} onChange={(event) => update("obfs_type", event.target.value)}>
-                  <option value="salamander">salamander</option>
-                </select>
-              </label>
-
-              <label className="block">
-                <span className="mb-1 block text-sm text-muted">OBFS password</span>
-                <input
-                  className="input"
-                  value={settings.obfs_password || ""}
-                  onChange={(event) => update("obfs_password", event.target.value)}
-                  placeholder="Auto-generated when empty"
-                />
-              </label>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </Card>
 
       <Card title="Masquerade" subtitle="Proxy mode URL camouflage. Incompatible with OBFS.">
-        <div className="space-y-3">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={settings.masquerade_enabled}
-              onChange={(event) => update("masquerade_enabled", event.target.checked)}
-              disabled={loading}
+        <SwitchField
+          label="Enable Masquerade"
+          supportingText="When enabled, OBFS is disabled automatically."
+          checked={settings.masquerade_enabled}
+          onChange={(value) => update("masquerade_enabled", value)}
+          disabled={loading}
+        />
+
+        {settings.masquerade_enabled && (
+          <div className="md-form-grid" style={{ marginTop: 8 }}>
+            <TextField
+              label="Masquerade URL"
+              value={settings.masquerade_url || ""}
+              onChange={(event) => update("masquerade_url", event.target.value)}
+              placeholder="https://www.cloudflare.com"
+              supportingText="Target URL used for traffic camouflage."
             />
-            Enable Masquerade
-          </label>
 
-          {settings.masquerade_enabled && <div className="text-sm text-muted">OBFS is automatically disabled while Masquerade is enabled.</div>}
-
-          {settings.masquerade_enabled && (
-            <>
-              <label className="block">
-                <span className="mb-1 block text-sm text-muted">Masquerade URL</span>
-                <input
-                  className="input"
-                  value={settings.masquerade_url || ""}
-                  onChange={(event) => update("masquerade_url", event.target.value)}
-                  placeholder="https://www.cloudflare.com"
-                />
-              </label>
-
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={settings.masquerade_rewrite_host}
-                  onChange={(event) => update("masquerade_rewrite_host", event.target.checked)}
-                />
-                rewriteHost
-              </label>
-            </>
-          )}
-        </div>
+            <SwitchField
+              label="rewriteHost"
+              supportingText="Rewrite host header when masquerade mode is active."
+              checked={settings.masquerade_rewrite_host}
+              onChange={(value) => update("masquerade_rewrite_host", value)}
+            />
+          </div>
+        )}
       </Card>
 
       <Card
-        title="Apply Flow"
-        subtitle="Validate -> Save -> Apply"
+        title="Apply flow"
+        subtitle="Validate, save, then apply runtime config with explicit confirmation."
         action={
-          <div className="flex flex-wrap gap-2">
-            <button className="btn btn-ghost" type="button" onClick={validateSettings} disabled={validating || loading}>
+          <div className="md-page-actions">
+            <Button variant="outlined" type="button" onClick={validateSettings} disabled={validating || loading}>
               {validating ? "Validating..." : "Validate"}
-            </button>
-            <button className="btn btn-primary" type="button" onClick={saveSettings} disabled={saving || !canSave || loading}>
+            </Button>
+            <Button type="button" onClick={saveSettings} disabled={saving || !canSave || loading}>
               {saving ? "Saving..." : "Save"}
-            </button>
-            <button className="btn btn-danger" type="button" onClick={() => setApplyConfirmOpen(true)} disabled={applying || loading}>
+            </Button>
+            <Button variant="danger" type="button" onClick={() => setApplyConfirmOpen(true)} disabled={applying || loading}>
               {applying ? "Applying..." : "Apply / Restart"}
-            </button>
+            </Button>
           </div>
         }
       >
         {settingsValidation && settingsValidation.errors.length > 0 && (
-          <div className="alert alert-error mb-3">
+          <InlineMessage tone="error">
             {settingsValidation.errors.map((item) => (
               <div key={item}>{item}</div>
             ))}
-          </div>
+          </InlineMessage>
         )}
 
         {settingsValidation && settingsValidation.warnings.length > 0 && (
-          <div className="alert alert-warn mb-3">
+          <InlineMessage tone="warning">
             {settingsValidation.warnings.map((item) => (
               <div key={item}>{item}</div>
             ))}
-          </div>
+          </InlineMessage>
         )}
 
         {configValidation && configValidation.errors.length > 0 && (
-          <div className="alert alert-error mb-3">
+          <InlineMessage tone="error">
             {configValidation.errors.map((item) => (
               <div key={item}>{item}</div>
             ))}
-          </div>
+          </InlineMessage>
         )}
 
-        <div className="grid gap-2 text-sm text-muted md:grid-cols-2">
-          <div>Validation status: {settingsValidation?.valid ? "OK" : "Check fields"}</div>
-          <div>Config status: {configValidation?.valid ? "OK" : "Check config"}</div>
-          <div>Updated: {formatDate(new Date().toISOString())}</div>
-          <div>Client port: {clientParams?.port || "-"}</div>
-          <div>Client SNI: {clientParams?.sni || "-"}</div>
-          <div>Client OBFS: {clientParams?.obfs_type || "disabled"}</div>
+        <div className="md-form-grid" style={{ marginTop: 12 }}>
+          <div className="md-chip md-chip--selected">Validation: {settingsValidation?.valid ? "OK" : "Check fields"}</div>
+          <div className="md-chip md-chip--selected">Config: {configValidation?.valid ? "OK" : "Check config"}</div>
+          <div className="md-chip">Updated: {formatDate(new Date().toISOString())}</div>
+          <div className="md-chip">Client port: {clientParams?.port || "-"}</div>
+          <div className="md-chip">Client SNI: {clientParams?.sni || "-"}</div>
+          <div className="md-chip">Client OBFS: {clientParams?.obfs_type || "disabled"}</div>
         </div>
       </Card>
 

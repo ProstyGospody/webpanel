@@ -1,13 +1,25 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { apiFetch, toJSONBody } from "@/lib/api";
 import { copyToClipboard, formatDate } from "@/lib/format";
 import type { Client, MTProxySecret } from "@/lib/types";
-import { Card, MetricCard, StatusBadge } from "@/components/ui";
+import {
+  Button,
+  Card,
+  EmptyState,
+  InlineMessage,
+  MetricCard,
+  PageHeader,
+  SelectField,
+  StatusBadge,
+  TextField,
+} from "@/components/ui";
 import { Dialog, ConfirmDialog } from "@/components/dialog";
 import { useToast } from "@/components/toast-provider";
+import { OverflowMenu } from "@/components/overflow-menu";
+import { SectionTabs } from "@/components/section-tabs";
 
 type MTOverview = {
   enabled_secrets: number;
@@ -33,6 +45,11 @@ type FormState = {
 };
 
 const POLL_INTERVAL_MS = 10000;
+
+const tabs = [
+  { href: "/mtproxy/users", label: "Users", icon: "group" },
+  { href: "/mtproxy/settings", label: "Settings", icon: "settings" },
+];
 
 export default function MTProxyUsersPage() {
   const { push } = useToast();
@@ -84,8 +101,7 @@ export default function MTProxyUsersPage() {
 
       setError(null);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to load MTProxy users";
-      setError(message);
+      setError(err instanceof Error ? err.message : "Failed to load MTProxy users");
     } finally {
       if (showLoader) {
         setLoading(false);
@@ -216,38 +232,40 @@ export default function MTProxyUsersPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">MTProxy Users</h1>
-          <p className="page-subtitle">Manage MTProxy secrets per proxy context with compact modal workflows.</p>
-        </div>
-        <button className="btn btn-primary" type="button" onClick={openCreate}>
-          Create User
-        </button>
-      </div>
+    <div className="md-page-stack">
+      <PageHeader
+        title="MTProxy"
+        subtitle="Manage proxy users with overflow actions and runtime-safe dialog workflows."
+        actions={
+          <Button onClick={openCreate} icon="add">
+            Create user
+          </Button>
+        }
+      />
 
-      {error && <div className="alert alert-warn">{error}</div>}
+      <SectionTabs items={tabs} />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      {error && <InlineMessage tone="warning">{error}</InlineMessage>}
+
+      <div className="md-metric-grid">
         <MetricCard label="Enabled" value={String(overview?.enabled_secrets ?? 0)} />
         <MetricCard label="Connections" value={String(overview?.connections_total ?? 0)} />
         <MetricCard label="Users" value={String(overview?.users_total ?? 0)} />
       </div>
 
-      <Card title="Users" subtitle="Core actions: Edit, Delete and Copy tg:// link.">
+      <Card title="Users" subtitle="Primary action: Edit. Secondary actions are available from overflow menu.">
         {loading ? (
-          <div className="skeleton-grid">
-            <div className="skeleton-line" />
-            <div className="skeleton-line" />
-            <div className="skeleton-line" />
+          <div className="md-skeleton">
+            <div className="md-skeleton__line" />
+            <div className="md-skeleton__line" />
+            <div className="md-skeleton__line" />
           </div>
         ) : secrets.length === 0 ? (
-          <div className="empty-state">No MTProxy users yet.</div>
+          <EmptyState title="No MTProxy users" description="Create the first secret to activate MTProxy access." icon="vpn_key_off" />
         ) : (
           <>
-            <div className="hidden overflow-x-auto md:block">
-              <table className="table">
+            <div className="hidden md-data-table-wrap md:block">
+              <table className="md-data-table">
                 <thead>
                   <tr>
                     <th>User</th>
@@ -263,29 +281,46 @@ export default function MTProxyUsersPage() {
                     return (
                       <tr key={item.id}>
                         <td>
-                          <div className="font-medium">{item.label || item.client_name || item.client_id}</div>
-                          <div className="text-xs text-muted break-all">Secret: {item.secret}</div>
+                          <div style={{ fontWeight: 600 }}>{item.label || item.client_name || item.client_id}</div>
+                          <div className="text-muted" style={{ fontSize: "0.8125rem", wordBreak: "break-all" }}>
+                            Secret: {item.secret}
+                          </div>
                         </td>
                         <td>
                           <StatusBadge enabled={item.is_enabled} />
                         </td>
                         <td>
-                          <span className={`badge ${item.is_runtime_active ? "badge-online" : "badge-neutral"}`}>
+                          <StatusBadge tone={item.is_runtime_active ? "success" : "neutral"}>
                             {item.is_runtime_active ? "active" : "standby"}
-                          </span>
+                          </StatusBadge>
                         </td>
                         <td>{formatDate(item.last_seen_at)}</td>
                         <td>
-                          <div className="flex flex-wrap gap-2">
-                            <button className="btn btn-ghost" type="button" onClick={() => copyTelegramLink(item)} disabled={busy}>
-                              {copiedKey === `tg-${item.id}` ? "Copied" : "Copy tg://"}
-                            </button>
-                            <button className="btn btn-ghost" type="button" onClick={() => openEdit(item)} disabled={busy}>
+                          <div className="md-row-actions">
+                            <Button variant="text" type="button" onClick={() => openEdit(item)} disabled={busy}>
                               Edit
-                            </button>
-                            <button className="btn btn-danger" type="button" onClick={() => askDelete(item)} disabled={busy}>
-                              Delete
-                            </button>
+                            </Button>
+                            <OverflowMenu
+                              items={[
+                                {
+                                  id: "copy",
+                                  label: copiedKey === `tg-${item.id}` ? "Link copied" : "Copy tg://",
+                                  icon: "content_copy",
+                                  disabled: busy,
+                                  onSelect: () => {
+                                    void copyTelegramLink(item);
+                                  },
+                                },
+                                {
+                                  id: "delete",
+                                  label: "Delete",
+                                  icon: "delete",
+                                  danger: true,
+                                  disabled: busy,
+                                  onSelect: () => askDelete(item),
+                                },
+                              ]}
+                            />
                           </div>
                         </td>
                       </tr>
@@ -295,30 +330,51 @@ export default function MTProxyUsersPage() {
               </table>
             </div>
 
-            <div className="space-y-3 md:hidden">
+            <div className="md-list md:hidden">
               {secrets.map((item) => {
                 const busy = busyID === item.id;
                 return (
-                  <article key={item.id} className="list-row space-y-2">
-                    <div className="font-medium">{item.label || item.client_name || item.client_id}</div>
-                    <div className="text-xs text-muted break-all">Secret: {item.secret}</div>
-                    <div className="flex flex-wrap gap-2">
-                      <StatusBadge enabled={item.is_enabled} />
-                      <span className={`badge ${item.is_runtime_active ? "badge-online" : "badge-neutral"}`}>
-                        {item.is_runtime_active ? "active" : "standby"}
-                      </span>
+                  <article key={item.id} className="md-list-item">
+                    <div>
+                      <h3 className="md-list-item__headline">{item.label || item.client_name || item.client_id}</h3>
+                      <p className="md-list-item__supporting" style={{ wordBreak: "break-all" }}>
+                        Secret: {item.secret}
+                      </p>
                     </div>
-                    <div className="text-xs text-muted">Last seen: {formatDate(item.last_seen_at)}</div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button className="btn btn-ghost" type="button" onClick={() => copyTelegramLink(item)} disabled={busy}>
-                        {copiedKey === `tg-${item.id}` ? "Copied" : "Copy tg://"}
-                      </button>
-                      <button className="btn btn-ghost" type="button" onClick={() => openEdit(item)} disabled={busy}>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <StatusBadge enabled={item.is_enabled} />
+                      <StatusBadge tone={item.is_runtime_active ? "success" : "neutral"}>
+                        {item.is_runtime_active ? "active" : "standby"}
+                      </StatusBadge>
+                    </div>
+                    <p className="md-list-item__supporting" style={{ margin: 0 }}>
+                      Last seen: {formatDate(item.last_seen_at)}
+                    </p>
+                    <div className="md-page-actions">
+                      <Button variant="tonal" type="button" onClick={() => openEdit(item)} disabled={busy}>
                         Edit
-                      </button>
-                      <button className="btn btn-danger col-span-2" type="button" onClick={() => askDelete(item)} disabled={busy}>
-                        Delete
-                      </button>
+                      </Button>
+                      <OverflowMenu
+                        items={[
+                          {
+                            id: "copy",
+                            label: copiedKey === `tg-${item.id}` ? "Link copied" : "Copy tg://",
+                            icon: "content_copy",
+                            disabled: busy,
+                            onSelect: () => {
+                              void copyTelegramLink(item);
+                            },
+                          },
+                          {
+                            id: "delete",
+                            label: "Delete",
+                            icon: "delete",
+                            danger: true,
+                            disabled: busy,
+                            onSelect: () => askDelete(item),
+                          },
+                        ]}
+                      />
                     </div>
                   </article>
                 );
@@ -330,58 +386,50 @@ export default function MTProxyUsersPage() {
 
       <Dialog
         open={formOpen}
-        title={editing ? "Edit MTProxy User" : "Create MTProxy User"}
+        title={editing ? "Edit MTProxy user" : "Create MTProxy user"}
         onClose={() => setFormOpen(false)}
-        footer={
+        actions={
           <>
-            <button className="btn btn-ghost" type="button" onClick={() => setFormOpen(false)} disabled={formBusy}>
+            <Button variant="text" type="button" onClick={() => setFormOpen(false)} disabled={formBusy}>
               Cancel
-            </button>
-            <button className="btn btn-primary" type="submit" form="mtproxy-user-form" disabled={formBusy}>
+            </Button>
+            <Button type="submit" form="mtproxy-user-form" disabled={formBusy}>
               {formBusy ? "Saving..." : editing ? "Save" : "Create"}
-            </button>
+            </Button>
           </>
         }
       >
-        <form id="mtproxy-user-form" className="space-y-3" onSubmit={submitForm}>
-          <label className="block">
-            <span className="mb-1 block text-sm text-muted">Client</span>
-            <select
-              className="input"
-              value={formState.client_id}
-              onChange={(event) => setFormState((prev) => ({ ...prev, client_id: event.target.value }))}
-              disabled={Boolean(editing)}
-              required
-            >
-              {sortedClients.map((client) => (
-                <option key={client.id} value={client.id}>
-                  {client.name}
-                </option>
-              ))}
-            </select>
-          </label>
+        <form id="mtproxy-user-form" className="md-form-grid" onSubmit={submitForm}>
+          <SelectField
+            label="Client"
+            value={formState.client_id}
+            onChange={(event) => setFormState((prev) => ({ ...prev, client_id: event.target.value }))}
+            disabled={Boolean(editing)}
+            required
+            options={sortedClients.map((client) => ({ value: client.id, label: client.name }))}
+          />
 
-          <label className="block">
-            <span className="mb-1 block text-sm text-muted">Label</span>
-            <input className="input" value={formState.label} onChange={(event) => setFormState((prev) => ({ ...prev, label: event.target.value }))} />
-          </label>
+          <TextField
+            label="Label"
+            value={formState.label}
+            onChange={(event) => setFormState((prev) => ({ ...prev, label: event.target.value }))}
+            supportingText="Optional display name for this secret."
+          />
 
-          <label className="block">
-            <span className="mb-1 block text-sm text-muted">Secret</span>
-            <input
-              className="input"
-              value={formState.secret}
-              onChange={(event) => setFormState((prev) => ({ ...prev, secret: event.target.value }))}
-              placeholder="Auto-generated if empty"
-            />
-          </label>
+          <TextField
+            label="Secret"
+            value={formState.secret}
+            onChange={(event) => setFormState((prev) => ({ ...prev, secret: event.target.value }))}
+            placeholder="Auto-generated if empty"
+            supportingText="Leave empty to generate a secure runtime secret."
+          />
         </form>
       </Dialog>
 
       <ConfirmDialog
         open={deleteOpen}
         title="Delete MTProxy user"
-        description={`Delete ${deleting?.label || deleting?.client_name || "this user"}? This cannot be undone.`}
+        description={`Delete ${deleting?.label || deleting?.client_name || "this user"}? This action cannot be undone.`}
         confirmLabel="Delete"
         onClose={() => setDeleteOpen(false)}
         onConfirm={removeSecret}

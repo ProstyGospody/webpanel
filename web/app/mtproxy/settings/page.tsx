@@ -1,11 +1,12 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
 import type { MTProxySettingsPayload } from "@/lib/types";
-import { Card } from "@/components/ui";
+import { Card, InlineMessage, PageHeader } from "@/components/ui";
 import { useToast } from "@/components/toast-provider";
+import { SectionTabs } from "@/components/section-tabs";
 
 type MTOverview = {
   enabled_secrets: number;
@@ -18,6 +19,11 @@ type ServiceDetails = {
   status_text: string;
   checked_at: string;
 };
+
+const tabs = [
+  { href: "/mtproxy/users", label: "Users", icon: "group" },
+  { href: "/mtproxy/settings", label: "Settings", icon: "settings" },
+];
 
 export default function MTProxySettingsPage() {
   const { push } = useToast();
@@ -46,35 +52,36 @@ export default function MTProxySettingsPage() {
   }, [push]);
 
   return (
-    <div className="space-y-4">
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">MTProxy Settings</h1>
-          <p className="page-subtitle">Runtime context and service state for MTProxy.</p>
-        </div>
-      </div>
+    <div className="md-page-stack">
+      <PageHeader
+        title="MTProxy"
+        subtitle="Runtime context and read-only service status for the active proxy node."
+      />
 
-      {error && <div className="alert alert-warn">{error}</div>}
+      <SectionTabs items={tabs} />
+
+      {error && <InlineMessage tone="warning">{error}</InlineMessage>}
 
       <Card title="Runtime" subtitle="Read-only runtime values from backend config.">
-        <div className="grid gap-2 text-sm text-muted md:grid-cols-2">
-          <div>Public host: {settings?.public_host || "-"}</div>
-          <div>Port: {settings?.port || "-"}</div>
-          <div>TLS domain: {settings?.tls_domain || "-"}</div>
-          <div>Stats URL: {settings?.stats_url || "-"}</div>
-          <div>Stats token configured: {settings?.stats_token_config ? "yes" : "no"}</div>
-          <div>Active runtime secret: {settings?.runtime_secret_id || "-"}</div>
+        <div className="md-form-grid">
+          <div className="md-chip">Public host: {settings?.public_host || "-"}</div>
+          <div className="md-chip">Port: {settings?.port || "-"}</div>
+          <div className="md-chip">TLS domain: {settings?.tls_domain || "-"}</div>
+          <div className="md-chip">Stats URL: {settings?.stats_url || "-"}</div>
+          <div className="md-chip">Stats token configured: {settings?.stats_token_config ? "yes" : "no"}</div>
+          <div className="md-chip">Active runtime secret: {settings?.runtime_secret_id || "-"}</div>
         </div>
       </Card>
 
-      <Card title="Live Overview" subtitle="Current MTProxy counters.">
-        <div className="grid gap-2 text-sm text-muted md:grid-cols-2">
-          <div>Enabled users: {overview?.enabled_secrets ?? 0}</div>
-          <div>Connections: {overview?.connections_total ?? 0}</div>
-          <div>Total users: {overview?.users_total ?? 0}</div>
-          <div>Service status: {service?.status_text || "-"}</div>
+      <Card title="Live overview" subtitle="Current MTProxy counters and service runtime health.">
+        <div className="md-form-grid">
+          <div className="md-chip md-chip--selected">Enabled users: {overview?.enabled_secrets ?? 0}</div>
+          <div className="md-chip md-chip--selected">Connections: {overview?.connections_total ?? 0}</div>
+          <div className="md-chip md-chip--selected">Total users: {overview?.users_total ?? 0}</div>
+          <div className="md-chip md-chip--selected">Service status: {service?.status_text || "-"}</div>
         </div>
       </Card>
     </div>
   );
 }
+
