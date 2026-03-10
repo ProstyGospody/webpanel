@@ -1,11 +1,16 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { History } from "lucide-react";
 
 import { apiFetch } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import type { AuditLog } from "@/lib/types";
-import { Card, EmptyState, InlineMessage, PageHeader, TextField } from "@/components/ui";
+import { PageHeader } from "@/components/app/page-header";
+import { EmptyState } from "@/components/app/empty-state";
+import { TextField } from "@/components/app/fields";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function AuditPage() {
@@ -39,51 +44,69 @@ export default function AuditPage() {
     <div className="space-y-6">
       <PageHeader
         title="Audit"
-        subtitle="Recent administrative actions across panel operations, filtered for faster triage."
+        description="Recent administrative actions across panel operations, with quick filtering for triage."
       />
 
-      {error && <InlineMessage tone="warning">{error}</InlineMessage>}
+      {error && (
+        <Alert variant="destructive">
+          <AlertTitle>Request failed</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
-      <Card title="Filters" subtitle="Search by action, admin, entity type or entity id." outlined>
-        <TextField
-          label="Search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Type to filter audit feed"
-        />
+      <Card>
+        <CardHeader>
+          <CardTitle>Filters</CardTitle>
+          <CardDescription>Search by action, admin, entity type or entity id.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <TextField
+            label="Search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Type to filter audit feed"
+          />
+        </CardContent>
       </Card>
 
-      <Card title="Audit feed" subtitle={`Latest 200 records${query ? ` • ${filtered.length} shown` : ""}.`}>
-        {filtered.length === 0 ? (
-          <EmptyState title="No audit records" description="No entries match the current filter." icon="history_toggle_off" />
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Time</TableHead>
-                <TableHead>Admin</TableHead>
-                <TableHead>Action</TableHead>
-                <TableHead>Entity</TableHead>
-                <TableHead>Payload</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell className="text-muted-foreground">{formatDate(item.created_at)}</TableCell>
-                  <TableCell>{item.admin_email || "system"}</TableCell>
-                  <TableCell>{item.action}</TableCell>
-                  <TableCell>
-                    {item.entity_type}
-                    {item.entity_id ? `/${item.entity_id}` : ""}
-                  </TableCell>
-                  <TableCell className="max-w-[420px] truncate font-mono text-xs">{item.payload_json}</TableCell>
+      <Card>
+        <CardHeader>
+          <CardTitle>Audit feed</CardTitle>
+          <CardDescription>Latest 200 records{query ? ` • ${filtered.length} shown` : ""}.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {filtered.length === 0 ? (
+            <EmptyState title="No audit records" description="No entries match the current filter." icon={History} />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Time</TableHead>
+                  <TableHead>Admin</TableHead>
+                  <TableHead>Action</TableHead>
+                  <TableHead>Entity</TableHead>
+                  <TableHead>Payload</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
+              </TableHeader>
+              <TableBody>
+                {filtered.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell className="text-muted-foreground">{formatDate(item.created_at)}</TableCell>
+                    <TableCell>{item.admin_email || "system"}</TableCell>
+                    <TableCell>{item.action}</TableCell>
+                    <TableCell>
+                      {item.entity_type}
+                      {item.entity_id ? `/${item.entity_id}` : ""}
+                    </TableCell>
+                    <TableCell className="max-w-[420px] truncate font-mono text-xs">{item.payload_json}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
       </Card>
     </div>
   );
 }
+

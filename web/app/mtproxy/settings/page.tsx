@@ -1,14 +1,17 @@
 ﻿"use client";
 
 import { useEffect, useState } from "react";
+import { Activity, Settings, Users } from "lucide-react";
 
 import { apiFetch } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import type { MTProxySettingsPayload } from "@/lib/types";
-import { Card, InlineMessage, PageHeader } from "@/components/ui";
 import { useToast } from "@/components/toast-provider";
-import { SectionTabs } from "@/components/section-tabs";
-import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/app/page-header";
+import { SectionNav } from "@/components/app/section-nav";
+import { StatusBadge } from "@/components/app/status-badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type MTOverview = {
@@ -24,8 +27,8 @@ type ServiceDetails = {
 };
 
 const tabs = [
-  { href: "/mtproxy/users", label: "Users", icon: "group" },
-  { href: "/mtproxy/settings", label: "Settings", icon: "settings" },
+  { href: "/mtproxy/users", label: "Users", icon: Users },
+  { href: "/mtproxy/settings", label: "Settings", icon: Settings },
 ];
 
 export default function MTProxySettingsPage() {
@@ -62,58 +65,89 @@ export default function MTProxySettingsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="MTProxy" subtitle="Runtime context and read-only status for the active proxy node." />
+      <PageHeader title="MTProxy" description="Runtime context and read-only service-linked proxy settings." />
 
-      <SectionTabs items={tabs} />
+      <SectionNav items={tabs} />
 
-      {error && <InlineMessage tone="warning">{error}</InlineMessage>}
+      {error && (
+        <Alert variant="destructive">
+          <AlertTitle>Request failed</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
-      <Card title="Runtime parameters" subtitle="Resolved from backend configuration and runtime linkage.">
-        {loading ? (
-          <div className="space-y-2">
-            <Skeleton className="h-10 w-full rounded-md" />
-            <Skeleton className="h-10 w-full rounded-md" />
-            <Skeleton className="h-10 w-full rounded-md" />
-            <Skeleton className="h-10 w-full rounded-md" />
-          </div>
-        ) : (
-          <div className="divide-y rounded-lg border border-border/70">
-            <SettingsRow label="Public host" value={settings?.public_host || "-"} />
-            <SettingsRow label="Port" value={String(settings?.port || "-")} />
-            <SettingsRow label="TLS domain" value={settings?.tls_domain || "-"} />
-            <SettingsRow label="Stats URL" value={settings?.stats_url || "-"} />
-            <SettingsRow
-              label="Stats token"
-              value={settings?.stats_token_config ? "Configured" : "Not configured"}
-            />
-            <SettingsRow label="Active runtime secret" value={settings?.runtime_secret_id || "-"} />
-          </div>
-        )}
+      <Card>
+        <CardHeader>
+          <CardTitle>Runtime parameters</CardTitle>
+          <CardDescription>Resolved from backend configuration and runtime linkage.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ) : (
+            <div className="divide-y rounded-lg border">
+              <SettingsRow label="Public host" value={settings?.public_host || "-"} />
+              <SettingsRow label="Port" value={String(settings?.port || "-")} />
+              <SettingsRow label="TLS domain" value={settings?.tls_domain || "-"} />
+              <SettingsRow label="Stats URL" value={settings?.stats_url || "-"} />
+              <SettingsRow label="Stats token" value={settings?.stats_token_config ? "Configured" : "Not configured"} />
+              <SettingsRow label="Active runtime secret" value={settings?.runtime_secret_id || "-"} />
+            </div>
+          )}
+        </CardContent>
       </Card>
 
-      <Card title="Live status" subtitle="Current counters and mtproxy.service health snapshot.">
-        {loading ? (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <Skeleton className="h-16 w-full rounded-lg" />
-            <Skeleton className="h-16 w-full rounded-lg" />
-            <Skeleton className="h-16 w-full rounded-lg" />
-            <Skeleton className="h-16 w-full rounded-lg" />
-          </div>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <MetricBadge label="Enabled users" value={String(overview?.enabled_secrets ?? 0)} />
-            <MetricBadge label="Connections" value={String(overview?.connections_total ?? 0)} />
-            <MetricBadge label="Total users" value={String(overview?.users_total ?? 0)} />
-            <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
-              <p className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">Service</p>
-              <p className="mt-1 text-sm font-medium">{service?.status_text || "-"}</p>
-              <p className="mt-1 text-xs text-muted-foreground">Checked: {formatDate(service?.checked_at || null)}</p>
+      <Card>
+        <CardHeader>
+          <CardTitle>Live status</CardTitle>
+          <CardDescription>Current counters and mtproxy.service health snapshot.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <Skeleton className="h-16 w-full rounded-lg" />
+              <Skeleton className="h-16 w-full rounded-lg" />
+              <Skeleton className="h-16 w-full rounded-lg" />
+              <Skeleton className="h-16 w-full rounded-lg" />
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <MetricCard label="Enabled users" value={String(overview?.enabled_secrets ?? 0)} />
+              <MetricCard label="Connections" value={String(overview?.connections_total ?? 0)} />
+              <MetricCard label="Total users" value={String(overview?.users_total ?? 0)} />
+              <div className="rounded-lg border bg-muted/20 p-3">
+                <p className="mb-1 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">Service</p>
+                <div className="flex items-center gap-2">
+                  <Activity className="size-4 text-muted-foreground" />
+                  <StatusBadge tone={serviceTone(service?.status_text || "")}>{service?.status_text || "-"}</StatusBadge>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">Checked: {formatDate(service?.checked_at || null)}</p>
+              </div>
+            </div>
+          )}
+        </CardContent>
       </Card>
     </div>
   );
+}
+
+function serviceTone(status: string): "success" | "warning" | "danger" | "neutral" {
+  const normalized = status.toLowerCase();
+  if (normalized.includes("active") || normalized.includes("running")) {
+    return "success";
+  }
+  if (normalized.includes("reload") || normalized.includes("activating")) {
+    return "warning";
+  }
+  if (normalized.includes("failed") || normalized.includes("dead") || normalized.includes("inactive")) {
+    return "danger";
+  }
+  return "neutral";
 }
 
 function SettingsRow({ label, value }: { label: string; value: string }) {
@@ -125,14 +159,12 @@ function SettingsRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function MetricBadge({ label, value }: { label: string; value: string }) {
+function MetricCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
-      <p className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">{label}</p>
-      <div className="mt-1 flex items-center gap-2">
-        <span className="text-xl font-semibold tabular-nums">{value}</span>
-        <Badge variant="outline">live</Badge>
-      </div>
+    <div className="rounded-lg border bg-muted/20 p-3">
+      <p className="text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">{label}</p>
+      <div className="mt-1 text-xl font-semibold tabular-nums">{value}</div>
     </div>
   );
 }
+

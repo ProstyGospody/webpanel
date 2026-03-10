@@ -2,9 +2,12 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { LogIn } from "lucide-react";
 
 import { APIError, apiFetch, toJSONBody } from "@/lib/api";
-import { Button, InlineMessage, TextField } from "@/components/ui";
+import { TextField } from "@/components/app/fields";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 type LoginFieldErrors = {
@@ -71,7 +74,12 @@ export default function LoginPage() {
           <CardDescription>Sign in with your administrator credentials.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {error && <InlineMessage tone="error">{error}</InlineMessage>}
+          {error && (
+            <Alert variant="destructive">
+              <AlertTitle>Authentication failed</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
           <form onSubmit={onSubmit} noValidate className="space-y-3">
             <TextField
@@ -79,7 +87,7 @@ export default function LoginPage() {
               type="email"
               autoComplete="username"
               value={email}
-              errorText={fieldErrors.email}
+              error={fieldErrors.email}
               onChange={(event) => {
                 setEmail(event.target.value);
                 if (fieldErrors.email) {
@@ -92,7 +100,7 @@ export default function LoginPage() {
               type="password"
               autoComplete="current-password"
               value={password}
-              errorText={fieldErrors.password}
+              error={fieldErrors.password}
               onChange={(event) => {
                 setPassword(event.target.value);
                 if (fieldErrors.password) {
@@ -100,7 +108,8 @@ export default function LoginPage() {
                 }
               }}
             />
-            <Button type="submit" fullWidth disabled={loading}>
+            <Button type="submit" className="w-full" disabled={loading}>
+              <LogIn className="size-4" />
               {loading ? "Signing in..." : "Sign in"}
             </Button>
           </form>

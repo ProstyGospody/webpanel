@@ -1,25 +1,23 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Copy, Plus, Settings, Trash2, Users, Vault } from "lucide-react";
 
 import { apiFetch, toJSONBody } from "@/lib/api";
 import { copyToClipboard, formatDate } from "@/lib/format";
 import type { Client, MTProxySecret } from "@/lib/types";
-import {
-  Button,
-  Card,
-  EmptyState,
-  InlineMessage,
-  MetricCard,
-  PageHeader,
-  SelectField,
-  StatusBadge,
-  TextField,
-} from "@/components/ui";
-import { Dialog, ConfirmDialog } from "@/components/dialog";
 import { useToast } from "@/components/toast-provider";
+import { PageHeader } from "@/components/app/page-header";
+import { SectionNav } from "@/components/app/section-nav";
+import { EmptyState } from "@/components/app/empty-state";
+import { StatusBadge } from "@/components/app/status-badge";
+import { SelectField, TextField } from "@/components/app/fields";
+import { Dialog, ConfirmDialog } from "@/components/dialog";
 import { OverflowMenu } from "@/components/overflow-menu";
-import { SectionTabs } from "@/components/section-tabs";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type MTOverview = {
@@ -52,8 +50,8 @@ type FormErrors = {
 const POLL_INTERVAL_MS = 10000;
 
 const tabs = [
-  { href: "/mtproxy/users", label: "Users", icon: "group" },
-  { href: "/mtproxy/settings", label: "Settings", icon: "settings" },
+  { href: "/mtproxy/users", label: "Users", icon: Users },
+  { href: "/mtproxy/settings", label: "Settings", icon: Settings },
 ];
 
 export default function MTProxyUsersPage() {
@@ -255,158 +253,162 @@ export default function MTProxyUsersPage() {
     <div className="space-y-6">
       <PageHeader
         title="MTProxy"
-        subtitle="Manage proxy users with overflow actions and runtime-safe dialog workflows."
+        description="Manage proxy users with stable row actions and runtime-safe dialog workflows."
         actions={
-          <Button onClick={openCreate} icon="add">
+          <Button onClick={openCreate}>
+            <Plus className="size-4" />
             Create user
           </Button>
         }
       />
 
-      <SectionTabs items={tabs} />
+      <SectionNav items={tabs} />
 
-      {error && <InlineMessage tone="warning">{error}</InlineMessage>}
+      {error && (
+        <Alert variant="destructive">
+          <AlertTitle>Request failed</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <MetricCard label="Enabled" value={String(overview?.enabled_secrets ?? 0)} />
         <MetricCard label="Connections" value={String(overview?.connections_total ?? 0)} />
         <MetricCard label="Users" value={String(overview?.users_total ?? 0)} />
-      </div>
+      </section>
 
-      <Card title="Users" subtitle="Primary action: Edit. Secondary actions are available from overflow menu.">
-        {loading ? (
-          <div className="space-y-2">
-            <div className="h-3 w-full animate-pulse rounded-full bg-muted" />
-            <div className="h-3 w-full animate-pulse rounded-full bg-muted" />
-            <div className="h-3 w-full animate-pulse rounded-full bg-muted" />
-          </div>
-        ) : secrets.length === 0 ? (
-          <EmptyState title="No MTProxy users" description="Create the first secret to activate MTProxy access." icon="vpn_key_off" />
-        ) : (
-          <>
-            <div className="hidden md:block">
-              <Table className="min-w-[860px] table-fixed">
-                <colgroup>
-                  <col className="w-[34%]" />
-                  <col className="w-[14%]" />
-                  <col className="w-[18%]" />
-                  <col className="w-[18%]" />
-                  <col className="w-[16%]" />
-                </colgroup>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>User</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Runtime</TableHead>
-                    <TableHead>Last seen</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {secrets.map((item) => {
-                    const busy = busyID === item.id;
-                    return (
-                      <TableRow key={item.id}>
-                        <TableCell className="align-top">
-                          <div className="font-medium leading-5">{item.label || item.client_name || item.client_id}</div>
-                          <div className="mt-1 whitespace-normal break-all text-xs text-muted-foreground">Secret: {item.secret}</div>
-                        </TableCell>
-                        <TableCell className="align-top">
-                          <StatusBadge enabled={item.is_enabled} />
-                        </TableCell>
-                        <TableCell className="align-top">
-                          <StatusBadge tone={item.is_runtime_active ? "success" : "neutral"}>
-                            {item.is_runtime_active ? "active" : "standby"}
-                          </StatusBadge>
-                        </TableCell>
-                        <TableCell className="align-top text-xs text-muted-foreground">{formatDate(item.last_seen_at)}</TableCell>
-                        <TableCell className="align-top">
-                          <div className="flex items-center justify-end gap-2">
-                            <Button variant="text" type="button" onClick={() => openEdit(item)} disabled={busy}>
-                              Edit
-                            </Button>
-                            <OverflowMenu
-                              items={[
-                                {
-                                  id: "copy",
-                                  label: copiedKey === `tg-${item.id}` ? "Link copied" : "Copy tg://",
-                                  icon: "content_copy",
-                                  disabled: busy,
-                                  onSelect: () => {
-                                    void copyTelegramLink(item);
+      <Card>
+        <CardHeader>
+          <CardTitle>Users</CardTitle>
+          <CardDescription>Edit is the primary action. Copy/delete are grouped in row actions.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-full" />
+            </div>
+          ) : secrets.length === 0 ? (
+            <EmptyState title="No MTProxy users" description="Create the first secret to activate MTProxy access." icon={Vault} />
+          ) : (
+            <>
+              <div className="hidden md:block">
+                <Table className="min-w-[860px] table-fixed">
+                  <colgroup>
+                    <col className="w-[34%]" />
+                    <col className="w-[14%]" />
+                    <col className="w-[18%]" />
+                    <col className="w-[18%]" />
+                    <col className="w-[16%]" />
+                  </colgroup>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>User</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Runtime</TableHead>
+                      <TableHead>Last seen</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {secrets.map((item) => {
+                      const busy = busyID === item.id;
+                      return (
+                        <TableRow key={item.id}>
+                          <TableCell className="align-top">
+                            <div className="font-medium leading-5">{item.label || item.client_name || item.client_id}</div>
+                            <div className="mt-1 whitespace-normal break-all text-xs text-muted-foreground">Secret: {item.secret}</div>
+                          </TableCell>
+                          <TableCell className="align-top">
+                            <StatusBadge tone={item.is_enabled ? "success" : "danger"}>{item.is_enabled ? "Enabled" : "Disabled"}</StatusBadge>
+                          </TableCell>
+                          <TableCell className="align-top">
+                            <StatusBadge tone={item.is_runtime_active ? "success" : "neutral"}>{item.is_runtime_active ? "Active" : "Standby"}</StatusBadge>
+                          </TableCell>
+                          <TableCell className="align-top text-xs text-muted-foreground">{formatDate(item.last_seen_at)}</TableCell>
+                          <TableCell className="align-top">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button variant="ghost" size="sm" onClick={() => openEdit(item)} disabled={busy}>
+                                Edit
+                              </Button>
+                              <OverflowMenu
+                                items={[
+                                  {
+                                    id: "copy",
+                                    label: copiedKey === `tg-${item.id}` ? "Link copied" : "Copy tg://",
+                                    icon: Copy,
+                                    disabled: busy,
+                                    onSelect: () => {
+                                      void copyTelegramLink(item);
+                                    },
                                   },
-                                },
-                                {
-                                  id: "delete",
-                                  label: "Delete",
-                                  icon: "delete",
-                                  danger: true,
-                                  disabled: busy,
-                                  onSelect: () => askDelete(item),
-                                },
-                              ]}
-                            />
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+                                  {
+                                    id: "delete",
+                                    label: "Delete",
+                                    icon: Trash2,
+                                    destructive: true,
+                                    disabled: busy,
+                                    onSelect: () => askDelete(item),
+                                  },
+                                ]}
+                              />
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
 
-            <div className="grid gap-3 md:hidden">
-              {secrets.map((item) => {
-                const busy = busyID === item.id;
-                return (
-                  <article key={item.id} className="space-y-2 rounded-xl border border-border/70 bg-muted/30 p-4">
-                    <div>
-                      <h3 className="text-sm font-semibold">{item.label || item.client_name || item.client_id}</h3>
-                      <p className="text-xs break-all text-muted-foreground">
-                        Secret: {item.secret}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <StatusBadge enabled={item.is_enabled} />
-                      <StatusBadge tone={item.is_runtime_active ? "success" : "neutral"}>
-                        {item.is_runtime_active ? "active" : "standby"}
-                      </StatusBadge>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Last seen: {formatDate(item.last_seen_at)}
-                    </p>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button variant="tonal" type="button" onClick={() => openEdit(item)} disabled={busy}>
-                        Edit
-                      </Button>
-                      <OverflowMenu
-                        items={[
-                          {
-                            id: "copy",
-                            label: copiedKey === `tg-${item.id}` ? "Link copied" : "Copy tg://",
-                            icon: "content_copy",
-                            disabled: busy,
-                            onSelect: () => {
-                              void copyTelegramLink(item);
+              <div className="grid gap-3 md:hidden">
+                {secrets.map((item) => {
+                  const busy = busyID === item.id;
+                  return (
+                    <article key={item.id} className="space-y-3 rounded-xl border bg-muted/20 p-4">
+                      <div>
+                        <h3 className="text-sm font-semibold">{item.label || item.client_name || item.client_id}</h3>
+                        <p className="text-xs break-all text-muted-foreground">Secret: {item.secret}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <StatusBadge tone={item.is_enabled ? "success" : "danger"}>{item.is_enabled ? "Enabled" : "Disabled"}</StatusBadge>
+                        <StatusBadge tone={item.is_runtime_active ? "success" : "neutral"}>{item.is_runtime_active ? "Active" : "Standby"}</StatusBadge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">Last seen: {formatDate(item.last_seen_at)}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button variant="secondary" size="sm" onClick={() => openEdit(item)} disabled={busy}>
+                          Edit
+                        </Button>
+                        <OverflowMenu
+                          items={[
+                            {
+                              id: "copy",
+                              label: copiedKey === `tg-${item.id}` ? "Link copied" : "Copy tg://",
+                              icon: Copy,
+                              disabled: busy,
+                              onSelect: () => {
+                                void copyTelegramLink(item);
+                              },
                             },
-                          },
-                          {
-                            id: "delete",
-                            label: "Delete",
-                            icon: "delete",
-                            danger: true,
-                            disabled: busy,
-                            onSelect: () => askDelete(item),
-                          },
-                        ]}
-                      />
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          </>
-        )}
+                            {
+                              id: "delete",
+                              label: "Delete",
+                              icon: Trash2,
+                              destructive: true,
+                              disabled: busy,
+                              onSelect: () => askDelete(item),
+                            },
+                          ]}
+                        />
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </CardContent>
       </Card>
 
       <Dialog
@@ -415,7 +417,7 @@ export default function MTProxyUsersPage() {
         onClose={closeForm}
         actions={
           <>
-            <Button variant="text" type="button" onClick={closeForm} disabled={formBusy}>
+            <Button variant="ghost" type="button" onClick={closeForm} disabled={formBusy}>
               Cancel
             </Button>
             <Button type="submit" form="mtproxy-user-form" disabled={formBusy}>
@@ -428,9 +430,9 @@ export default function MTProxyUsersPage() {
           <SelectField
             label="Client"
             value={formState.client_id}
-            errorText={formErrors.client_id}
-            onChange={(event) => {
-              setFormState((prev) => ({ ...prev, client_id: event.target.value }));
+            error={formErrors.client_id}
+            onValueChange={(value) => {
+              setFormState((prev) => ({ ...prev, client_id: value }));
               if (formErrors.client_id) {
                 setFormErrors((prev) => ({ ...prev, client_id: undefined }));
               }
@@ -443,7 +445,7 @@ export default function MTProxyUsersPage() {
             label="Label"
             value={formState.label}
             onChange={(event) => setFormState((prev) => ({ ...prev, label: event.target.value }))}
-            supportingText="Optional display name for this secret."
+            description="Optional display name for this secret."
           />
 
           <TextField
@@ -451,7 +453,7 @@ export default function MTProxyUsersPage() {
             value={formState.secret}
             onChange={(event) => setFormState((prev) => ({ ...prev, secret: event.target.value }))}
             placeholder="Auto-generated if empty"
-            supportingText="Leave empty to generate a secure runtime secret."
+            description="Leave empty to generate a secure runtime secret."
           />
         </form>
       </Dialog>
@@ -468,3 +470,17 @@ export default function MTProxyUsersPage() {
     </div>
   );
 }
+
+function MetricCard({ label, value }: { label: string; value: string }) {
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardDescription className="text-[11px] font-semibold tracking-[0.08em] uppercase">{label}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-semibold tabular-nums">{value}</div>
+      </CardContent>
+    </Card>
+  );
+}
+

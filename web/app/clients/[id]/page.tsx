@@ -2,13 +2,20 @@
 
 import { useParams } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
+import { Copy, LogOut, Plus, Settings2, UserMinus, UserPlus, Waves } from "lucide-react";
 
 import { apiFetch, toJSONBody } from "@/lib/api";
 import { copyToClipboard, formatDate } from "@/lib/format";
 import type { Client, Hy2Account, MTProxySecret } from "@/lib/types";
-import { Button, Card, EmptyState, InlineMessage, PageHeader, StatusBadge, TextareaField } from "@/components/ui";
 import { useToast } from "@/components/toast-provider";
 import { ConfirmDialog } from "@/components/dialog";
+import { PageHeader } from "@/components/app/page-header";
+import { EmptyState } from "@/components/app/empty-state";
+import { StatusBadge } from "@/components/app/status-badge";
+import { TextareaField } from "@/components/app/fields";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type ClientPayload = {
@@ -186,7 +193,10 @@ export default function ClientDetailsPage() {
   if (!payload) {
     return (
       <div className="space-y-6">
-        <InlineMessage tone="info">Loading client details...</InlineMessage>
+        <Alert>
+          <AlertTitle>Loading</AlertTitle>
+          <AlertDescription>Loading client details...</AlertDescription>
+        </Alert>
       </div>
     );
   }
@@ -252,142 +262,169 @@ export default function ClientDetailsPage() {
     <div className="space-y-6">
       <PageHeader
         title={`Client: ${payload.client.name}`}
-        subtitle={`Email: ${payload.client.email || "-"}`}
+        description={`Email: ${payload.client.email || "-"}`}
         actions={
           payload.client.is_active ? (
-            <Button variant="danger" onClick={() => setPendingAction({ kind: "client", enable: false })}>
+            <Button variant="destructive" onClick={() => setPendingAction({ kind: "client", enable: false })}>
+              <UserMinus className="size-4" />
               Disable client
             </Button>
           ) : (
-            <Button variant="tonal" onClick={() => setPendingAction({ kind: "client", enable: true })}>
+            <Button variant="secondary" onClick={() => setPendingAction({ kind: "client", enable: true })}>
+              <UserPlus className="size-4" />
               Enable client
             </Button>
           )
         }
       />
 
-      {error && <InlineMessage tone="warning">{error}</InlineMessage>}
+      {error && (
+        <Alert variant="destructive">
+          <AlertTitle>Request failed</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
-      <Card title="Profile" subtitle={`Updated: ${formatDate(payload.client.updated_at)}`}>
-        <div className="mb-4 flex flex-wrap gap-2">
-          <StatusBadge enabled={payload.client.is_active} />
-        </div>
-
-        <form onSubmit={updateClient} noValidate className="space-y-4">
-          <TextareaField label="Note" value={note} onChange={(event) => setNote(event.target.value)} />
-          <div className="flex justify-end">
-            <Button type="submit">Save note</Button>
+      <Card>
+        <CardHeader>
+          <CardTitle>Profile</CardTitle>
+          <CardDescription>Updated: {formatDate(payload.client.updated_at)}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            <StatusBadge tone={payload.client.is_active ? "success" : "danger"}>{payload.client.is_active ? "Enabled" : "Disabled"}</StatusBadge>
           </div>
-        </form>
+
+          <form onSubmit={updateClient} noValidate className="space-y-4">
+            <TextareaField label="Note" value={note} onChange={(event) => setNote(event.target.value)} />
+            <div className="flex justify-end">
+              <Button type="submit">
+                <Settings2 className="size-4" />
+                Save note
+              </Button>
+            </div>
+          </form>
+        </CardContent>
       </Card>
 
-      <Card
-        title="Hysteria accounts"
-        subtitle="Credential and session controls for this client."
-        action={
-          <Button onClick={() => void createHy2()} icon="add">
+      <Card>
+        <CardHeader className="gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <CardTitle>Hysteria accounts</CardTitle>
+            <CardDescription>Credential and session controls for this client.</CardDescription>
+          </div>
+          <Button onClick={() => void createHy2()}>
+            <Plus className="size-4" />
             Add access
           </Button>
-        }
-      >
-        {payload.hy2_accounts.length === 0 ? (
-          <EmptyState title="No Hysteria accounts" description="Create access to issue Hysteria credentials." icon="person_off" />
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Identity</TableHead>
-                <TableHead>Credential</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Last seen</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {payload.hy2_accounts.map((account) => (
-                <TableRow key={account.id}>
-                  <TableCell>{account.hy2_identity}</TableCell>
-                  <TableCell className="max-w-[260px] truncate font-mono text-xs">{account.auth_payload}</TableCell>
-                  <TableCell>
-                    <StatusBadge enabled={account.is_enabled} />
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{formatDate(account.last_seen_at)}</TableCell>
-                  <TableCell>
-                    <div className="flex justify-end gap-2">
-                      <Button variant="text" onClick={() => void copyValue(account.auth_payload)}>
-                        Copy
-                      </Button>
-                      <Button variant="outlined" onClick={() => setPendingAction({ kind: "hy2-kick", id: account.id })}>
-                        Kick
-                      </Button>
-                      {account.is_enabled ? (
-                        <Button variant="danger" onClick={() => setPendingAction({ kind: "hy2-toggle", id: account.id, enable: false })}>
-                          Disable
-                        </Button>
-                      ) : (
-                        <Button variant="tonal" onClick={() => setPendingAction({ kind: "hy2-toggle", id: account.id, enable: true })}>
-                          Enable
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
+        </CardHeader>
+        <CardContent>
+          {payload.hy2_accounts.length === 0 ? (
+            <EmptyState title="No Hysteria accounts" description="Create access to issue Hysteria credentials." icon={Waves} />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Identity</TableHead>
+                  <TableHead>Credential</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Last seen</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
+              </TableHeader>
+              <TableBody>
+                {payload.hy2_accounts.map((account) => (
+                  <TableRow key={account.id}>
+                    <TableCell>{account.hy2_identity}</TableCell>
+                    <TableCell className="max-w-[260px] truncate font-mono text-xs">{account.auth_payload}</TableCell>
+                    <TableCell>
+                      <StatusBadge tone={account.is_enabled ? "success" : "danger"}>{account.is_enabled ? "Enabled" : "Disabled"}</StatusBadge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{formatDate(account.last_seen_at)}</TableCell>
+                    <TableCell>
+                      <div className="flex justify-end gap-2">
+                        <Button variant="ghost" size="sm" onClick={() => void copyValue(account.auth_payload)}>
+                          <Copy className="size-4" />
+                          Copy
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => setPendingAction({ kind: "hy2-kick", id: account.id })}>
+                          <LogOut className="size-4" />
+                          Kick
+                        </Button>
+                        {account.is_enabled ? (
+                          <Button variant="destructive" size="sm" onClick={() => setPendingAction({ kind: "hy2-toggle", id: account.id, enable: false })}>
+                            Disable
+                          </Button>
+                        ) : (
+                          <Button variant="secondary" size="sm" onClick={() => setPendingAction({ kind: "hy2-toggle", id: account.id, enable: true })}>
+                            Enable
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
       </Card>
 
-      <Card
-        title="MTProxy secrets"
-        subtitle="Runtime-linked MTProxy keys for this client."
-        action={
-          <Button onClick={() => void createSecret()} icon="add">
+      <Card>
+        <CardHeader className="gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <CardTitle>MTProxy secrets</CardTitle>
+            <CardDescription>Runtime-linked MTProxy keys for this client.</CardDescription>
+          </div>
+          <Button onClick={() => void createSecret()}>
+            <Plus className="size-4" />
             Add secret
           </Button>
-        }
-      >
-        {payload.mtproxy_secrets.length === 0 ? (
-          <EmptyState title="No MTProxy secrets" description="Create a secret to allow MTProxy access." icon="vpn_key_off" />
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Secret</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Last seen</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {payload.mtproxy_secrets.map((secret) => (
-                <TableRow key={secret.id}>
-                  <TableCell className="max-w-[260px] truncate font-mono text-xs">{secret.secret}</TableCell>
-                  <TableCell>
-                    <StatusBadge enabled={secret.is_enabled} />
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{formatDate(secret.last_seen_at)}</TableCell>
-                  <TableCell>
-                    <div className="flex justify-end gap-2">
-                      <Button variant="text" onClick={() => void copyValue(secret.secret)}>
-                        Copy
-                      </Button>
-                      {secret.is_enabled ? (
-                        <Button variant="danger" onClick={() => setPendingAction({ kind: "secret-toggle", id: secret.id, enable: false })}>
-                          Disable
-                        </Button>
-                      ) : (
-                        <Button variant="tonal" onClick={() => setPendingAction({ kind: "secret-toggle", id: secret.id, enable: true })}>
-                          Enable
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
+        </CardHeader>
+        <CardContent>
+          {payload.mtproxy_secrets.length === 0 ? (
+            <EmptyState title="No MTProxy secrets" description="Create a secret to allow MTProxy access." icon={Settings2} />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Secret</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Last seen</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
+              </TableHeader>
+              <TableBody>
+                {payload.mtproxy_secrets.map((secret) => (
+                  <TableRow key={secret.id}>
+                    <TableCell className="max-w-[260px] truncate font-mono text-xs">{secret.secret}</TableCell>
+                    <TableCell>
+                      <StatusBadge tone={secret.is_enabled ? "success" : "danger"}>{secret.is_enabled ? "Enabled" : "Disabled"}</StatusBadge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{formatDate(secret.last_seen_at)}</TableCell>
+                    <TableCell>
+                      <div className="flex justify-end gap-2">
+                        <Button variant="ghost" size="sm" onClick={() => void copyValue(secret.secret)}>
+                          <Copy className="size-4" />
+                          Copy
+                        </Button>
+                        {secret.is_enabled ? (
+                          <Button variant="destructive" size="sm" onClick={() => setPendingAction({ kind: "secret-toggle", id: secret.id, enable: false })}>
+                            Disable
+                          </Button>
+                        ) : (
+                          <Button variant="secondary" size="sm" onClick={() => setPendingAction({ kind: "secret-toggle", id: secret.id, enable: true })}>
+                            Enable
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
       </Card>
 
       <ConfirmDialog
@@ -419,5 +456,4 @@ export default function ClientDetailsPage() {
     </div>
   );
 }
-
 

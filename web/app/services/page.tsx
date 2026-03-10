@@ -1,14 +1,20 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
+import { RefreshCw, RotateCcw, TerminalSquare, Wrench } from "lucide-react";
 
 import { apiFetch, toJSONBody } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import type { ServiceState } from "@/lib/types";
-import { Button, Card, EmptyState, InlineMessage, PageHeader, StatusBadge } from "@/components/ui";
 import { useToast } from "@/components/toast-provider";
-import { OverflowMenu } from "@/components/overflow-menu";
+import { PageHeader } from "@/components/app/page-header";
+import { EmptyState } from "@/components/app/empty-state";
+import { StatusBadge } from "@/components/app/status-badge";
 import { ConfirmDialog } from "@/components/dialog";
+import { OverflowMenu } from "@/components/overflow-menu";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type ServiceDetails = {
@@ -25,13 +31,13 @@ type PendingAction = {
 
 const POLL_INTERVAL_MS = 10000;
 
-function statusTone(status: string): "success" | "error" | "warning" | "neutral" {
+function statusTone(status: string): "success" | "danger" | "warning" | "neutral" {
   const normalized = status.toLowerCase();
   if (normalized.includes("active") || normalized.includes("running")) {
     return "success";
   }
   if (normalized.includes("failed") || normalized.includes("dead") || normalized.includes("inactive")) {
-    return "error";
+    return "danger";
   }
   if (normalized.includes("reload") || normalized.includes("activating")) {
     return "warning";
@@ -112,88 +118,110 @@ export default function ServicesPage() {
     <div className="space-y-6">
       <PageHeader
         title="Services"
-        subtitle="Control systemd units, run safe operations and inspect runtime journal logs."
+        description="Control systemd units, run safe operations and inspect runtime journal logs."
       />
 
-      {error && <InlineMessage tone="warning">{error}</InlineMessage>}
+      {error && (
+        <Alert variant="destructive">
+          <AlertTitle>Request failed</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <Card title="Managed services" subtitle="Runtime state auto-refreshes every 10 seconds.">
-          {services.length === 0 ? (
-            <EmptyState title="No services found" description="Backend did not return managed systemd units." icon="dns" />
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Service</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Checked</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {services.map((service) => {
-                  const name = service.service_name || "unknown";
-                  return (
-                    <TableRow key={name}>
-                      <TableCell>
-                        <Button variant="text" onClick={() => void loadService(name)}>
-                          {name}
-                        </Button>
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge tone={statusTone(service.status)}>{service.status}</StatusBadge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">{formatDate(service.last_check_at)}</TableCell>
-                      <TableCell>
-                        <div className="flex justify-end gap-2">
-                          <Button variant="text" onClick={() => void loadService(name)}>
-                            View logs
+        <Card>
+          <CardHeader>
+            <CardTitle>Managed services</CardTitle>
+            <CardDescription>Runtime state auto-refreshes every 10 seconds.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {services.length === 0 ? (
+              <EmptyState title="No services found" description="Backend did not return managed systemd units." icon={Wrench} />
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Service</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Checked</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {services.map((service) => {
+                    const name = service.service_name || "unknown";
+                    return (
+                      <TableRow key={name}>
+                        <TableCell>
+                          <Button variant="ghost" size="sm" onClick={() => void loadService(name)}>
+                            {name}
                           </Button>
-                          <OverflowMenu
-                            items={[
-                              {
-                                id: "reload",
-                                label: "Reload service",
-                                icon: "sync",
-                                onSelect: () => setPendingAction({ service: name, action: "reload" }),
-                              },
-                              {
-                                id: "restart",
-                                label: "Restart service",
-                                icon: "restart_alt",
-                                danger: true,
-                                onSelect: () => setPendingAction({ service: name, action: "restart" }),
-                              },
-                            ]}
-                          />
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
+                        </TableCell>
+                        <TableCell>
+                          <StatusBadge tone={statusTone(service.status)}>{service.status}</StatusBadge>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{formatDate(service.last_check_at)}</TableCell>
+                        <TableCell>
+                          <div className="flex justify-end gap-2">
+                            <Button variant="ghost" size="sm" onClick={() => void loadService(name)}>
+                              View logs
+                            </Button>
+                            <OverflowMenu
+                              items={[
+                                {
+                                  id: "reload",
+                                  label: "Reload service",
+                                  icon: RefreshCw,
+                                  onSelect: () => setPendingAction({ service: name, action: "reload" }),
+                                },
+                                {
+                                  id: "restart",
+                                  label: "Restart service",
+                                  icon: RotateCcw,
+                                  destructive: true,
+                                  onSelect: () => setPendingAction({ service: name, action: "restart" }),
+                                },
+                              ]}
+                            />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
         </Card>
 
-        <Card title="Service logs" subtitle="Latest 120 journal lines for selected service.">
-          {!selected && (
-            <EmptyState title="Select a service" description="Choose a service to inspect runtime status and logs." icon="receipt_long" />
-          )}
-          {selected && loadingDetails && <InlineMessage tone="info">Loading {selected}...</InlineMessage>}
-          {details && (
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <strong>{details.name}</strong>
-                <StatusBadge tone={statusTone(details.status_text)}>{details.status_text}</StatusBadge>
+        <Card>
+          <CardHeader>
+            <CardTitle>Service logs</CardTitle>
+            <CardDescription>Latest 120 journal lines for selected service.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {!selected && (
+              <EmptyState title="Select a service" description="Choose a service to inspect runtime status and logs." icon={TerminalSquare} />
+            )}
+            {selected && loadingDetails && (
+              <Alert>
+                <AlertTitle>Loading</AlertTitle>
+                <AlertDescription>Loading {selected}...</AlertDescription>
+              </Alert>
+            )}
+            {details && (
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <strong>{details.name}</strong>
+                  <StatusBadge tone={statusTone(details.status_text)}>{details.status_text}</StatusBadge>
+                </div>
+                <div className="text-sm text-muted-foreground">Checked: {formatDate(details.checked_at)}</div>
+                <pre className="overflow-x-auto rounded-lg border bg-muted/20 p-3 font-mono text-xs leading-relaxed">
+                  {(details.last_logs || []).join("\n") || "No logs"}
+                </pre>
               </div>
-              <div className="text-sm text-muted-foreground">Checked: {formatDate(details.checked_at)}</div>
-              <pre className="rounded-lg border border-border bg-muted/20 p-3 font-mono text-xs leading-relaxed">
-                {(details.last_logs || []).join("\n") || "No logs"}
-              </pre>
-            </div>
-          )}
+            )}
+          </CardContent>
         </Card>
       </div>
 

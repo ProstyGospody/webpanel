@@ -1,17 +1,19 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { CheckCircle2, OctagonAlert, PlayCircle, Save, SearchCheck, Settings, Users } from "lucide-react";
 
 import { apiFetch, toJSONBody } from "@/lib/api";
 import type { Hy2ConfigValidation, Hy2Settings, Hy2SettingsPayload, Hy2SettingsValidation } from "@/lib/types";
-import { formatDate } from "@/lib/format";
-import { Button, Card, InlineMessage, PageHeader, SelectField, TextField } from "@/components/ui";
-import { ConfirmDialog } from "@/components/dialog";
 import { useToast } from "@/components/toast-provider";
-import { SectionTabs } from "@/components/section-tabs";
-import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+import { PageHeader } from "@/components/app/page-header";
+import { SectionNav } from "@/components/app/section-nav";
+import { SelectField, SwitchField, TextField } from "@/components/app/fields";
+import { ConfirmDialog } from "@/components/dialog";
+import { StatusBadge } from "@/components/app/status-badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 type ValidatePayload = {
   settings_validation: Hy2SettingsValidation;
@@ -36,8 +38,8 @@ const DEFAULT_MASQUERADE_URL = "https://www.cloudflare.com";
 const PASSWORD_ALPHABET = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 const tabs = [
-  { href: "/hysteria/users", label: "Users", icon: "group" },
-  { href: "/hysteria/settings", label: "Settings", icon: "settings" },
+  { href: "/hysteria/users", label: "Users", icon: Users },
+  { href: "/hysteria/settings", label: "Settings", icon: Settings },
 ];
 
 function generateObfsPassword(length = 18): string {
@@ -104,44 +106,6 @@ function normalizeSettings(input: Hy2Settings, options: NormalizeOptions = { gen
   return next;
 }
 
-function ModeToggle({
-  id,
-  title,
-  description,
-  checked,
-  disabled,
-  disabledHint,
-  onChange,
-}: {
-  id: string;
-  title: string;
-  description: string;
-  checked: boolean;
-  disabled: boolean;
-  disabledHint?: string;
-  onChange: (value: boolean) => void;
-}) {
-  return (
-    <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
-          <Label htmlFor={id} className="text-sm font-medium">
-            {title}
-          </Label>
-          <p className="text-xs text-muted-foreground">{description}</p>
-          {disabledHint && <p className="text-xs text-muted-foreground">{disabledHint}</p>}
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-[11px]">
-            {checked ? "Enabled" : "Disabled"}
-          </Badge>
-          <Switch id={id} checked={checked} onCheckedChange={onChange} disabled={disabled} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function HysteriaSettingsPage() {
   const { push } = useToast();
 
@@ -194,13 +158,16 @@ export default function HysteriaSettingsPage() {
     setSettings((prev) => {
       const next = { ...prev, [key]: value };
       const normalizeOptions: NormalizeOptions = { generateObfsPassword: false };
+
       if (key === "obfs_enabled" && Boolean(value)) {
         normalizeOptions.generateObfsPassword = true;
         normalizeOptions.prefer = "obfs";
       }
+
       if (key === "masquerade_enabled" && Boolean(value)) {
         normalizeOptions.prefer = "masquerade";
       }
+
       return normalizeSettings(next, normalizeOptions);
     });
   }
@@ -269,19 +236,32 @@ export default function HysteriaSettingsPage() {
     }
   }
 
+  const settingsIssues = settingsValidation?.errors || [];
+  const settingsWarnings = settingsValidation?.warnings || [];
+  const configIssues = configValidation?.errors || [];
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Hysteria"
-        subtitle="Configure runtime fields and transport mode switching with validation before restart."
+        description="Configure runtime ingress, obfuscation modes and apply flow with explicit validation gates."
       />
 
-      <SectionTabs items={tabs} />
+      <SectionNav items={tabs} />
 
-      {error && <InlineMessage tone="warning">{error}</InlineMessage>}
+      {error && (
+        <Alert variant="destructive">
+          <AlertTitle>Request failed</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
-      <Card title="Runtime source" subtitle={path || "-"}>
-        <div className="grid gap-4 md:grid-cols-2">
+      <Card>
+        <CardHeader>
+          <CardTitle>Runtime source</CardTitle>
+          <CardDescription>{path || "Config path is unavailable"}</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-2">
           <TextField
             label="Port"
             type="number"
@@ -290,7 +270,7 @@ export default function HysteriaSettingsPage() {
             value={settings.port}
             onChange={(event) => update("port", Number(event.target.value || 0))}
             disabled={loading}
-            supportingText="Inbound listening port for hysteria-server."
+            description="Inbound listening port for hysteria-server."
           />
 
           <TextField
@@ -298,21 +278,24 @@ export default function HysteriaSettingsPage() {
             value={settings.sni}
             onChange={(event) => update("sni", event.target.value)}
             disabled={loading}
-            supportingText="Primary TLS host advertised to clients."
+            description="Primary TLS host advertised to clients."
           />
-        </div>
+        </CardContent>
       </Card>
 
-      <Card title="Transport modes" subtitle="OBFS and Masquerade are mutually exclusive modes.">
-        <div className="space-y-4">
-          <ModeToggle
+      <Card>
+        <CardHeader>
+          <CardTitle>Transport modes</CardTitle>
+          <CardDescription>OBFS and Masquerade are mutually exclusive runtime modes.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <SwitchField
             id="obfs-enabled"
-            title="OBFS"
-            description="Enable protocol obfuscation for compatible clients."
+            label="OBFS"
+            description={obfsBlocked ? "Disable Masquerade first to enable OBFS." : "Enable protocol obfuscation for compatible clients."}
             checked={settings.obfs_enabled}
             disabled={loading || obfsBlocked}
-            disabledHint={obfsBlocked ? "Disable Masquerade first to enable OBFS." : undefined}
-            onChange={(value) => update("obfs_enabled", value)}
+            onCheckedChange={(value) => update("obfs_enabled", value)}
           />
 
           {settings.obfs_enabled && (
@@ -321,8 +304,8 @@ export default function HysteriaSettingsPage() {
                 label="OBFS type"
                 value={settings.obfs_type || "salamander"}
                 disabled={loading}
-                supportingText="Current UI supports salamander mode."
-                onChange={(event) => update("obfs_type", event.target.value)}
+                description="Current UI supports salamander mode."
+                onValueChange={(value) => update("obfs_type", value)}
                 options={[{ value: "salamander", label: "salamander" }]}
               />
               <TextField
@@ -331,19 +314,18 @@ export default function HysteriaSettingsPage() {
                 onChange={(event) => update("obfs_password", event.target.value)}
                 disabled={loading}
                 placeholder="Auto-generated when empty"
-                supportingText="Generated automatically during validate/save when empty."
+                description="Generated automatically during validate/save when empty."
               />
             </div>
           )}
 
-          <ModeToggle
+          <SwitchField
             id="masquerade-enabled"
-            title="Masquerade"
-            description="Enable proxy camouflage mode for fallback-friendly ingress."
+            label="Masquerade"
+            description={masqueradeBlocked ? "Disable OBFS first to enable Masquerade." : "Enable proxy camouflage mode for fallback-friendly ingress."}
             checked={settings.masquerade_enabled}
             disabled={loading || masqueradeBlocked}
-            disabledHint={masqueradeBlocked ? "Disable OBFS first to enable Masquerade." : undefined}
-            onChange={(value) => update("masquerade_enabled", value)}
+            onCheckedChange={(value) => update("masquerade_enabled", value)}
           />
 
           {settings.masquerade_enabled && (
@@ -352,8 +334,8 @@ export default function HysteriaSettingsPage() {
                 label="Masquerade type"
                 value={settings.masquerade_type || "proxy"}
                 disabled={loading}
-                supportingText="Proxy mode is required by current backend validation."
-                onChange={(event) => update("masquerade_type", event.target.value)}
+                description="Proxy mode is required by current backend validation."
+                onValueChange={(value) => update("masquerade_type", value)}
                 options={[{ value: "proxy", label: "proxy" }]}
               />
               <TextField
@@ -362,98 +344,95 @@ export default function HysteriaSettingsPage() {
                 onChange={(event) => update("masquerade_url", event.target.value)}
                 disabled={loading}
                 placeholder="https://www.cloudflare.com"
-                supportingText="Absolute http/https URL used for camouflage target."
+                description="Absolute http/https URL used for camouflage target."
               />
               <div className="md:col-span-2">
-                <ModeToggle
+                <SwitchField
                   id="masquerade-rewrite-host"
-                  title="Rewrite host header"
+                  label="Rewrite host header"
                   description="Rewrite upstream host header while masquerade mode is active."
                   checked={settings.masquerade_rewrite_host}
                   disabled={loading}
-                  onChange={(value) => update("masquerade_rewrite_host", value)}
+                  onCheckedChange={(value) => update("masquerade_rewrite_host", value)}
                 />
               </div>
             </div>
           )}
-        </div>
+        </CardContent>
       </Card>
 
-      <Card
-        title="Apply flow"
-        subtitle="Validate, save and apply with explicit restart confirmation."
-        action={
+      <Card>
+        <CardHeader className="gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <CardTitle>Validate, Save, Apply</CardTitle>
+            <CardDescription>Validation gates run before save. Apply triggers runtime restart.</CardDescription>
+          </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outlined" type="button" onClick={validateSettings} disabled={validating || loading}>
+            <Button variant="outline" type="button" onClick={validateSettings} disabled={validating || loading}>
+              <SearchCheck className="size-4" />
               {validating ? "Validating..." : "Validate"}
             </Button>
             <Button type="button" onClick={saveSettings} disabled={saving || !canSave || loading}>
+              <Save className="size-4" />
               {saving ? "Saving..." : "Save"}
             </Button>
-            <Button variant="danger" type="button" onClick={() => setApplyConfirmOpen(true)} disabled={applying || loading}>
+            <Button variant="destructive" type="button" onClick={() => setApplyConfirmOpen(true)} disabled={applying || loading}>
+              <PlayCircle className="size-4" />
               {applying ? "Applying..." : "Apply / Restart"}
             </Button>
           </div>
-        }
-      >
-        {settingsValidation && settingsValidation.errors.length > 0 && (
-          <InlineMessage tone="error">
-            {settingsValidation.errors.map((item) => (
-              <div key={item}>{item}</div>
-            ))}
-          </InlineMessage>
-        )}
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {settingsIssues.length > 0 && (
+            <Alert variant="destructive">
+              <OctagonAlert className="size-4" />
+              <AlertTitle>Settings validation errors</AlertTitle>
+              <AlertDescription>
+                <ul className="space-y-1">
+                  {settingsIssues.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </AlertDescription>
+            </Alert>
+          )}
 
-        {settingsValidation && settingsValidation.warnings.length > 0 && (
-          <InlineMessage tone="warning">
-            {settingsValidation.warnings.map((item) => (
-              <div key={item}>{item}</div>
-            ))}
-          </InlineMessage>
-        )}
+          {settingsWarnings.length > 0 && (
+            <Alert>
+              <AlertTitle>Settings warnings</AlertTitle>
+              <AlertDescription>
+                <ul className="space-y-1">
+                  {settingsWarnings.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </AlertDescription>
+            </Alert>
+          )}
 
-        {configValidation && configValidation.errors.length > 0 && (
-          <InlineMessage tone="error">
-            {configValidation.errors.map((item) => (
-              <div key={item}>{item}</div>
-            ))}
-          </InlineMessage>
-        )}
+          {configIssues.length > 0 && (
+            <Alert variant="destructive">
+              <OctagonAlert className="size-4" />
+              <AlertTitle>Generated config issues</AlertTitle>
+              <AlertDescription>
+                <ul className="space-y-1">
+                  {configIssues.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </AlertDescription>
+            </Alert>
+          )}
 
-        <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-secondary px-3 text-xs font-medium text-secondary-foreground">
-            Settings validation: {settingsValidation?.valid ? "OK" : "Check fields"}
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            <StateChip title="Settings validation" value={settingsValidation?.valid ? "OK" : "Check fields"} tone={settingsValidation?.valid ? "success" : "warning"} />
+            <StateChip title="Config validation" value={configValidation?.valid ? "OK" : "Check config"} tone={configValidation?.valid ? "success" : "warning"} />
+            <StateChip title="Client port" value={String(clientParams?.port || "-")} tone="neutral" />
+            <StateChip title="Client SNI" value={clientParams?.sni || "-"} tone="neutral" />
+            <StateChip title="Client OBFS" value={clientParams?.obfs_type || "disabled"} tone="neutral" />
+            <StateChip title="Source file" value={path || "-"} tone="neutral" />
           </div>
-          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-secondary px-3 text-xs font-medium text-secondary-foreground">
-            Config validation: {configValidation?.valid ? "OK" : "Check config"}
-          </div>
-          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-medium text-muted-foreground">
-            Source file: {path || "-"}
-          </div>
-          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-medium text-muted-foreground">
-            Client port: {clientParams?.port || "-"}
-          </div>
-          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-medium text-muted-foreground">
-            Client SNI: {clientParams?.sni || "-"}
-          </div>
-          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-medium text-muted-foreground">
-            Client OBFS: {clientParams?.obfs_type || "disabled"}
-          </div>
-        </div>
-      </Card>
-
-      <Card title="Current state" subtitle="Saved values currently rendered in UI.">
-        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-medium text-muted-foreground">
-            OBFS: {settings.obfs_enabled ? "enabled" : "disabled"}
-          </div>
-          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-medium text-muted-foreground">
-            Masquerade: {settings.masquerade_enabled ? "enabled" : "disabled"}
-          </div>
-          <div className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-medium text-muted-foreground">
-            Rendered: {formatDate(new Date().toISOString())}
-          </div>
-        </div>
+        </CardContent>
       </Card>
 
       <ConfirmDialog
@@ -468,3 +447,30 @@ export default function HysteriaSettingsPage() {
     </div>
   );
 }
+
+function StateChip({
+  title,
+  value,
+  tone,
+}: {
+  title: string;
+  value: string;
+  tone: "neutral" | "success" | "warning";
+}) {
+  return (
+    <div className="rounded-lg border bg-muted/20 px-3 py-2.5">
+      <div className="mb-1 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">{title}</div>
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-medium">{value}</span>
+        {tone !== "neutral" && <StatusBadge tone={tone}>{tone === "success" ? "Passed" : "Attention"}</StatusBadge>}
+        {tone === "neutral" && (
+          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+            <CheckCircle2 className="size-3.5" />
+            Runtime
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+

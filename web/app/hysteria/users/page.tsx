@@ -1,26 +1,23 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Copy, Plus, QrCode, Settings, Trash2, Users, Waves } from "lucide-react";
 
 import { apiFetch, toJSONBody } from "@/lib/api";
 import { copyToClipboard, formatBytes, formatDate } from "@/lib/format";
 import type { Client, Hy2Account } from "@/lib/types";
-import {
-  Button,
-  Card,
-  EmptyState,
-  InlineMessage,
-  MetricCard,
-  PageHeader,
-  SelectField,
-  StatusBadge,
-  TextField,
-  TextareaField,
-} from "@/components/ui";
-import { Dialog, ConfirmDialog } from "@/components/dialog";
 import { useToast } from "@/components/toast-provider";
+import { PageHeader } from "@/components/app/page-header";
+import { SectionNav } from "@/components/app/section-nav";
+import { EmptyState } from "@/components/app/empty-state";
+import { StatusBadge } from "@/components/app/status-badge";
+import { SelectField, TextField, TextareaField } from "@/components/app/fields";
+import { Dialog, ConfirmDialog } from "@/components/dialog";
 import { OverflowMenu } from "@/components/overflow-menu";
-import { SectionTabs } from "@/components/section-tabs";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type Hy2Overview = {
@@ -60,14 +57,14 @@ type FormErrors = {
 
 const POLL_INTERVAL_MS = 10000;
 
-function onlineBadgeClass(online: boolean): "success" | "neutral" {
+const tabs = [
+  { href: "/hysteria/users", label: "Users", icon: Users },
+  { href: "/hysteria/settings", label: "Settings", icon: Settings },
+];
+
+function onlineTone(online: boolean): "success" | "neutral" {
   return online ? "success" : "neutral";
 }
-
-const tabs = [
-  { href: "/hysteria/users", label: "Users", icon: "group" },
-  { href: "/hysteria/settings", label: "Settings", icon: "settings" },
-];
 
 export default function HysteriaUsersPage() {
   const { push } = useToast();
@@ -309,184 +306,192 @@ export default function HysteriaUsersPage() {
     <div className="space-y-6">
       <PageHeader
         title="Hysteria"
-        subtitle="Manage users in dialog workflows and keep URI, QR and runtime settings in sync."
+        description="Manage Hysteria users, identity payloads and generated client URIs in one flow."
         actions={
-          <Button onClick={openCreate} icon="add">
+          <Button onClick={openCreate}>
+            <Plus className="size-4" />
             Create user
           </Button>
         }
       />
 
-      <SectionTabs items={tabs} />
+      <SectionNav items={tabs} />
 
-      {error && <InlineMessage tone="warning">{error}</InlineMessage>}
+      {error && (
+        <Alert variant="destructive">
+          <AlertTitle>Request failed</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Enabled" value={String(overview?.enabled_accounts ?? 0)} />
         <MetricCard label="Online" value={String(overview?.online_count ?? 0)} />
         <MetricCard label="Total TX" value={formatBytes(overview?.total_tx_bytes ?? 0)} />
         <MetricCard label="Total RX" value={formatBytes(overview?.total_rx_bytes ?? 0)} />
-      </div>
+      </section>
 
-      <Card title="Users" subtitle="Primary action: Edit. Secondary actions are grouped in an overflow menu.">
-        {loading ? (
-          <div className="space-y-2">
-            <div className="h-3 w-full animate-pulse rounded-full bg-muted" />
-            <div className="h-3 w-full animate-pulse rounded-full bg-muted" />
-            <div className="h-3 w-full animate-pulse rounded-full bg-muted" />
-          </div>
-        ) : accounts.length === 0 ? (
-          <EmptyState title="No Hysteria users" description="Create the first user to issue access credentials." icon="person_off" />
-        ) : (
-          <>
-            <div className="hidden md:block">
-              <Table className="min-w-[900px] table-fixed">
-                <colgroup>
-                  <col className="w-[33%]" />
-                  <col className="w-[22%]" />
-                  <col className="w-[18%]" />
-                  <col className="w-[15%]" />
-                  <col className="w-[12%]" />
-                </colgroup>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>User</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Traffic</TableHead>
-                    <TableHead>Last seen</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {accounts.map((item) => {
-                    const online = (item.online_count || 0) > 0;
-                    const busy = busyID === item.id;
-                    return (
-                      <TableRow key={item.id}>
-                        <TableCell className="align-top">
-                          <div className="font-medium leading-5">{item.client_name || item.hy2_identity}</div>
-                          <div className="mt-1 whitespace-normal break-all text-xs text-muted-foreground">Identity: {item.hy2_identity}</div>
-                        </TableCell>
-                        <TableCell className="align-top">
-                          <div className="flex flex-wrap gap-1.5">
-                            <StatusBadge enabled={item.is_enabled} />
-                            <StatusBadge tone={onlineBadgeClass(online)}>{online ? "Online" : "Offline"}</StatusBadge>
-                          </div>
-                        </TableCell>
-                        <TableCell className="align-top">
-                          <div className="text-xs leading-5 text-muted-foreground">
-                            <div>TX: {formatBytes(item.last_tx_bytes || 0)}</div>
-                            <div>RX: {formatBytes(item.last_rx_bytes || 0)}</div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="align-top text-xs text-muted-foreground">{formatDate(item.last_seen_at)}</TableCell>
-                        <TableCell className="align-top">
-                          <div className="flex items-center justify-end gap-2">
-                            <Button variant="text" type="button" onClick={() => openEdit(item)} disabled={busy}>
-                              Edit
-                            </Button>
-                            <OverflowMenu
-                              items={[
-                                {
-                                  id: "qr",
-                                  label: "Show QR",
-                                  icon: "qr_code_2",
-                                  disabled: busy,
-                                  onSelect: () => {
-                                    void openQR(item);
-                                  },
-                                },
-                                {
-                                  id: "copy",
-                                  label: copiedKey === `uri-${item.id}` ? "URI copied" : "Copy URI",
-                                  icon: "content_copy",
-                                  disabled: busy,
-                                  onSelect: () => {
-                                    void copyURI(item);
-                                  },
-                                },
-                                {
-                                  id: "delete",
-                                  label: "Delete",
-                                  icon: "delete",
-                                  danger: true,
-                                  disabled: busy,
-                                  onSelect: () => askDelete(item),
-                                },
-                              ]}
-                            />
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+      <Card>
+        <CardHeader>
+          <CardTitle>Users</CardTitle>
+          <CardDescription>Edit is the primary action. QR/copy/delete are grouped in row actions.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-full" />
             </div>
+          ) : accounts.length === 0 ? (
+            <EmptyState title="No Hysteria users" description="Create the first user to issue access credentials." icon={Waves} />
+          ) : (
+            <>
+              <div className="hidden md:block">
+                <Table className="min-w-[900px] table-fixed">
+                  <colgroup>
+                    <col className="w-[33%]" />
+                    <col className="w-[22%]" />
+                    <col className="w-[18%]" />
+                    <col className="w-[15%]" />
+                    <col className="w-[12%]" />
+                  </colgroup>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>User</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Traffic</TableHead>
+                      <TableHead>Last seen</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {accounts.map((item) => {
+                      const online = (item.online_count || 0) > 0;
+                      const busy = busyID === item.id;
 
-            <div className="grid gap-3 md:hidden">
-              {accounts.map((item) => {
-                const online = (item.online_count || 0) > 0;
-                const busy = busyID === item.id;
-                return (
-                  <article key={item.id} className="space-y-2 rounded-xl border border-border/70 bg-muted/30 p-4">
-                    <div>
-                      <h3 className="text-sm font-semibold">{item.client_name || item.hy2_identity}</h3>
-                      <p className="text-xs break-all text-muted-foreground">
-                        Identity: {item.hy2_identity}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <StatusBadge enabled={item.is_enabled} />
-                      <StatusBadge tone={onlineBadgeClass(online)}>{online ? "Online" : "Offline"}</StatusBadge>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      TX: {formatBytes(item.last_tx_bytes || 0)} | RX: {formatBytes(item.last_rx_bytes || 0)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Last seen: {formatDate(item.last_seen_at)}
-                    </p>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button variant="tonal" type="button" onClick={() => openEdit(item)} disabled={busy}>
-                        Edit
-                      </Button>
-                      <OverflowMenu
-                        items={[
-                          {
-                            id: "qr",
-                            label: "Show QR",
-                            icon: "qr_code_2",
-                            disabled: busy,
-                            onSelect: () => {
-                              void openQR(item);
+                      return (
+                        <TableRow key={item.id}>
+                          <TableCell className="align-top">
+                            <div className="font-medium leading-5">{item.client_name || item.hy2_identity}</div>
+                            <div className="mt-1 whitespace-normal break-all text-xs text-muted-foreground">Identity: {item.hy2_identity}</div>
+                          </TableCell>
+                          <TableCell className="align-top">
+                            <div className="flex flex-wrap gap-1.5">
+                              <StatusBadge tone={item.is_enabled ? "success" : "danger"}>{item.is_enabled ? "Enabled" : "Disabled"}</StatusBadge>
+                              <StatusBadge tone={onlineTone(online)}>{online ? "Online" : "Offline"}</StatusBadge>
+                            </div>
+                          </TableCell>
+                          <TableCell className="align-top">
+                            <div className="text-xs leading-5 text-muted-foreground">
+                              <div>TX: {formatBytes(item.last_tx_bytes || 0)}</div>
+                              <div>RX: {formatBytes(item.last_rx_bytes || 0)}</div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="align-top text-xs text-muted-foreground">{formatDate(item.last_seen_at)}</TableCell>
+                          <TableCell className="align-top">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button variant="ghost" size="sm" onClick={() => openEdit(item)} disabled={busy}>
+                                Edit
+                              </Button>
+                              <OverflowMenu
+                                items={[
+                                  {
+                                    id: "qr",
+                                    label: "Show QR",
+                                    icon: QrCode,
+                                    disabled: busy,
+                                    onSelect: () => {
+                                      void openQR(item);
+                                    },
+                                  },
+                                  {
+                                    id: "copy",
+                                    label: copiedKey === `uri-${item.id}` ? "URI copied" : "Copy URI",
+                                    icon: Copy,
+                                    disabled: busy,
+                                    onSelect: () => {
+                                      void copyURI(item);
+                                    },
+                                  },
+                                  {
+                                    id: "delete",
+                                    label: "Delete",
+                                    icon: Trash2,
+                                    destructive: true,
+                                    disabled: busy,
+                                    onSelect: () => askDelete(item),
+                                  },
+                                ]}
+                              />
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+
+              <div className="grid gap-3 md:hidden">
+                {accounts.map((item) => {
+                  const online = (item.online_count || 0) > 0;
+                  const busy = busyID === item.id;
+
+                  return (
+                    <article key={item.id} className="space-y-3 rounded-xl border bg-muted/20 p-4">
+                      <div>
+                        <h3 className="text-sm font-semibold">{item.client_name || item.hy2_identity}</h3>
+                        <p className="text-xs break-all text-muted-foreground">Identity: {item.hy2_identity}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <StatusBadge tone={item.is_enabled ? "success" : "danger"}>{item.is_enabled ? "Enabled" : "Disabled"}</StatusBadge>
+                        <StatusBadge tone={onlineTone(online)}>{online ? "Online" : "Offline"}</StatusBadge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">TX: {formatBytes(item.last_tx_bytes || 0)} | RX: {formatBytes(item.last_rx_bytes || 0)}</p>
+                      <p className="text-xs text-muted-foreground">Last seen: {formatDate(item.last_seen_at)}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button variant="secondary" size="sm" onClick={() => openEdit(item)} disabled={busy}>
+                          Edit
+                        </Button>
+                        <OverflowMenu
+                          items={[
+                            {
+                              id: "qr",
+                              label: "Show QR",
+                              icon: QrCode,
+                              disabled: busy,
+                              onSelect: () => {
+                                void openQR(item);
+                              },
                             },
-                          },
-                          {
-                            id: "copy",
-                            label: copiedKey === `uri-${item.id}` ? "URI copied" : "Copy URI",
-                            icon: "content_copy",
-                            disabled: busy,
-                            onSelect: () => {
-                              void copyURI(item);
+                            {
+                              id: "copy",
+                              label: copiedKey === `uri-${item.id}` ? "URI copied" : "Copy URI",
+                              icon: Copy,
+                              disabled: busy,
+                              onSelect: () => {
+                                void copyURI(item);
+                              },
                             },
-                          },
-                          {
-                            id: "delete",
-                            label: "Delete",
-                            icon: "delete",
-                            danger: true,
-                            disabled: busy,
-                            onSelect: () => askDelete(item),
-                          },
-                        ]}
-                      />
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          </>
-        )}
+                            {
+                              id: "delete",
+                              label: "Delete",
+                              icon: Trash2,
+                              destructive: true,
+                              disabled: busy,
+                              onSelect: () => askDelete(item),
+                            },
+                          ]}
+                        />
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </CardContent>
       </Card>
 
       <Dialog
@@ -495,7 +500,7 @@ export default function HysteriaUsersPage() {
         onClose={closeForm}
         actions={
           <>
-            <Button variant="text" type="button" onClick={closeForm} disabled={formBusy}>
+            <Button variant="ghost" type="button" onClick={closeForm} disabled={formBusy}>
               Cancel
             </Button>
             <Button type="submit" form="hy2-user-form" disabled={formBusy}>
@@ -508,9 +513,9 @@ export default function HysteriaUsersPage() {
           <SelectField
             label="Client"
             value={formState.client_id}
-            errorText={formErrors.client_id}
-            onChange={(event) => {
-              setFormState((prev) => ({ ...prev, client_id: event.target.value }));
+            error={formErrors.client_id}
+            onValueChange={(value) => {
+              setFormState((prev) => ({ ...prev, client_id: value }));
               if (formErrors.client_id) {
                 setFormErrors((prev) => ({ ...prev, client_id: undefined }));
               }
@@ -524,7 +529,7 @@ export default function HysteriaUsersPage() {
             value={formState.auth_payload}
             onChange={(event) => setFormState((prev) => ({ ...prev, auth_payload: event.target.value }))}
             placeholder="Auto-generated if empty"
-            supportingText="Optional custom auth payload."
+            description="Optional custom auth payload."
           />
 
           <TextField
@@ -532,7 +537,7 @@ export default function HysteriaUsersPage() {
             value={formState.hy2_identity}
             onChange={(event) => setFormState((prev) => ({ ...prev, hy2_identity: event.target.value }))}
             placeholder="Auto-generated if empty"
-            supportingText="Client identity visible in runtime logs."
+            description="Client identity visible in runtime logs."
           />
         </form>
       </Dialog>
@@ -554,24 +559,24 @@ export default function HysteriaUsersPage() {
         size="lg"
         actions={
           <>
-            <Button variant="text" type="button" onClick={() => void copyValue(uriValue, "uri")}> 
+            <Button variant="ghost" type="button" onClick={() => void copyValue(uriValue, "uri")}> 
               {copiedKey === "uri" ? "Copied" : "Copy URI"}
             </Button>
             {uriV2Ray && (
-              <Button variant="text" type="button" onClick={() => void copyValue(uriV2Ray, "uri-v2")}> 
+              <Button variant="ghost" type="button" onClick={() => void copyValue(uriV2Ray, "uri-v2")}> 
                 {copiedKey === "uri-v2" ? "Copied" : "Copy hy2://"}
               </Button>
             )}
           </>
         }
       >
-        <div style={{ display: "grid", gap: 12 }}>
+        <div className="grid gap-3">
           <TextareaField label="hysteria2 URI" value={uriValue} readOnly className="font-mono text-xs" />
 
           {uriV2Ray && <TextareaField label="V2RayNG hy2 URI" value={uriV2Ray} readOnly className="font-mono text-xs" />}
 
           {uriClientParams && (
-            <div className="mt-1 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+            <div className="rounded-lg border bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
               <div>
                 server: {uriClientParams.server || "-"} | port: {uriClientParams.port || "-"} | sni: {uriClientParams.sni || "-"}
               </div>
@@ -582,7 +587,7 @@ export default function HysteriaUsersPage() {
             <img
               src={`https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(uriValue)}`}
               alt="Hysteria QR code"
-              style={{ width: 224, height: 224, borderRadius: 12, objectFit: "contain" }}
+              className="h-56 w-56 rounded-xl object-contain"
             />
           )}
         </div>
@@ -590,3 +595,17 @@ export default function HysteriaUsersPage() {
     </div>
   );
 }
+
+function MetricCard({ label, value }: { label: string; value: string }) {
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardDescription className="text-[11px] font-semibold tracking-[0.08em] uppercase">{label}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-semibold tabular-nums">{value}</div>
+      </CardContent>
+    </Card>
+  );
+}
+

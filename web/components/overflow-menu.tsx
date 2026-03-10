@@ -1,6 +1,8 @@
 ﻿"use client";
 
-import { cn, MaterialIcon } from "@/components/ui";
+import type { LucideIcon } from "lucide-react";
+import { MoreVertical } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,8 +14,8 @@ import {
 export type MenuItem = {
   id: string;
   label: string;
-  icon?: string;
-  danger?: boolean;
+  icon?: LucideIcon;
+  destructive?: boolean;
   disabled?: boolean;
   onSelect: () => void;
 };
@@ -21,32 +23,33 @@ export type MenuItem = {
 type OverflowMenuProps = {
   ariaLabel?: string;
   items: MenuItem[];
+  align?: "start" | "center" | "end";
 };
 
-export function OverflowMenu({ ariaLabel = "More actions", items }: OverflowMenuProps) {
+export function OverflowMenu({ ariaLabel = "More actions", items, align = "end" }: OverflowMenuProps) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="ghost" size="icon" />} aria-label={ariaLabel}>
-        <MaterialIcon name="more_vert" className="size-4" />
+      <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" />} aria-label={ariaLabel}>
+        <MoreVertical className="size-4" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-44">
-        {items.map((item) => (
-          <DropdownMenuItem
-            key={item.id}
-            disabled={item.disabled}
-            variant={item.danger ? "destructive" : "default"}
-            onClick={item.onSelect}
-            className={cn(
-              "gap-2",
-              item.danger &&
-                "font-semibold text-destructive hover:bg-destructive/20 focus:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus:bg-destructive/30"
-            )}
-          >
-            {item.icon && <MaterialIcon name={item.icon} className="size-4" />}
-            {item.label}
-          </DropdownMenuItem>
-        ))}
+      <DropdownMenuContent align={align} className="min-w-44">
+        {items.map((item) => {
+          const Icon = item.icon;
+
+          return (
+            <DropdownMenuItem
+              key={item.id}
+              disabled={item.disabled}
+              variant={item.destructive ? "destructive" : "default"}
+              onClick={item.onSelect}
+            >
+              {Icon && <Icon className="size-4" />}
+              {item.label}
+            </DropdownMenuItem>
+          );
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
+

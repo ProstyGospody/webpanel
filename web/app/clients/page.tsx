@@ -1,14 +1,21 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Plus, Search, UserMinus, UserPlus, Users } from "lucide-react";
 
 import { apiFetch, toJSONBody } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import type { Client } from "@/lib/types";
-import { Button, Card, EmptyState, InlineMessage, PageHeader, StatusBadge, TextField } from "@/components/ui";
 import { useToast } from "@/components/toast-provider";
 import { ConfirmDialog } from "@/components/dialog";
+import { PageHeader } from "@/components/app/page-header";
+import { EmptyState } from "@/components/app/empty-state";
+import { StatusBadge } from "@/components/app/status-badge";
+import { TextField } from "@/components/app/fields";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type CreateClientErrors = {
@@ -118,150 +125,181 @@ export default function ClientsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Clients"
-        subtitle="Manage shared client identities used across Hysteria 2 and MTProxy access surfaces."
+        description="Manage shared client identities used across Hysteria 2 and MTProxy access surfaces."
       />
 
-      {error && <InlineMessage tone="warning">{error}</InlineMessage>}
+      {error && (
+        <Alert variant="destructive">
+          <AlertTitle>Request failed</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <Card title="Create client" subtitle="Clients are reusable identity records for protocol accounts.">
-          <form className="grid gap-4 md:grid-cols-2" onSubmit={onCreate} noValidate>
-            <TextField
-              label="Client name"
-              value={name}
-              errorText={createErrors.name}
-              onChange={(event) => {
-                setName(event.target.value);
-                if (createErrors.name) {
-                  setCreateErrors((prev) => ({ ...prev, name: undefined }));
-                }
-              }}
-            />
-            <TextField
-              label="Email"
-              type="email"
-              value={email}
-              errorText={createErrors.email}
-              onChange={(event) => {
-                setEmail(event.target.value);
-                if (createErrors.email) {
-                  setCreateErrors((prev) => ({ ...prev, email: undefined }));
-                }
-              }}
-            />
-            <TextField
-              label="Note"
-              className="md:col-span-2"
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-            />
-            <div className="md:col-span-2 flex justify-end">
-              <Button type="submit">Create client</Button>
-            </div>
-          </form>
+        <Card>
+          <CardHeader>
+            <CardTitle>Create client</CardTitle>
+            <CardDescription>Clients are reusable identity records for protocol accounts.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form className="grid gap-4 md:grid-cols-2" onSubmit={onCreate} noValidate>
+              <TextField
+                label="Client name"
+                value={name}
+                error={createErrors.name}
+                onChange={(event) => {
+                  setName(event.target.value);
+                  if (createErrors.name) {
+                    setCreateErrors((prev) => ({ ...prev, name: undefined }));
+                  }
+                }}
+              />
+              <TextField
+                label="Email"
+                type="email"
+                value={email}
+                error={createErrors.email}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  if (createErrors.email) {
+                    setCreateErrors((prev) => ({ ...prev, email: undefined }));
+                  }
+                }}
+              />
+              <TextField
+                label="Note"
+                className="md:col-span-2"
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+              />
+              <div className="md:col-span-2 flex justify-end">
+                <Button type="submit">
+                  <Plus className="size-4" />
+                  Create client
+                </Button>
+              </div>
+            </form>
+          </CardContent>
         </Card>
 
-        <Card title="Search" subtitle="Filter by client name or e-mail.">
-          <form onSubmit={onSearchSubmit} noValidate className="grid gap-4">
-            <TextField
-              label="Query"
-              placeholder="Search by name or email"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-            <div className="flex justify-end">
-              <Button variant="outlined" type="submit">
-                Search
-              </Button>
-            </div>
-          </form>
+        <Card>
+          <CardHeader>
+            <CardTitle>Search</CardTitle>
+            <CardDescription>Filter by client name or email.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={onSearchSubmit} noValidate className="grid gap-4">
+              <TextField
+                label="Query"
+                placeholder="Search by name or email"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              <div className="flex justify-end">
+                <Button variant="outline" type="submit">
+                  <Search className="size-4" />
+                  Search
+                </Button>
+              </div>
+            </form>
+          </CardContent>
         </Card>
       </div>
 
-      <Card title="Client directory" subtitle={`Total clients: ${filtered.length}`}>
-        {filtered.length === 0 ? (
-          <EmptyState title="No clients found" description="Create a client or refine your search query." icon="group_off" />
-        ) : (
-          <>
-            <div className="hidden md:block">
-              <Table className="min-w-[820px] table-fixed">
-                <colgroup>
-                  <col className="w-[30%]" />
-                  <col className="w-[26%]" />
-                  <col className="w-[14%]" />
-                  <col className="w-[18%]" />
-                  <col className="w-[12%]" />
-                </colgroup>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Updated</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filtered.map((client) => (
-                    <TableRow key={client.id}>
-                      <TableCell className="align-top">
-                        <Link href={`/clients/${client.id}`} className="font-medium hover:underline">
-                          {client.name}
-                        </Link>
-                      </TableCell>
-                      <TableCell className="align-top whitespace-normal break-all text-xs text-muted-foreground">{client.email || "-"}</TableCell>
-                      <TableCell className="align-top">
-                        <StatusBadge enabled={client.is_active} />
-                      </TableCell>
-                      <TableCell className="align-top text-xs text-muted-foreground">{formatDate(client.updated_at)}</TableCell>
-                      <TableCell className="align-top">
-                        <div className="flex justify-end">
-                          {client.is_active ? (
-                            <Button variant="danger" onClick={() => setPendingStateChange({ client, enable: false })}>
-                              Disable
-                            </Button>
-                          ) : (
-                            <Button variant="tonal" onClick={() => setPendingStateChange({ client, enable: true })}>
-                              Enable
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
+      <Card>
+        <CardHeader>
+          <CardTitle>Client directory</CardTitle>
+          <CardDescription>Total clients: {filtered.length}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {filtered.length === 0 ? (
+            <EmptyState title="No clients found" description="Create a client or refine your search query." icon={Users} />
+          ) : (
+            <>
+              <div className="hidden md:block">
+                <Table className="min-w-[820px] table-fixed">
+                  <colgroup>
+                    <col className="w-[30%]" />
+                    <col className="w-[26%]" />
+                    <col className="w-[14%]" />
+                    <col className="w-[18%]" />
+                    <col className="w-[12%]" />
+                  </colgroup>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Updated</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {filtered.map((client) => (
+                      <TableRow key={client.id}>
+                        <TableCell className="align-top">
+                          <Link href={`/clients/${client.id}`} className="font-medium hover:underline">
+                            {client.name}
+                          </Link>
+                        </TableCell>
+                        <TableCell className="align-top whitespace-normal break-all text-xs text-muted-foreground">{client.email || "-"}</TableCell>
+                        <TableCell className="align-top">
+                          <StatusBadge tone={client.is_active ? "success" : "danger"}>{client.is_active ? "Enabled" : "Disabled"}</StatusBadge>
+                        </TableCell>
+                        <TableCell className="align-top text-xs text-muted-foreground">{formatDate(client.updated_at)}</TableCell>
+                        <TableCell className="align-top">
+                          <div className="flex justify-end">
+                            {client.is_active ? (
+                              <Button variant="destructive" size="sm" onClick={() => setPendingStateChange({ client, enable: false })}>
+                                <UserMinus className="size-4" />
+                                Disable
+                              </Button>
+                            ) : (
+                              <Button variant="secondary" size="sm" onClick={() => setPendingStateChange({ client, enable: true })}>
+                                <UserPlus className="size-4" />
+                                Enable
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
 
-            <div className="grid gap-3 md:hidden">
-              {filtered.map((client) => (
-                <article key={client.id} className="space-y-2 rounded-xl border border-border/70 bg-muted/30 p-4">
-                  <div>
-                    <Link href={`/clients/${client.id}`} className="text-sm font-semibold hover:underline">
-                      {client.name}
-                    </Link>
-                    <p className="mt-1 whitespace-normal break-all text-xs text-muted-foreground">{client.email || "-"}</p>
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <StatusBadge enabled={client.is_active} />
-                    <span className="text-xs text-muted-foreground">{formatDate(client.updated_at)}</span>
-                  </div>
-                  <div className="flex justify-end">
-                    {client.is_active ? (
-                      <Button variant="danger" onClick={() => setPendingStateChange({ client, enable: false })}>
-                        Disable
-                      </Button>
-                    ) : (
-                      <Button variant="tonal" onClick={() => setPendingStateChange({ client, enable: true })}>
-                        Enable
-                      </Button>
-                    )}
-                  </div>
-                </article>
-              ))}
-            </div>
-          </>
-        )}
+              <div className="grid gap-3 md:hidden">
+                {filtered.map((client) => (
+                  <article key={client.id} className="space-y-2 rounded-xl border bg-muted/20 p-4">
+                    <div>
+                      <Link href={`/clients/${client.id}`} className="text-sm font-semibold hover:underline">
+                        {client.name}
+                      </Link>
+                      <p className="mt-1 whitespace-normal break-all text-xs text-muted-foreground">{client.email || "-"}</p>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <StatusBadge tone={client.is_active ? "success" : "danger"}>{client.is_active ? "Enabled" : "Disabled"}</StatusBadge>
+                      <span className="text-xs text-muted-foreground">{formatDate(client.updated_at)}</span>
+                    </div>
+                    <div className="flex justify-end">
+                      {client.is_active ? (
+                        <Button variant="destructive" size="sm" onClick={() => setPendingStateChange({ client, enable: false })}>
+                          <UserMinus className="size-4" />
+                          Disable
+                        </Button>
+                      ) : (
+                        <Button variant="secondary" size="sm" onClick={() => setPendingStateChange({ client, enable: true })}>
+                          <UserPlus className="size-4" />
+                          Enable
+                        </Button>
+                      )}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </>
+          )}
+        </CardContent>
       </Card>
 
       <ConfirmDialog
@@ -286,3 +324,4 @@ export default function ClientsPage() {
     </div>
   );
 }
+
