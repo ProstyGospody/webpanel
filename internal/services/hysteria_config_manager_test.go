@@ -76,6 +76,41 @@ auth:
 	}
 }
 
+func TestHysteriaConfigManagerApplySettingsWithCustomQUIC(t *testing.T) {
+	cfg := `listen: :443
+acme:
+  domains:
+    - hy2.example.com
+  email: admin@example.com
+auth:
+  type: password
+  password: old-secret
+`
+
+	manager := NewHysteriaConfigManager("/tmp/unused")
+	next, validation := manager.ApplySettings(cfg, Hy2Settings{
+		Listen:      ":443",
+		TLSEnabled:  true,
+		TLSMode:     "acme",
+		ACME:        &Hy2ServerACME{Domains: []string{"hy2.example.com"}, Email: "admin@example.com"},
+		Auth:        Hy2ServerAuth{Type: "password", Password: "new-secret"},
+		QUICEnabled: true,
+		QUIC: &Hy2ServerQUIC{
+			MaxIdleTimeout:          "30s",
+			DisablePathMTUDiscovery: true,
+		},
+	})
+	if !validation.Valid {
+		t.Fatalf("apply validation failed: %#v", validation.Errors)
+	}
+	if !strings.Contains(next, "quic:") {
+		t.Fatalf("quic section is missing: %s", next)
+	}
+	if !strings.Contains(next, "maxIdleTimeout: 30s") {
+		t.Fatalf("quic.maxIdleTimeout is missing: %s", next)
+	}
+}
+
 func TestHysteriaConfigManagerGenerateClientArtifacts(t *testing.T) {
 	manager := NewHysteriaConfigManager("/tmp/unused")
 	profile := Hy2ClientProfile{
@@ -83,13 +118,17 @@ func TestHysteriaConfigManagerGenerateClientArtifacts(t *testing.T) {
 		Server: "hy2.example.com:443",
 		Auth:   "token",
 		TLS: Hy2ClientTLS{
-			SNI:      "hy2.example.com",
-			Insecure: true,
+			SNI:       "hy2.example.com",
+			Insecure:  true,
 			PinSHA256: []string{"pin-value"},
 		},
 		Obfs: &Hy2ClientObfs{
-			Type: "salamander",
+			Type:       "salamander",
 			Salamander: &Hy2ClientSalamander{Password: "obfs-pass"},
+		},
+		QUIC: &Hy2ClientQUIC{
+			MaxIdleTimeout:          "30s",
+			DisablePathMTUDiscovery: true,
 		},
 	}
 
@@ -108,6 +147,16 @@ func TestHysteriaConfigManagerGenerateClientArtifacts(t *testing.T) {
 	}
 	if !strings.Contains(artifacts.URI, "pinSHA256=pin-value") {
 		t.Fatalf("pinSHA256 is missing in URI: %s", artifacts.URI)
+	}
+
+	if strings.Contains(artifacts.URI, "maxIdleTimeout") {
+		t.Fatalf("URI must not include QUIC-only params: %s", artifacts.URI)
+	}
+	if !strings.Contains(artifacts.ClientYAML, "quic:") {
+		t.Fatalf("client YAML does not contain quic section: %s", artifacts.ClientYAML)
+	}
+	if !strings.Contains(artifacts.ClientYAML, "maxIdleTimeout: 30s") {
+		t.Fatalf("client YAML does not contain maxIdleTimeout: %s", artifacts.ClientYAML)
 	}
 	if !strings.Contains(artifacts.ClientYAML, "socks5:") {
 		t.Fatalf("client YAML does not contain socks5 mode: %s", artifacts.ClientYAML)

@@ -19,10 +19,12 @@ import (
 
 type Hy2ConfigSummary struct {
 	Listen            string `json:"listen"`
+	TLSEnabled        bool   `json:"tlsEnabled"`
 	TLSMode           string `json:"tlsMode,omitempty"`
 	AuthType          string `json:"authType,omitempty"`
 	ObfsType          string `json:"obfsType,omitempty"`
 	MasqueradeType    string `json:"masqueradeType,omitempty"`
+	QUICEnabled       bool   `json:"quicEnabled"`
 	RawOnlyPathsCount int    `json:"rawOnlyPathsCount"`
 }
 
@@ -35,13 +37,16 @@ type Hy2ConfigValidation struct {
 }
 
 type Hy2Settings struct {
-	Listen     string               `json:"listen"`
-	TLSMode    string               `json:"tlsMode"`
-	TLS        *Hy2ServerTLS        `json:"tls,omitempty"`
-	ACME       *Hy2ServerACME       `json:"acme,omitempty"`
-	Auth       Hy2ServerAuth        `json:"auth"`
-	Obfs       *Hy2ServerObfs       `json:"obfs,omitempty"`
-	Masquerade *Hy2ServerMasquerade `json:"masquerade,omitempty"`
+	Listen      string               `json:"listen"`
+	TLSEnabled  bool                 `json:"tlsEnabled"`
+	TLSMode     string               `json:"tlsMode"`
+	TLS         *Hy2ServerTLS        `json:"tls,omitempty"`
+	ACME        *Hy2ServerACME       `json:"acme,omitempty"`
+	Auth        Hy2ServerAuth        `json:"auth"`
+	Obfs        *Hy2ServerObfs       `json:"obfs,omitempty"`
+	Masquerade  *Hy2ServerMasquerade `json:"masquerade,omitempty"`
+	QUICEnabled bool                 `json:"quicEnabled"`
+	QUIC        *Hy2ServerQUIC       `json:"quic,omitempty"`
 }
 
 type Hy2ServerTLS struct {
@@ -52,6 +57,16 @@ type Hy2ServerTLS struct {
 type Hy2ServerACME struct {
 	Domains []string `json:"domains,omitempty"`
 	Email   string   `json:"email,omitempty"`
+}
+
+type Hy2ServerQUIC struct {
+	InitStreamReceiveWindow int    `json:"initStreamReceiveWindow,omitempty"`
+	MaxStreamReceiveWindow  int    `json:"maxStreamReceiveWindow,omitempty"`
+	InitConnReceiveWindow   int    `json:"initConnReceiveWindow,omitempty"`
+	MaxConnReceiveWindow    int    `json:"maxConnReceiveWindow,omitempty"`
+	MaxIdleTimeout          string `json:"maxIdleTimeout,omitempty"`
+	MaxIncomingStreams      int    `json:"maxIncomingStreams,omitempty"`
+	DisablePathMTUDiscovery bool   `json:"disablePathMTUDiscovery,omitempty"`
 }
 
 type Hy2ServerAuth struct {
@@ -127,6 +142,7 @@ type Hy2ClientProfile struct {
 	Auth   string         `json:"auth"`
 	TLS    Hy2ClientTLS   `json:"tls"`
 	Obfs   *Hy2ClientObfs `json:"obfs,omitempty"`
+	QUIC   *Hy2ClientQUIC `json:"quic,omitempty"`
 }
 
 type Hy2ClientTLS struct {
@@ -142,6 +158,15 @@ type Hy2ClientObfs struct {
 
 type Hy2ClientSalamander struct {
 	Password string `json:"password,omitempty"`
+}
+
+type Hy2ClientQUIC struct {
+	InitStreamReceiveWindow int    `json:"initStreamReceiveWindow,omitempty"`
+	MaxStreamReceiveWindow  int    `json:"maxStreamReceiveWindow,omitempty"`
+	InitConnReceiveWindow   int    `json:"initConnReceiveWindow,omitempty"`
+	MaxConnReceiveWindow    int    `json:"maxConnReceiveWindow,omitempty"`
+	MaxIdleTimeout          string `json:"maxIdleTimeout,omitempty"`
+	DisablePathMTUDiscovery bool   `json:"disablePathMTUDiscovery,omitempty"`
 }
 
 type Hy2ClientValidation struct {
@@ -221,10 +246,12 @@ func (m *HysteriaConfigManager) Parse(content string) Hy2ConfigSummary {
 	unknown := m.RawOnlyPaths(content)
 	return Hy2ConfigSummary{
 		Listen:            settings.Listen,
+		TLSEnabled:        settings.TLSEnabled,
 		TLSMode:           settings.TLSMode,
 		AuthType:          strings.ToLower(strings.TrimSpace(settings.Auth.Type)),
 		ObfsType:          normalizedObfsType(settings.Obfs),
 		MasqueradeType:    normalizedMasqueradeType(settings.Masquerade),
+		QUICEnabled:       settings.QUICEnabled,
 		RawOnlyPathsCount: len(unknown),
 	}
 }
@@ -242,6 +269,11 @@ func (m *HysteriaConfigManager) Validate(content string) Hy2ConfigValidation {
 	sv := validateSettings(settings)
 	v.Errors = append(v.Errors, sv.Errors...)
 	v.Warnings = append(v.Warnings, sv.Warnings...)
+	_, hasTLS := toStringAnyMap(root["tls"])
+	_, hasACME := toStringAnyMap(root["acme"])
+	if !hasTLS && !hasACME {
+		v.Errors = append(v.Errors, "either tls or acme section is required by Hysteria 2")
+	}
 	v.RawOnlyPaths = collectUnknown(root, serverSchema)
 	if len(v.RawOnlyPaths) > 0 {
 		v.Warnings = append(v.Warnings, "raw-only fields detected; use Advanced YAML for unmanaged options")
@@ -249,10 +281,12 @@ func (m *HysteriaConfigManager) Validate(content string) Hy2ConfigValidation {
 
 	v.Summary = Hy2ConfigSummary{
 		Listen:            settings.Listen,
+		TLSEnabled:        settings.TLSEnabled,
 		TLSMode:           settings.TLSMode,
 		AuthType:          strings.ToLower(strings.TrimSpace(settings.Auth.Type)),
 		ObfsType:          normalizedObfsType(settings.Obfs),
 		MasqueradeType:    normalizedMasqueradeType(settings.Masquerade),
+		QUICEnabled:       settings.QUICEnabled,
 		RawOnlyPathsCount: len(v.RawOnlyPaths),
 	}
 	v.Valid = len(v.Errors) == 0
@@ -362,6 +396,7 @@ func (m *HysteriaConfigManager) DefaultClientProfile(content string, fallbackHos
 }
 
 func (m *HysteriaConfigManager) DefaultClientProfileFromSettings(settings Hy2Settings, fallbackHost string, fallbackPort int, auth string) Hy2ClientProfile {
+	settings = normalizeSettings(settings)
 	listenHost, listenPorts, ok := parseListen(settings.Listen)
 	if !ok || !validPortUnion(listenPorts) {
 		listenPorts = strconv.Itoa(maxInt(fallbackPort, 443))
@@ -375,20 +410,21 @@ func (m *HysteriaConfigManager) DefaultClientProfileFromSettings(settings Hy2Set
 		publicHost = "127.0.0.1"
 	}
 
-	sni := publicHost
-	if settings.TLSMode == "acme" && settings.ACME != nil && len(settings.ACME.Domains) > 0 {
-		sni = NormalizeHost(settings.ACME.Domains[0])
-	}
-	if sni == "" {
+	sni := ""
+	if settings.TLSEnabled {
 		sni = publicHost
+		if settings.TLSMode == "acme" && settings.ACME != nil && len(settings.ACME.Domains) > 0 {
+			sni = NormalizeHost(settings.ACME.Domains[0])
+		}
+		if sni == "" {
+			sni = publicHost
+		}
 	}
 
 	profile := Hy2ClientProfile{
 		Server: publicHost + ":" + listenPorts,
 		Auth:   strings.TrimSpace(auth),
-		TLS: Hy2ClientTLS{
-			SNI: sni,
-		},
+		TLS:    Hy2ClientTLS{SNI: sni},
 	}
 
 	if settings.Obfs != nil && strings.EqualFold(strings.TrimSpace(settings.Obfs.Type), "salamander") {
@@ -397,6 +433,17 @@ func (m *HysteriaConfigManager) DefaultClientProfileFromSettings(settings Hy2Set
 			password = strings.TrimSpace(settings.Obfs.Salamander.Password)
 		}
 		profile.Obfs = &Hy2ClientObfs{Type: "salamander", Salamander: &Hy2ClientSalamander{Password: password}}
+	}
+
+	if settings.QUICEnabled && settings.QUIC != nil {
+		profile.QUIC = &Hy2ClientQUIC{
+			InitStreamReceiveWindow: settings.QUIC.InitStreamReceiveWindow,
+			MaxStreamReceiveWindow:  settings.QUIC.MaxStreamReceiveWindow,
+			InitConnReceiveWindow:   settings.QUIC.InitConnReceiveWindow,
+			MaxConnReceiveWindow:    settings.QUIC.MaxConnReceiveWindow,
+			MaxIdleTimeout:          settings.QUIC.MaxIdleTimeout,
+			DisablePathMTUDiscovery: settings.QUIC.DisablePathMTUDiscovery,
+		}
 	}
 
 	return normalizeClientProfile(profile)
@@ -431,16 +478,23 @@ func defaultSettings(fallbackHost string, fallbackPort int) Hy2Settings {
 		domains = append(domains, host)
 	}
 	return Hy2Settings{
-		Listen:  fmt.Sprintf(":%d", port),
-		TLSMode: "acme",
-		ACME:    &Hy2ServerACME{Domains: domains, Email: ""},
-		Auth:    Hy2ServerAuth{Type: "password"},
+		Listen:      fmt.Sprintf(":%d", port),
+		TLSEnabled:  true,
+		TLSMode:     "acme",
+		ACME:        &Hy2ServerACME{Domains: domains, Email: ""},
+		Auth:        Hy2ServerAuth{Type: "password"},
+		QUICEnabled: false,
 	}
 }
 
 func parseSettingsFromMap(root map[string]any, fallbackHost string, fallbackPort int) Hy2Settings {
 	settings := defaultSettings(fallbackHost, fallbackPort)
 	settings.Listen = firstNonEmpty(toString(root["listen"]), settings.Listen)
+	settings.TLS = nil
+	settings.ACME = nil
+	settings.TLSEnabled = false
+	settings.QUIC = nil
+	settings.QUICEnabled = false
 
 	if m, ok := toStringAnyMap(root["tls"]); ok {
 		settings.TLS = parseServerTLS(m)
@@ -451,12 +505,16 @@ func parseSettingsFromMap(root map[string]any, fallbackHost string, fallbackPort
 	switch {
 	case settings.TLS != nil && settings.ACME != nil:
 		settings.TLSMode = "conflict"
+		settings.TLSEnabled = true
 	case settings.TLS != nil:
 		settings.TLSMode = "tls"
+		settings.TLSEnabled = true
 	case settings.ACME != nil:
 		settings.TLSMode = "acme"
+		settings.TLSEnabled = true
 	default:
 		settings.TLSMode = "acme"
+		settings.TLSEnabled = false
 	}
 
 	if m, ok := toStringAnyMap(root["auth"]); ok {
@@ -467,6 +525,10 @@ func parseSettingsFromMap(root map[string]any, fallbackHost string, fallbackPort
 	}
 	if m, ok := toStringAnyMap(root["masquerade"]); ok {
 		settings.Masquerade = parseServerMasquerade(m)
+	}
+	if m, ok := toStringAnyMap(root["quic"]); ok {
+		settings.QUIC = parseServerQUIC(m)
+		settings.QUICEnabled = settings.QUIC != nil
 	}
 
 	return normalizeSettings(settings)
@@ -489,6 +551,39 @@ func parseServerACME(m map[string]any) *Hy2ServerACME {
 		Email:   strings.TrimSpace(toString(m["email"])),
 	}
 	if len(cfg.Domains) == 0 && cfg.Email == "" {
+		return nil
+	}
+	return cfg
+}
+
+func parseServerQUIC(m map[string]any) *Hy2ServerQUIC {
+	cfg := &Hy2ServerQUIC{
+		InitStreamReceiveWindow: toInt(m["initStreamReceiveWindow"]),
+		MaxStreamReceiveWindow:  toInt(m["maxStreamReceiveWindow"]),
+		InitConnReceiveWindow:   toInt(m["initConnReceiveWindow"]),
+		MaxConnReceiveWindow:    toInt(m["maxConnReceiveWindow"]),
+		MaxIdleTimeout:          strings.TrimSpace(toString(m["maxIdleTimeout"])),
+		MaxIncomingStreams:      toInt(m["maxIncomingStreams"]),
+		DisablePathMTUDiscovery: toBool(m["disablePathMTUDiscovery"]),
+	}
+
+	if cfg.InitStreamReceiveWindow <= 0 {
+		cfg.InitStreamReceiveWindow = 0
+	}
+	if cfg.MaxStreamReceiveWindow <= 0 {
+		cfg.MaxStreamReceiveWindow = 0
+	}
+	if cfg.InitConnReceiveWindow <= 0 {
+		cfg.InitConnReceiveWindow = 0
+	}
+	if cfg.MaxConnReceiveWindow <= 0 {
+		cfg.MaxConnReceiveWindow = 0
+	}
+	if cfg.MaxIncomingStreams <= 0 {
+		cfg.MaxIncomingStreams = 0
+	}
+
+	if cfg.InitStreamReceiveWindow == 0 && cfg.MaxStreamReceiveWindow == 0 && cfg.InitConnReceiveWindow == 0 && cfg.MaxConnReceiveWindow == 0 && cfg.MaxIdleTimeout == "" && cfg.MaxIncomingStreams == 0 && !cfg.DisablePathMTUDiscovery {
 		return nil
 	}
 	return cfg
@@ -568,6 +663,37 @@ func normalizeSettings(input Hy2Settings) Hy2Settings {
 		}
 	}
 
+	if settings.TLS != nil || settings.ACME != nil {
+		settings.TLSEnabled = true
+	}
+	if settings.TLSMode == "" {
+		switch {
+		case settings.TLS != nil && settings.ACME != nil:
+			settings.TLSMode = "conflict"
+		case settings.TLS != nil:
+			settings.TLSMode = "tls"
+		case settings.ACME != nil:
+			settings.TLSMode = "acme"
+		default:
+			settings.TLSMode = "acme"
+		}
+	}
+	if settings.TLSMode != "tls" && settings.TLSMode != "acme" && settings.TLSMode != "conflict" {
+		settings.TLSMode = "acme"
+	}
+
+	if !settings.TLSEnabled {
+		settings.TLS = nil
+		settings.ACME = nil
+	} else {
+		switch settings.TLSMode {
+		case "tls":
+			settings.ACME = nil
+		case "acme":
+			settings.TLS = nil
+		}
+	}
+
 	settings.Auth.Type = strings.ToLower(strings.TrimSpace(settings.Auth.Type))
 	settings.Auth.Password = strings.TrimSpace(settings.Auth.Password)
 	if settings.Auth.HTTP != nil {
@@ -631,22 +757,22 @@ func normalizeSettings(input Hy2Settings) Hy2Settings {
 		}
 	}
 
-	if settings.TLSMode == "" {
-		switch {
-		case settings.TLS != nil && settings.ACME != nil:
-			settings.TLSMode = "conflict"
-		case settings.TLS != nil:
-			settings.TLSMode = "tls"
-		default:
-			settings.TLSMode = "acme"
+	if settings.QUIC != nil {
+		settings.QUIC.InitStreamReceiveWindow = positiveIntOrZero(settings.QUIC.InitStreamReceiveWindow)
+		settings.QUIC.MaxStreamReceiveWindow = positiveIntOrZero(settings.QUIC.MaxStreamReceiveWindow)
+		settings.QUIC.InitConnReceiveWindow = positiveIntOrZero(settings.QUIC.InitConnReceiveWindow)
+		settings.QUIC.MaxConnReceiveWindow = positiveIntOrZero(settings.QUIC.MaxConnReceiveWindow)
+		settings.QUIC.MaxIncomingStreams = positiveIntOrZero(settings.QUIC.MaxIncomingStreams)
+		settings.QUIC.MaxIdleTimeout = strings.TrimSpace(settings.QUIC.MaxIdleTimeout)
+		if settings.QUIC.InitStreamReceiveWindow == 0 && settings.QUIC.MaxStreamReceiveWindow == 0 && settings.QUIC.InitConnReceiveWindow == 0 && settings.QUIC.MaxConnReceiveWindow == 0 && settings.QUIC.MaxIdleTimeout == "" && settings.QUIC.MaxIncomingStreams == 0 && !settings.QUIC.DisablePathMTUDiscovery {
+			settings.QUIC = nil
 		}
 	}
-
-	switch settings.TLSMode {
-	case "tls":
-		settings.ACME = nil
-	case "acme":
-		settings.TLS = nil
+	if settings.QUIC != nil {
+		settings.QUICEnabled = true
+	}
+	if !settings.QUICEnabled {
+		settings.QUIC = nil
 	}
 
 	if settings.Listen == "" {
@@ -684,33 +810,37 @@ func validateSettings(input Hy2Settings) Hy2SettingsValidation {
 		v.Errors = append(v.Errors, "listen must be host:port or :port with a single valid port")
 	}
 
-	switch settings.TLSMode {
-	case "tls":
-		if settings.TLS == nil {
-			v.Errors = append(v.Errors, "tls mode requires tls section")
-		} else {
-			if settings.TLS.Cert == "" {
-				v.Errors = append(v.Errors, "tls.cert is required in tls mode")
+	if settings.TLSEnabled {
+		switch settings.TLSMode {
+		case "tls":
+			if settings.TLS == nil {
+				v.Errors = append(v.Errors, "tls mode requires tls section")
+			} else {
+				if settings.TLS.Cert == "" {
+					v.Errors = append(v.Errors, "tls.cert is required in tls mode")
+				}
+				if settings.TLS.Key == "" {
+					v.Errors = append(v.Errors, "tls.key is required in tls mode")
+				}
 			}
-			if settings.TLS.Key == "" {
-				v.Errors = append(v.Errors, "tls.key is required in tls mode")
+		case "acme":
+			if settings.ACME == nil {
+				v.Errors = append(v.Errors, "acme mode requires acme section")
+			} else {
+				if len(settings.ACME.Domains) == 0 {
+					v.Errors = append(v.Errors, "acme.domains must contain at least one domain")
+				}
+				if settings.ACME.Email == "" {
+					v.Warnings = append(v.Warnings, "acme.email is empty")
+				}
 			}
+		case "conflict":
+			v.Errors = append(v.Errors, "tls and acme are mutually exclusive")
+		default:
+			v.Errors = append(v.Errors, "tlsMode must be either tls or acme")
 		}
-	case "acme":
-		if settings.ACME == nil {
-			v.Errors = append(v.Errors, "acme mode requires acme section")
-		} else {
-			if len(settings.ACME.Domains) == 0 {
-				v.Errors = append(v.Errors, "acme.domains must contain at least one domain")
-			}
-			if settings.ACME.Email == "" {
-				v.Warnings = append(v.Warnings, "acme.email is empty")
-			}
-		}
-	case "conflict":
-		v.Errors = append(v.Errors, "tls and acme are mutually exclusive")
-	default:
-		v.Errors = append(v.Errors, "tlsMode must be either tls or acme")
+	} else {
+		v.Warnings = append(v.Warnings, "managed TLS is disabled")
 	}
 
 	switch settings.Auth.Type {
@@ -767,6 +897,42 @@ func validateSettings(input Hy2Settings) Hy2SettingsValidation {
 		}
 	}
 
+	if settings.QUICEnabled {
+		if settings.QUIC == nil {
+			v.Errors = append(v.Errors, "quic settings are enabled but quic section is empty")
+		} else {
+			hasCustomValue := false
+			if settings.QUIC.InitStreamReceiveWindow > 0 {
+				hasCustomValue = true
+			}
+			if settings.QUIC.MaxStreamReceiveWindow > 0 {
+				hasCustomValue = true
+			}
+			if settings.QUIC.InitConnReceiveWindow > 0 {
+				hasCustomValue = true
+			}
+			if settings.QUIC.MaxConnReceiveWindow > 0 {
+				hasCustomValue = true
+			}
+			if settings.QUIC.MaxIncomingStreams > 0 {
+				hasCustomValue = true
+			}
+			if settings.QUIC.MaxIdleTimeout != "" {
+				if _, err := time.ParseDuration(settings.QUIC.MaxIdleTimeout); err != nil {
+					v.Errors = append(v.Errors, "quic.maxIdleTimeout must be a valid duration (for example, 30s or 2m)")
+				} else {
+					hasCustomValue = true
+				}
+			}
+			if settings.QUIC.DisablePathMTUDiscovery {
+				hasCustomValue = true
+			}
+			if !hasCustomValue {
+				v.Errors = append(v.Errors, "quic settings are enabled but no custom values are provided")
+			}
+		}
+	}
+
 	v.Valid = len(v.Errors) == 0
 	return v
 }
@@ -777,14 +943,16 @@ func buildSettingsMap(settings Hy2Settings) map[string]any {
 	if settings.Listen != "" {
 		out["listen"] = settings.Listen
 	}
-	if settings.TLSMode == "tls" {
-		if m := buildServerTLSMap(settings.TLS); len(m) > 0 {
-			out["tls"] = m
+	if settings.TLSEnabled {
+		if settings.TLSMode == "tls" {
+			if m := buildServerTLSMap(settings.TLS); len(m) > 0 {
+				out["tls"] = m
+			}
 		}
-	}
-	if settings.TLSMode == "acme" {
-		if m := buildServerACMEMap(settings.ACME); len(m) > 0 {
-			out["acme"] = m
+		if settings.TLSMode == "acme" {
+			if m := buildServerACMEMap(settings.ACME); len(m) > 0 {
+				out["acme"] = m
+			}
 		}
 	}
 	if m := buildServerAuthMap(settings.Auth); len(m) > 0 {
@@ -795,6 +963,11 @@ func buildSettingsMap(settings Hy2Settings) map[string]any {
 	}
 	if m := buildServerMasqueradeMap(settings.Masquerade); len(m) > 0 {
 		out["masquerade"] = m
+	}
+	if settings.QUICEnabled {
+		if m := buildServerQUICMap(settings.QUIC); len(m) > 0 {
+			out["quic"] = m
+		}
 	}
 
 	normalized, ok := normalizeYAMLValue(out).(map[string]any)
@@ -828,6 +1001,35 @@ func buildServerACMEMap(cfg *Hy2ServerACME) map[string]any {
 	}
 	if cfg.Email != "" {
 		out["email"] = cfg.Email
+	}
+	return out
+}
+
+func buildServerQUICMap(cfg *Hy2ServerQUIC) map[string]any {
+	if cfg == nil {
+		return nil
+	}
+	out := map[string]any{}
+	if cfg.InitStreamReceiveWindow > 0 {
+		out["initStreamReceiveWindow"] = cfg.InitStreamReceiveWindow
+	}
+	if cfg.MaxStreamReceiveWindow > 0 {
+		out["maxStreamReceiveWindow"] = cfg.MaxStreamReceiveWindow
+	}
+	if cfg.InitConnReceiveWindow > 0 {
+		out["initConnReceiveWindow"] = cfg.InitConnReceiveWindow
+	}
+	if cfg.MaxConnReceiveWindow > 0 {
+		out["maxConnReceiveWindow"] = cfg.MaxConnReceiveWindow
+	}
+	if strings.TrimSpace(cfg.MaxIdleTimeout) != "" {
+		out["maxIdleTimeout"] = strings.TrimSpace(cfg.MaxIdleTimeout)
+	}
+	if cfg.MaxIncomingStreams > 0 {
+		out["maxIncomingStreams"] = cfg.MaxIncomingStreams
+	}
+	if cfg.DisablePathMTUDiscovery {
+		out["disablePathMTUDiscovery"] = true
 	}
 	return out
 }
@@ -940,6 +1142,17 @@ func normalizeClientProfile(input Hy2ClientProfile) Hy2ClientProfile {
 			profile.Obfs = nil
 		}
 	}
+
+	if profile.QUIC != nil {
+		profile.QUIC.InitStreamReceiveWindow = positiveIntOrZero(profile.QUIC.InitStreamReceiveWindow)
+		profile.QUIC.MaxStreamReceiveWindow = positiveIntOrZero(profile.QUIC.MaxStreamReceiveWindow)
+		profile.QUIC.InitConnReceiveWindow = positiveIntOrZero(profile.QUIC.InitConnReceiveWindow)
+		profile.QUIC.MaxConnReceiveWindow = positiveIntOrZero(profile.QUIC.MaxConnReceiveWindow)
+		profile.QUIC.MaxIdleTimeout = strings.TrimSpace(profile.QUIC.MaxIdleTimeout)
+		if profile.QUIC.InitStreamReceiveWindow == 0 && profile.QUIC.MaxStreamReceiveWindow == 0 && profile.QUIC.InitConnReceiveWindow == 0 && profile.QUIC.MaxConnReceiveWindow == 0 && profile.QUIC.MaxIdleTimeout == "" && !profile.QUIC.DisablePathMTUDiscovery {
+			profile.QUIC = nil
+		}
+	}
 	return profile
 }
 
@@ -963,6 +1176,34 @@ func validateClientProfile(profile Hy2ClientProfile, modeTemplate string) Hy2Cli
 			v.Errors = append(v.Errors, "profile.obfs.type must be salamander")
 		} else if profile.Obfs.Salamander == nil || strings.TrimSpace(profile.Obfs.Salamander.Password) == "" {
 			v.Errors = append(v.Errors, "profile.obfs.salamander.password is required when obfs.type=salamander")
+		}
+	}
+	if profile.QUIC != nil {
+		hasCustomValue := false
+		if profile.QUIC.InitStreamReceiveWindow > 0 {
+			hasCustomValue = true
+		}
+		if profile.QUIC.MaxStreamReceiveWindow > 0 {
+			hasCustomValue = true
+		}
+		if profile.QUIC.InitConnReceiveWindow > 0 {
+			hasCustomValue = true
+		}
+		if profile.QUIC.MaxConnReceiveWindow > 0 {
+			hasCustomValue = true
+		}
+		if profile.QUIC.MaxIdleTimeout != "" {
+			if _, err := time.ParseDuration(profile.QUIC.MaxIdleTimeout); err != nil {
+				v.Errors = append(v.Errors, "profile.quic.maxIdleTimeout must be a valid duration")
+			} else {
+				hasCustomValue = true
+			}
+		}
+		if profile.QUIC.DisablePathMTUDiscovery {
+			hasCustomValue = true
+		}
+		if !hasCustomValue {
+			v.Errors = append(v.Errors, "profile.quic is present but no valid values are set")
 		}
 	}
 	v.Valid = len(v.Errors) == 0
@@ -1031,6 +1272,31 @@ func buildClientYAML(profile Hy2ClientProfile) (string, error) {
 			obfs["salamander"] = map[string]any{"password": profile.Obfs.Salamander.Password}
 		}
 		cfg["obfs"] = obfs
+	}
+
+	if profile.QUIC != nil {
+		quic := map[string]any{}
+		if profile.QUIC.InitStreamReceiveWindow > 0 {
+			quic["initStreamReceiveWindow"] = profile.QUIC.InitStreamReceiveWindow
+		}
+		if profile.QUIC.MaxStreamReceiveWindow > 0 {
+			quic["maxStreamReceiveWindow"] = profile.QUIC.MaxStreamReceiveWindow
+		}
+		if profile.QUIC.InitConnReceiveWindow > 0 {
+			quic["initConnReceiveWindow"] = profile.QUIC.InitConnReceiveWindow
+		}
+		if profile.QUIC.MaxConnReceiveWindow > 0 {
+			quic["maxConnReceiveWindow"] = profile.QUIC.MaxConnReceiveWindow
+		}
+		if profile.QUIC.MaxIdleTimeout != "" {
+			quic["maxIdleTimeout"] = profile.QUIC.MaxIdleTimeout
+		}
+		if profile.QUIC.DisablePathMTUDiscovery {
+			quic["disablePathMTUDiscovery"] = true
+		}
+		if len(quic) > 0 {
+			cfg["quic"] = quic
+		}
 	}
 
 	cfg["socks5"] = map[string]any{"listen": "127.0.0.1:1080"}
@@ -1556,6 +1822,13 @@ func maxInt(value int, fallback int) int {
 	return fallback
 }
 
+func positiveIntOrZero(value int) int {
+	if value > 0 {
+		return value
+	}
+	return 0
+}
+
 func normalizedObfsType(obfs *Hy2ServerObfs) string {
 	if obfs == nil {
 		return ""
@@ -1594,6 +1867,17 @@ func buildServerSchema() *schemaNode {
 			Fields: map[string]*schemaNode{
 				"domains": emptySchema,
 				"email":   emptySchema,
+			},
+		},
+		"quic": {
+			Fields: map[string]*schemaNode{
+				"initStreamReceiveWindow": emptySchema,
+				"maxStreamReceiveWindow":  emptySchema,
+				"initConnReceiveWindow":   emptySchema,
+				"maxConnReceiveWindow":    emptySchema,
+				"maxIdleTimeout":          emptySchema,
+				"maxIncomingStreams":      emptySchema,
+				"disablePathMTUDiscovery": emptySchema,
 			},
 		},
 		"auth": {

@@ -78,6 +78,16 @@ export type Hy2ServerACME = {
   email?: string;
 };
 
+export type Hy2ServerQUIC = {
+  initStreamReceiveWindow?: number;
+  maxStreamReceiveWindow?: number;
+  initConnReceiveWindow?: number;
+  maxConnReceiveWindow?: number;
+  maxIdleTimeout?: string;
+  maxIncomingStreams?: number;
+  disablePathMTUDiscovery?: boolean;
+};
+
 export type Hy2ServerAuth = {
   type?: string;
   password?: string;
@@ -101,12 +111,15 @@ export type Hy2ServerMasquerade = {
 
 export type Hy2Settings = {
   listen: string;
+  tlsEnabled: boolean;
   tlsMode: string;
   tls?: Hy2ServerTLS;
   acme?: Hy2ServerACME;
   auth: Hy2ServerAuth;
   obfs?: Hy2ServerObfs;
   masquerade?: Hy2ServerMasquerade;
+  quicEnabled: boolean;
+  quic?: Hy2ServerQUIC;
 };
 
 export type Hy2SettingsValidation = {
@@ -122,10 +135,12 @@ export type Hy2ConfigValidation = {
   rawOnlyPaths?: string[];
   summary: {
     listen?: string;
+    tlsEnabled?: boolean;
     tlsMode?: string;
     authType?: string;
     obfsType?: string;
     masqueradeType?: string;
+    quicEnabled?: boolean;
     rawOnlyPathsCount?: number;
   };
 };

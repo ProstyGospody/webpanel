@@ -98,7 +98,7 @@ obfs:
 	if outbound["type"] != "hysteria2" {
 		t.Fatalf("unexpected outbound type: %#v", outbound["type"])
 	}
-	if outbound["password"] != "token" {
+	if outbound["password"] != "secret" {
 		t.Fatalf("unexpected password: %#v", outbound["password"])
 	}
 	if outbound["server"] != "hy2.example.com" {

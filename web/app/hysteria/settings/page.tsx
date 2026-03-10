@@ -13,6 +13,8 @@ import { ConfirmDialog } from "@/components/dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 
 const tabs = [
   { href: "/hysteria/users", label: "Users", icon: Users },
@@ -23,15 +25,26 @@ type ProtectionMode = "none" | "obfs" | "masquerade";
 
 const DEFAULT_SETTINGS: Hy2Settings = {
   listen: ":443",
+  tlsEnabled: true,
   tlsMode: "acme",
   acme: { domains: [], email: "" },
   auth: { type: "password", password: "" },
+  quicEnabled: false,
 };
+
+function toPositiveInt(value: unknown): number | undefined {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return undefined;
+  }
+  return Math.floor(parsed);
+}
 
 function normalizeSettings(input: Hy2Settings | null | undefined): Hy2Settings {
   const next = { ...DEFAULT_SETTINGS, ...(input || {}) } as Hy2Settings;
 
   next.listen = (next.listen || "").trim() || ":443";
+  next.tlsEnabled = next.tlsEnabled !== false;
   next.tlsMode = (next.tlsMode || "acme").toLowerCase() === "tls" ? "tls" : "acme";
 
   next.tls = next.tls
@@ -77,6 +90,23 @@ function normalizeSettings(input: Hy2Settings | null | undefined): Hy2Settings {
     };
   } else {
     next.masquerade = undefined;
+  }
+
+  next.quicEnabled = Boolean(next.quicEnabled);
+  next.quic = next.quic
+    ? {
+        initStreamReceiveWindow: toPositiveInt(next.quic.initStreamReceiveWindow),
+        maxStreamReceiveWindow: toPositiveInt(next.quic.maxStreamReceiveWindow),
+        initConnReceiveWindow: toPositiveInt(next.quic.initConnReceiveWindow),
+        maxConnReceiveWindow: toPositiveInt(next.quic.maxConnReceiveWindow),
+        maxIdleTimeout: (next.quic.maxIdleTimeout || "").trim(),
+        maxIncomingStreams: toPositiveInt(next.quic.maxIncomingStreams),
+        disablePathMTUDiscovery: Boolean(next.quic.disablePathMTUDiscovery),
+      }
+    : undefined;
+
+  if (!next.quicEnabled) {
+    next.quic = undefined;
   }
 
   return next;
@@ -186,7 +216,10 @@ export default function HysteriaSettingsPage() {
     const listenParts = parseListen(next.listen);
     next.listen = buildListen(listenParts.host, port);
 
-    if (next.tlsMode === "acme") {
+    if (!next.tlsEnabled) {
+      next.tls = undefined;
+      next.acme = undefined;
+    } else if (next.tlsMode === "acme") {
       const domain = (publicHost || next.acme?.domains?.[0] || "").trim();
       next.acme = {
         domains: domain ? [domain] : [],
@@ -241,6 +274,20 @@ export default function HysteriaSettingsPage() {
       };
     }
 
+    if (!next.quicEnabled) {
+      next.quic = undefined;
+    } else {
+      next.quic = {
+        initStreamReceiveWindow: toPositiveInt(next.quic?.initStreamReceiveWindow),
+        maxStreamReceiveWindow: toPositiveInt(next.quic?.maxStreamReceiveWindow),
+        initConnReceiveWindow: toPositiveInt(next.quic?.initConnReceiveWindow),
+        maxConnReceiveWindow: toPositiveInt(next.quic?.maxConnReceiveWindow),
+        maxIdleTimeout: (next.quic?.maxIdleTimeout || "").trim(),
+        maxIncomingStreams: toPositiveInt(next.quic?.maxIncomingStreams),
+        disablePathMTUDiscovery: Boolean(next.quic?.disablePathMTUDiscovery),
+      };
+    }
+
     return normalizeSettings(next);
   }
 
@@ -250,7 +297,7 @@ export default function HysteriaSettingsPage() {
       const payload = await apiFetch<Hy2SettingsPayload>("/api/hy2/settings");
       const normalizedSettings = normalizeSettings(payload.settings);
       const listenParts = parseListen(normalizedSettings.listen);
-      const hostFromSettings = normalizedSettings.acme?.domains?.[0] || "";
+      const hostFromSettings = normalizedSettings.tlsEnabled && normalizedSettings.tlsMode === "acme" ? normalizedSettings.acme?.domains?.[0] || "" : "";
 
       setPath(payload.path || "");
       setSettings(normalizedSettings);
@@ -363,7 +410,7 @@ export default function HysteriaSettingsPage() {
 
       const normalizedSettings = normalizeSettings(payload.settings);
       const listenParts = parseListen(normalizedSettings.listen);
-      const hostFromSettings = normalizedSettings.acme?.domains?.[0] || "";
+      const hostFromSettings = normalizedSettings.tlsEnabled && normalizedSettings.tlsMode === "acme" ? normalizedSettings.acme?.domains?.[0] || "" : "";
 
       setSettings(normalizedSettings);
       setSavedSettings(normalizedSettings);
@@ -400,7 +447,7 @@ export default function HysteriaSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Hysteria" description="Minimal Hysteria 2 settings." />
+      <PageHeader title="Hysteria" description="Manage Hysteria 2 server settings." />
       <SectionNav items={tabs} />
 
       {error && (
@@ -424,66 +471,74 @@ export default function HysteriaSettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Server Connection</CardTitle>
-          <CardDescription>Public endpoint settings.</CardDescription>
+          <CardDescription>Public endpoint.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
           <TextField label="Port" value={port} onChange={(e) => setPort(e.target.value.replace(/[^0-9]/g, ""))} placeholder="443" />
-          <TextField
-            label="Domain / Host"
-            value={publicHost}
-            onChange={(e) => setPublicHost(e.target.value)}
-            description="Used for ACME and SNI."
-            placeholder="hy2.example.com"
-          />
+          <TextField label="Domain / Host" value={publicHost} onChange={(e) => setPublicHost(e.target.value)} placeholder="hy2.example.com" />
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
           <CardTitle>Certificate Setup</CardTitle>
-          <CardDescription>Choose one certificate mode.</CardDescription>
+          <CardDescription>TLS mode from official Hysteria 2 server config.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <SelectField
-            label="Certificate mode"
-            value={settings.tlsMode}
-            onValueChange={(value) => updateSetting("tlsMode", value === "tls" ? "tls" : "acme")}
-            options={[
-              { value: "acme", label: "ACME" },
-              { value: "tls", label: "TLS files" },
-            ]}
-          />
+          <div className="flex items-center justify-between rounded-lg border px-3 py-2">
+            <div className="space-y-0.5">
+              <Label>Enable TLS</Label>
+              <p className="text-xs text-muted-foreground">When disabled, `tls`/`acme` blocks are removed from managed config.</p>
+            </div>
+            <Switch checked={settings.tlsEnabled} onCheckedChange={(checked) => updateSetting("tlsEnabled", Boolean(checked))} />
+          </div>
 
-          {settings.tlsMode === "acme" ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              <TextField
-                label="ACME domain"
-                value={settings.acme?.domains?.[0] || publicHost}
-                onChange={(e) => updateSetting("acme", { ...(settings.acme || {}), domains: [e.target.value] })}
-                placeholder="hy2.example.com"
+          {settings.tlsEnabled ? (
+            <>
+              <SelectField
+                label="Certificate mode"
+                value={settings.tlsMode}
+                onValueChange={(value) => updateSetting("tlsMode", value === "tls" ? "tls" : "acme")}
+                options={[
+                  { value: "acme", label: "ACME" },
+                  { value: "tls", label: "TLS files" },
+                ]}
               />
-              <TextField
-                label="ACME email"
-                value={settings.acme?.email || ""}
-                onChange={(e) => updateSetting("acme", { ...(settings.acme || {}), email: e.target.value })}
-                placeholder="admin@example.com"
-              />
-            </div>
+
+              {settings.tlsMode === "acme" ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <TextField
+                    label="ACME domain"
+                    value={settings.acme?.domains?.[0] || publicHost}
+                    onChange={(e) => updateSetting("acme", { ...(settings.acme || {}), domains: [e.target.value] })}
+                    placeholder="hy2.example.com"
+                  />
+                  <TextField
+                    label="ACME email"
+                    value={settings.acme?.email || ""}
+                    onChange={(e) => updateSetting("acme", { ...(settings.acme || {}), email: e.target.value })}
+                    placeholder="admin@example.com"
+                  />
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <TextField
+                    label="TLS cert path"
+                    value={settings.tls?.cert || ""}
+                    onChange={(e) => updateSetting("tls", { ...(settings.tls || {}), cert: e.target.value })}
+                    placeholder="/etc/hysteria/cert.pem"
+                  />
+                  <TextField
+                    label="TLS key path"
+                    value={settings.tls?.key || ""}
+                    onChange={(e) => updateSetting("tls", { ...(settings.tls || {}), key: e.target.value })}
+                    placeholder="/etc/hysteria/key.pem"
+                  />
+                </div>
+              )}
+            </>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2">
-              <TextField
-                label="TLS cert path"
-                value={settings.tls?.cert || ""}
-                onChange={(e) => updateSetting("tls", { ...(settings.tls || {}), cert: e.target.value })}
-                placeholder="/etc/hysteria/cert.pem"
-              />
-              <TextField
-                label="TLS key path"
-                value={settings.tls?.key || ""}
-                onChange={(e) => updateSetting("tls", { ...(settings.tls || {}), key: e.target.value })}
-                placeholder="/etc/hysteria/key.pem"
-              />
-            </div>
+            <p className="text-sm text-muted-foreground">Enable TLS to configure `tls` or `acme` in managed mode.</p>
           )}
         </CardContent>
       </Card>
@@ -491,7 +546,7 @@ export default function HysteriaSettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Authentication</CardTitle>
-          <CardDescription>Choose the authentication mode.</CardDescription>
+          <CardDescription>Auth block used by server config.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <SelectField
@@ -673,6 +728,76 @@ export default function HysteriaSettingsPage() {
                   />
                 </>
               )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Advanced QUIC</CardTitle>
+          <CardDescription>Enable only if you need custom QUIC values.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between rounded-lg border px-3 py-2">
+            <div className="space-y-0.5">
+              <Label>Use custom QUIC settings</Label>
+              <p className="text-xs text-muted-foreground">When disabled, server defaults are used.</p>
+            </div>
+            <Switch checked={settings.quicEnabled} onCheckedChange={(checked) => updateSetting("quicEnabled", Boolean(checked))} />
+          </div>
+
+          {settings.quicEnabled && (
+            <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <TextField
+                  label="initStreamReceiveWindow"
+                  value={settings.quic?.initStreamReceiveWindow ? String(settings.quic.initStreamReceiveWindow) : ""}
+                  onChange={(e) => updateSetting("quic", { ...(settings.quic || {}), initStreamReceiveWindow: toPositiveInt(e.target.value) })}
+                  placeholder="8388608"
+                />
+                <TextField
+                  label="maxStreamReceiveWindow"
+                  value={settings.quic?.maxStreamReceiveWindow ? String(settings.quic.maxStreamReceiveWindow) : ""}
+                  onChange={(e) => updateSetting("quic", { ...(settings.quic || {}), maxStreamReceiveWindow: toPositiveInt(e.target.value) })}
+                  placeholder="8388608"
+                />
+                <TextField
+                  label="initConnReceiveWindow"
+                  value={settings.quic?.initConnReceiveWindow ? String(settings.quic.initConnReceiveWindow) : ""}
+                  onChange={(e) => updateSetting("quic", { ...(settings.quic || {}), initConnReceiveWindow: toPositiveInt(e.target.value) })}
+                  placeholder="20971520"
+                />
+                <TextField
+                  label="maxConnReceiveWindow"
+                  value={settings.quic?.maxConnReceiveWindow ? String(settings.quic.maxConnReceiveWindow) : ""}
+                  onChange={(e) => updateSetting("quic", { ...(settings.quic || {}), maxConnReceiveWindow: toPositiveInt(e.target.value) })}
+                  placeholder="20971520"
+                />
+                <TextField
+                  label="maxIdleTimeout"
+                  value={settings.quic?.maxIdleTimeout || ""}
+                  onChange={(e) => updateSetting("quic", { ...(settings.quic || {}), maxIdleTimeout: e.target.value })}
+                  placeholder="30s"
+                />
+                <TextField
+                  label="maxIncomingStreams"
+                  value={settings.quic?.maxIncomingStreams ? String(settings.quic.maxIncomingStreams) : ""}
+                  onChange={(e) => updateSetting("quic", { ...(settings.quic || {}), maxIncomingStreams: toPositiveInt(e.target.value) })}
+                  placeholder="1024"
+                />
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border px-3 py-2">
+                <div className="space-y-0.5">
+                  <Label>disablePathMTUDiscovery</Label>
+                  <p className="text-xs text-muted-foreground">Set only when path MTU discovery causes issues.</p>
+                </div>
+                <Switch
+                  checked={Boolean(settings.quic?.disablePathMTUDiscovery)}
+                  onCheckedChange={(checked) => updateSetting("quic", { ...(settings.quic || {}), disablePathMTUDiscovery: Boolean(checked) })}
+                />
+              </div>
             </div>
           )}
         </CardContent>
