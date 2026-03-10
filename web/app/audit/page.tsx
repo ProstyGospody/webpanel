@@ -1,16 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { History } from "lucide-react";
+import { History, Search } from "lucide-react";
 
 import { apiFetch } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import type { AuditLog } from "@/lib/types";
 import { PageHeader } from "@/components/app/page-header";
 import { EmptyState } from "@/components/app/empty-state";
-import { TextField } from "@/components/app/fields";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function AuditPage() {
@@ -42,10 +42,7 @@ export default function AuditPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Audit"
-        description="Administrative activity log."
-      />
+      <PageHeader title="Audit" icon={<History />} description="Administrative activity log." />
 
       {error ? (
         <Alert variant="destructive">
@@ -55,24 +52,21 @@ export default function AuditPage() {
       ) : null}
 
       <Card>
-        <CardHeader className="gap-3 md:flex-row md:items-start md:justify-between">
-          <div>
+        <CardHeader className="border-b pb-3">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <CardTitle>Audit feed</CardTitle>
-            <CardDescription>
-              Latest 200 records{query ? ` � ${filtered.length} shown` : ""}.
-            </CardDescription>
-          </div>
-          <div className="w-full max-w-sm">
-            <TextField
-              className="w-full"
-              label="Search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Action, admin, entity or id"
-            />
+            <div className="relative w-full max-w-sm">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="pl-8"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search action, admin or entity"
+              />
+            </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-3">
           {filtered.length === 0 ? (
             <EmptyState title="No audit records" description="No entries match the current filter." icon={History} />
           ) : (

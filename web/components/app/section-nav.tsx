@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -34,9 +34,7 @@ export function SectionNav({ items, className }: SectionNavProps) {
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "inline-flex h-8 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors",
-                  active
-                    ? "bg-background text-foreground shadow-sm ring-1 ring-border/70"
-                    : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
+                  active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:bg-background/70 hover:text-foreground"
                 )}
               >
                 {Icon ? <Icon className="size-4" /> : null}
@@ -49,4 +47,3 @@ export function SectionNav({ items, className }: SectionNavProps) {
     </nav>
   );
 }
-

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, FileText, PlayCircle, Save, SearchCheck, Settings, Shield, Users } from "lucide-react";
+import { AlertTriangle, FileText, PlayCircle, Save, SearchCheck, Shield, Users, Zap } from "lucide-react";
 
 import { apiFetch, toJSONBody } from "@/lib/api";
 import type { Hy2ConfigValidation, Hy2Settings, Hy2SettingsPayload, Hy2SettingsValidation } from "@/lib/types";
@@ -12,13 +12,14 @@ import { SelectField, TextField, TextareaField } from "@/components/app/fields";
 import { ConfirmDialog } from "@/components/dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const tabs = [
   { href: "/hysteria/users", label: "Users", icon: Users },
-  { href: "/hysteria/settings", label: "Settings", icon: Settings },
+  { href: "/hysteria/settings", label: "Settings", icon: Zap },
 ];
 
 type ProtectionMode = "none" | "obfs" | "masquerade";
@@ -447,7 +448,7 @@ export default function HysteriaSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Hysteria" description="Manage Hysteria 2 server settings." />
+      <PageHeader title="Hysteria settings" icon={<Zap />} description="Configure server, TLS, authentication and transport modes." />
       <SectionNav items={tabs} />
 
       {error && (
@@ -457,11 +458,18 @@ export default function HysteriaSettingsPage() {
         </Alert>
       )}
 
+      {loading && (
+        <Alert>
+          <AlertTitle>Loading settings</AlertTitle>
+          <AlertDescription>Please wait.</AlertDescription>
+        </Alert>
+      )}
+
       {rawOnlyPaths.length > 0 && (
         <Alert>
           <AlertTriangle className="size-4" />
-          <AlertTitle>Advanced fields detected</AlertTitle>
-          <AlertDescription>Unmanaged YAML fields are present. Review them in Advanced / Raw YAML.</AlertDescription>
+          <AlertTitle>Unmanaged advanced fields detected</AlertTitle>
+          <AlertDescription>Raw YAML contains fields outside managed UI.</AlertDescription>
         </Alert>
       )}
 
@@ -469,48 +477,47 @@ export default function HysteriaSettingsPage() {
       <ValidationAlerts title="Rendered config" validation={configValidation} />
 
       <Card>
-        <CardHeader>
-          <CardTitle>Server Connection</CardTitle>
-          <CardDescription>Public endpoint.</CardDescription>
+        <CardHeader className="border-b pb-3">
+          <CardTitle>Server connection</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2">
+        <CardContent className="grid gap-4 pt-3 md:grid-cols-2">
           <TextField label="Port" value={port} onChange={(e) => setPort(e.target.value.replace(/[^0-9]/g, ""))} placeholder="443" />
-          <TextField label="Domain / Host" value={publicHost} onChange={(e) => setPublicHost(e.target.value)} placeholder="hy2.example.com" />
+          <TextField label="Domain or host" value={publicHost} onChange={(e) => setPublicHost(e.target.value)} placeholder="hy2.example.com" />
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Certificate Setup</CardTitle>
-          <CardDescription>TLS mode from official Hysteria 2 server config.</CardDescription>
+        <CardHeader className="border-b pb-3">
+          <CardTitle>TLS and certificates</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 pt-3">
           <div className="flex items-center justify-between rounded-lg border px-3 py-2">
             <div className="space-y-0.5">
               <Label>Enable TLS</Label>
-              <p className="text-xs text-muted-foreground">When disabled, `tls`/`acme` blocks are removed from managed config.</p>
+              <p className="text-xs text-muted-foreground">Disable only for explicit non-TLS deployments.</p>
             </div>
             <Switch checked={settings.tlsEnabled} onCheckedChange={(checked) => updateSetting("tlsEnabled", Boolean(checked))} />
           </div>
 
           {settings.tlsEnabled ? (
             <>
-              <SelectField
-                label="Certificate mode"
+              <Tabs
                 value={settings.tlsMode}
                 onValueChange={(value) => updateSetting("tlsMode", value === "tls" ? "tls" : "acme")}
-                options={[
-                  { value: "acme", label: "ACME" },
-                  { value: "tls", label: "TLS files" },
-                ]}
-              />
+                className="w-full"
+              >
+                <TabsList className="w-full md:w-auto">
+                  <TabsTrigger value="acme">ACME</TabsTrigger>
+                  <TabsTrigger value="tls">TLS files</TabsTrigger>
+                </TabsList>
+              </Tabs>
 
               {settings.tlsMode === "acme" ? (
                 <div className="grid gap-4 md:grid-cols-2">
                   <TextField
                     label="ACME domain"
                     value={settings.acme?.domains?.[0] || publicHost}
-                    onChange={(e) => updateSetting("acme", { ...(settings.acme || {}), domains: [e.target.value] })}
+                    onChange={(e) => { const value = e.target.value; setPublicHost(value); updateSetting("acme", { ...(settings.acme || {}), domains: [value] }); }}
                     placeholder="hy2.example.com"
                   />
                   <TextField
@@ -523,13 +530,13 @@ export default function HysteriaSettingsPage() {
               ) : (
                 <div className="grid gap-4 md:grid-cols-2">
                   <TextField
-                    label="TLS cert path"
+                    label="Certificate path"
                     value={settings.tls?.cert || ""}
                     onChange={(e) => updateSetting("tls", { ...(settings.tls || {}), cert: e.target.value })}
                     placeholder="/etc/hysteria/cert.pem"
                   />
                   <TextField
-                    label="TLS key path"
+                    label="Private key path"
                     value={settings.tls?.key || ""}
                     onChange={(e) => updateSetting("tls", { ...(settings.tls || {}), key: e.target.value })}
                     placeholder="/etc/hysteria/key.pem"
@@ -538,17 +545,16 @@ export default function HysteriaSettingsPage() {
               )}
             </>
           ) : (
-            <p className="text-sm text-muted-foreground">Enable TLS to configure `tls` or `acme` in managed mode.</p>
+            <p className="text-sm text-muted-foreground">Enable TLS to configure certificates.</p>
           )}
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="border-b pb-3">
           <CardTitle>Authentication</CardTitle>
-          <CardDescription>Auth block used by server config.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 pt-3">
           <SelectField
             label="Auth mode"
             value={settings.auth?.type || "password"}
@@ -578,13 +584,11 @@ export default function HysteriaSettingsPage() {
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Optional Protection</CardTitle>
-          <CardDescription>Choose one mode.</CardDescription>
+        <CardHeader className="border-b pb-3">
+          <CardTitle>Optional protection</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <SelectField
-            label="Protection mode"
+        <CardContent className="space-y-4 pt-3">
+          <Tabs
             value={protectionMode}
             onValueChange={(value) => {
               if (value === "obfs") {
@@ -611,12 +615,14 @@ export default function HysteriaSettingsPage() {
               }
               setSettings((prev) => normalizeSettings({ ...prev, obfs: undefined, masquerade: undefined }));
             }}
-            options={[
-              { value: "none", label: "None" },
-              { value: "obfs", label: "OBFS" },
-              { value: "masquerade", label: "Masquerade" },
-            ]}
-          />
+            className="w-full"
+          >
+            <TabsList className="w-full md:w-auto">
+              <TabsTrigger value="none">None</TabsTrigger>
+              <TabsTrigger value="obfs">OBFS</TabsTrigger>
+              <TabsTrigger value="masquerade">Masquerade</TabsTrigger>
+            </TabsList>
+          </Tabs>
 
           {protectionMode === "obfs" && (
             <div className="grid gap-4 md:grid-cols-[1fr_auto]">
@@ -629,7 +635,7 @@ export default function HysteriaSettingsPage() {
                     salamander: { password: e.target.value },
                   })
                 }
-                description="If empty, it will be generated on save."
+                description="Auto-generated on save if empty."
                 placeholder="salamander-secret"
               />
               <div className="flex items-end">
@@ -652,7 +658,7 @@ export default function HysteriaSettingsPage() {
           {protectionMode === "masquerade" && (
             <div className="space-y-4">
               <SelectField
-                label="Masquerade type"
+                label="Masquerade mode"
                 value={settings.masquerade?.type || "proxy"}
                 onValueChange={(value) =>
                   updateSetting("masquerade", {
@@ -734,15 +740,14 @@ export default function HysteriaSettingsPage() {
       </Card>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="border-b pb-3">
           <CardTitle>Advanced QUIC</CardTitle>
-          <CardDescription>Enable only if you need custom QUIC values.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 pt-3">
           <div className="flex items-center justify-between rounded-lg border px-3 py-2">
             <div className="space-y-0.5">
-              <Label>Use custom QUIC settings</Label>
-              <p className="text-xs text-muted-foreground">When disabled, server defaults are used.</p>
+              <Label>Use custom QUIC values</Label>
+              <p className="text-xs text-muted-foreground">Disabled means stable defaults.</p>
             </div>
             <Switch checked={settings.quicEnabled} onCheckedChange={(checked) => updateSetting("quicEnabled", Boolean(checked))} />
           </div>
@@ -791,7 +796,7 @@ export default function HysteriaSettingsPage() {
               <div className="flex items-center justify-between rounded-lg border px-3 py-2">
                 <div className="space-y-0.5">
                   <Label>disablePathMTUDiscovery</Label>
-                  <p className="text-xs text-muted-foreground">Set only when path MTU discovery causes issues.</p>
+                  <p className="text-xs text-muted-foreground">Use only if MTU discovery breaks traffic on your path.</p>
                 </div>
                 <Switch
                   checked={Boolean(settings.quic?.disablePathMTUDiscovery)}
@@ -804,11 +809,10 @@ export default function HysteriaSettingsPage() {
       </Card>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="border-b pb-3">
           <CardTitle>Actions</CardTitle>
-          <CardDescription>Validate, save, then apply.</CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-3">
+        <CardContent className="flex flex-wrap gap-3 pt-3">
           <Button variant="outline" onClick={() => void validateSettingsAction()} disabled={validating || loading}>
             <SearchCheck className="size-4" />
             {validating ? "Validating..." : "Validate"}
@@ -825,17 +829,16 @@ export default function HysteriaSettingsPage() {
       </Card>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="border-b pb-3">
           <CardTitle className="flex items-center gap-2">
             <Shield className="size-4" />
             Advanced / Raw YAML
           </CardTitle>
-          <CardDescription>Unmanaged low-level options.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 pt-3">
           <Button variant="outline" onClick={() => setAdvancedOpen((prev) => !prev)}>
             <FileText className="size-4" />
-            {advancedOpen ? "Hide Advanced YAML" : "Show Advanced YAML"}
+            {advancedOpen ? "Hide raw YAML" : "Show raw YAML"}
           </Button>
 
           {advancedOpen && (
@@ -866,13 +869,25 @@ export default function HysteriaSettingsPage() {
         onConfirm={applySettingsAction}
         busy={applying}
       />
-
-      {loading && (
-        <Alert>
-          <AlertTitle>Loading</AlertTitle>
-          <AlertDescription>Loading Hysteria settings...</AlertDescription>
-        </Alert>
-      )}
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

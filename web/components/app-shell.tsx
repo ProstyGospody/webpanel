@@ -12,9 +12,7 @@ import {
   Menu,
   Moon,
   PanelLeftClose,
-  PanelLeftOpen,
-  Settings,
-  ShieldCheck,
+  PanelLeftOpen,  ShieldCheck,
   Sun,
   User,
   Users,
@@ -76,15 +74,15 @@ const sections: NavigationSection[] = [
   {
     title: "Hysteria",
     items: [
-      { href: "/hysteria/users", label: "Users", icon: Zap },
-      { href: "/hysteria/settings", label: "Settings", icon: Settings },
+      { href: "/hysteria/users", label: "Users", icon: Users },
+      { href: "/hysteria/settings", label: "Settings", icon: Zap },
     ],
   },
   {
     title: "MTProxy",
     items: [
-      { href: "/mtproxy/users", label: "Users", icon: Send },
-      { href: "/mtproxy/settings", label: "Settings", icon: Settings },
+      { href: "/mtproxy/users", label: "Users", icon: Users },
+      { href: "/mtproxy/settings", label: "Settings", icon: Send },
     ],
   },
   {
@@ -237,7 +235,7 @@ function ShellNavigation({ pathname, collapsed, adminEmail, onNavigate }: ShellN
         ) : (
           <div className="rounded-lg border border-sidebar-border bg-sidebar-accent/40 p-2">
             <p className="truncate text-xs font-medium">{adminEmail}</p>
-            <p className="text-xs text-sidebar-foreground/70">Authenticated session</p>
+            
           </div>
         )}
       </div>
@@ -497,3 +495,6 @@ export function AppShell({ children }: PropsWithChildren) {
     </div>
   );
 }
+
+
+

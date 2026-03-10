@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Copy, Pencil, Plus, QrCode, Settings, Trash2, Users, Zap } from "lucide-react";
+import { Copy, Pencil, Plus, QrCode, Trash2, Users, Zap } from "lucide-react";
 
 import { apiFetch, toJSONBody } from "@/lib/api";
 import { copyToClipboard, formatBytes, formatDate } from "@/lib/format";
@@ -47,7 +47,7 @@ const POLL_INTERVAL_MS = 10000;
 
 const tabs = [
   { href: "/hysteria/users", label: "Users", icon: Users },
-  { href: "/hysteria/settings", label: "Settings", icon: Settings },
+  { href: "/hysteria/settings", label: "Settings", icon: Zap },
 ];
 
 function onlineTone(online: boolean): "success" | "neutral" {
@@ -292,7 +292,8 @@ export default function HysteriaUsersPage() {
     <div className="space-y-6">
       <PageHeader
         title="Hysteria"
-        description="Manage Hysteria users."
+        icon={<Zap />}
+        description="Manage Hysteria users and connection credentials."
         actions={
           <Button onClick={openCreate}>
             <Plus className="size-4" />
@@ -303,12 +304,12 @@ export default function HysteriaUsersPage() {
 
       <SectionNav items={tabs} />
 
-      {error && (
+      {error ? (
         <Alert variant="destructive">
           <AlertTitle>Request failed</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
-      )}
+      ) : null}
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Enabled" value={String(overview?.enabled_accounts ?? 0)} loading={loading} />
@@ -318,10 +319,10 @@ export default function HysteriaUsersPage() {
       </section>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="border-b pb-3">
           <CardTitle>Users</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-3">
           {loading ? (
             <div className="space-y-2">
               <Skeleton className="h-4 w-full" />
@@ -350,7 +351,7 @@ export default function HysteriaUsersPage() {
                     <TableRow key={item.id}>
                       <TableCell>
                         <div className="font-medium">{item.client_name || item.hy2_identity}</div>
-                        <div className="mt-1 max-w-[360px] truncate text-xs text-muted-foreground">Identity: {item.hy2_identity}</div>
+                        <div className="mt-1 max-w-[360px] truncate text-xs text-muted-foreground">ID: {item.hy2_identity}</div>
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1.5">
@@ -463,34 +464,29 @@ export default function HysteriaUsersPage() {
         busy={deleteBusy}
       />
 
-      <Dialog
-        open={qrOpen}
-        title={qrTitle ? `Show QR: ${qrTitle}` : "Show QR"}
-        onClose={() => setQROpen(false)}
-        size="sm"
-        actions={
-          <Button variant="secondary" type="button" onClick={() => void copyValue(uriValue, "uri")}>
-            {copiedKey === "uri" ? "Copied" : "Copy link"}
-          </Button>
-        }
-      >
-        <div className="flex justify-center">
-          {qrAccountID && uriValue ? (
-            <button
-              type="button"
-              onClick={() => void copyValue(uriValue, "uri")}
-              className="rounded-xl border bg-background p-2 transition-colors hover:bg-muted/40"
-              aria-label="Copy connection link"
-            >
-              <img
-                src={`/api/hy2/accounts/${qrAccountID}/qr?size=360`}
-                alt="Hysteria connection QR"
-                className="h-64 w-64 rounded-lg bg-white p-2 object-contain"
-              />
-            </button>
-          ) : (
-            <Skeleton className="h-64 w-64 rounded-lg" />
-          )}
+      <Dialog open={qrOpen} title={qrTitle || "Connection QR"} onClose={() => setQROpen(false)} size="sm">
+        <div className="space-y-3">
+          <div className="flex justify-center">
+            {qrAccountID && uriValue ? (
+              <button
+                type="button"
+                onClick={() => void copyValue(uriValue, "uri")}
+                className="rounded-xl border bg-background p-2 transition-colors hover:bg-muted/40"
+                aria-label="Copy connection link"
+              >
+                <img
+                  src={`/api/hy2/accounts/${qrAccountID}/qr?size=360`}
+                  alt="Hysteria connection QR"
+                  className="h-64 w-64 rounded-lg bg-white p-2 object-contain"
+                />
+              </button>
+            ) : (
+              <Skeleton className="h-64 w-64 rounded-lg" />
+            )}
+          </div>
+          <p className="text-center text-xs text-muted-foreground">
+            Click QR to copy link {copiedKey === "uri" ? "(copied)" : ""}
+          </p>
         </div>
       </Dialog>
     </div>

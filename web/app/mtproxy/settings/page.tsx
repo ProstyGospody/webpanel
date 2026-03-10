@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Activity, Settings, Users } from "lucide-react";
+import { Activity, Send, Users } from "lucide-react";
 
 import { apiFetch } from "@/lib/api";
 import { formatDate } from "@/lib/format";
@@ -30,7 +30,7 @@ type ServiceDetails = {
 
 const tabs = [
   { href: "/mtproxy/users", label: "Users", icon: Users },
-  { href: "/mtproxy/settings", label: "Settings", icon: Settings },
+  { href: "/mtproxy/settings", label: "Settings", icon: Send },
 ];
 
 export default function MTProxySettingsPage() {
@@ -79,7 +79,7 @@ export default function MTProxySettingsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="MTProxy" description="MTProxy runtime settings." />
+      <PageHeader title="MTProxy settings" icon={<Send />} description="Runtime parameters and service status." />
 
       <SectionNav items={tabs} />
 
@@ -91,11 +91,10 @@ export default function MTProxySettingsPage() {
       ) : null}
 
       <Card>
-        <CardHeader>
+        <CardHeader className="border-b pb-3">
           <CardTitle>Runtime parameters</CardTitle>
-
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-3">
           {loading ? (
             <div className="space-y-2">
               <Skeleton className="h-10 w-full" />
@@ -110,11 +109,10 @@ export default function MTProxySettingsPage() {
       </Card>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="border-b pb-3">
           <CardTitle>Live status</CardTitle>
-
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-3">
           {loading ? (
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <Skeleton className="h-20 w-full rounded-lg" />
@@ -160,3 +158,5 @@ function serviceTone(status: string): "success" | "warning" | "danger" | "neutra
   }
   return "neutral";
 }
+
+

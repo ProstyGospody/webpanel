@@ -2,7 +2,7 @@
 
 import { useParams } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
-import { Copy, LogOut, Plus, Send, Settings2, UserMinus, UserPlus, Zap } from "lucide-react";
+import { Copy, LogOut, Plus, Send, Settings2, UserMinus, UserPlus, Users, Zap } from "lucide-react";
 
 import { apiFetch, toJSONBody } from "@/lib/api";
 import { copyToClipboard, formatDate } from "@/lib/format";
@@ -15,7 +15,7 @@ import { StatusBadge } from "@/components/app/status-badge";
 import { TextareaField } from "@/components/app/fields";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type ClientPayload = {
@@ -261,8 +261,8 @@ export default function ClientDetailsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`Client: ${payload.client.name}`}
-        description={`Email: ${payload.client.email || "-"}`}
+        title={payload.client.name}
+        description={`Email: ${payload.client.email || "-"}`} icon={<Users />}
         actions={
           payload.client.is_active ? (
             <Button variant="destructive" onClick={() => setPendingAction({ kind: "client", enable: false })}>
@@ -286,11 +286,10 @@ export default function ClientDetailsPage() {
       )}
 
       <Card>
-        <CardHeader>
+        <CardHeader className="border-b pb-3">
           <CardTitle>Profile</CardTitle>
-          <CardDescription>Updated: {formatDate(payload.client.updated_at)}</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 pt-3">
           <div className="flex flex-wrap gap-2">
             <StatusBadge tone={payload.client.is_active ? "success" : "danger"}>{payload.client.is_active ? "Enabled" : "Disabled"}</StatusBadge>
           </div>
@@ -308,17 +307,16 @@ export default function ClientDetailsPage() {
       </Card>
 
       <Card>
-        <CardHeader className="gap-3 md:flex-row md:items-start md:justify-between">
-          <div>
+        <CardHeader className="border-b pb-3">
+          <div className="flex items-center justify-between gap-3">
             <CardTitle>Hysteria accounts</CardTitle>
-            <CardDescription>Hysteria access for this client.</CardDescription>
+            <Button onClick={() => void createHy2()}>
+              <Plus className="size-4" />
+              Add access
+            </Button>
           </div>
-          <Button onClick={() => void createHy2()}>
-            <Plus className="size-4" />
-            Add access
-          </Button>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-3">
           {payload.hy2_accounts.length === 0 ? (
             <EmptyState title="No Hysteria accounts" description="Create access to issue Hysteria credentials." icon={Zap} />
           ) : (
@@ -371,17 +369,16 @@ export default function ClientDetailsPage() {
       </Card>
 
       <Card>
-        <CardHeader className="gap-3 md:flex-row md:items-start md:justify-between">
-          <div>
+        <CardHeader className="border-b pb-3">
+          <div className="flex items-center justify-between gap-3">
             <CardTitle>MTProxy secrets</CardTitle>
-            <CardDescription>MTProxy access for this client.</CardDescription>
+            <Button onClick={() => void createSecret()}>
+              <Plus className="size-4" />
+              Add secret
+            </Button>
           </div>
-          <Button onClick={() => void createSecret()}>
-            <Plus className="size-4" />
-            Add secret
-          </Button>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-3">
           {payload.mtproxy_secrets.length === 0 ? (
             <EmptyState title="No MTProxy secrets" description="Create a secret to allow MTProxy access." icon={Send} />
           ) : (
@@ -456,3 +453,8 @@ export default function ClientDetailsPage() {
     </div>
   );
 }
+
+
+
+
+

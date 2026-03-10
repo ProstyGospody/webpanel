@@ -14,7 +14,7 @@ import { ConfirmDialog } from "@/components/dialog";
 import { OverflowMenu } from "@/components/overflow-menu";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type ServiceDetails = {
@@ -116,10 +116,7 @@ export default function ServicesPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Services"
-        description="Control services and view logs."
-      />
+      <PageHeader title="Services" icon={<Wrench />} description="Manage service state and recent logs." />
 
       {error && (
         <Alert variant="destructive">
@@ -130,11 +127,10 @@ export default function ServicesPage() {
 
       <div className="grid gap-4 xl:grid-cols-2">
         <Card>
-          <CardHeader>
+          <CardHeader className="border-b pb-3">
             <CardTitle>Managed services</CardTitle>
-
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-3">
             {services.length === 0 ? (
               <EmptyState title="No services found" description="Backend did not return managed systemd units." icon={Wrench} />
             ) : (
@@ -195,11 +191,10 @@ export default function ServicesPage() {
         </Card>
 
         <Card>
-          <CardHeader>
+          <CardHeader className="border-b pb-3">
             <CardTitle>Service logs</CardTitle>
-
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-3 pt-3">
             {!selected && (
               <EmptyState title="Select a service" description="Choose a service to inspect runtime status and logs." icon={TerminalSquare} />
             )}
@@ -243,3 +238,6 @@ export default function ServicesPage() {
     </div>
   );
 }
+
+
+

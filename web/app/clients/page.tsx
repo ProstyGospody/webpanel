@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
@@ -15,7 +15,8 @@ import { StatusBadge } from "@/components/app/status-badge";
 import { TextField } from "@/components/app/fields";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type CreateClientErrors = {
@@ -121,10 +122,7 @@ export default function ClientsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Clients"
-        description="Reusable client identities shared across Hysteria 2 and MTProxy access flows."
-      />
+      <PageHeader title="Clients" icon={<Users />} description="Shared identities for Hysteria 2 and MTProxy." />
 
       {error ? (
         <Alert variant="destructive">
@@ -134,11 +132,10 @@ export default function ClientsPage() {
       ) : null}
 
       <Card>
-        <CardHeader>
+        <CardHeader className="border-b pb-3">
           <CardTitle>Create client</CardTitle>
-          <CardDescription>Create a reusable identity for protocol users and secrets.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-3">
           <form className="grid gap-4 md:grid-cols-2" onSubmit={onCreate} noValidate>
             <TextField
               label="Client name"
@@ -170,7 +167,7 @@ export default function ClientsPage() {
               className="md:col-span-2"
               value={note}
               onChange={(event) => setNote(event.target.value)}
-              placeholder="Optional context for administrators"
+              placeholder="Optional note"
             />
             <div className="md:col-span-2 flex justify-end">
               <Button type="submit">
@@ -183,26 +180,26 @@ export default function ClientsPage() {
       </Card>
 
       <Card>
-        <CardHeader className="gap-3 md:flex-row md:items-start md:justify-between">
-          <div>
+        <CardHeader className="border-b pb-3">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <CardTitle>Client directory</CardTitle>
-            <CardDescription>{`Total clients: ${clients.length}`}</CardDescription>
+            <form onSubmit={onSearchSubmit} noValidate className="flex w-full max-w-sm items-center gap-2">
+              <div className="relative w-full">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  className="pl-8"
+                  placeholder="Filter by name or email"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+              </div>
+              <Button variant="outline" type="submit" className="shrink-0">
+                Search
+              </Button>
+            </form>
           </div>
-          <form onSubmit={onSearchSubmit} noValidate className="flex w-full max-w-sm items-end gap-2">
-            <TextField
-              className="w-full"
-              label="Search"
-              placeholder="Filter by name or email"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-            <Button variant="outline" type="submit" className="shrink-0">
-              <Search className="size-4" />
-              Search
-            </Button>
-          </form>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-3">
           {clients.length === 0 ? (
             <EmptyState title="No clients found" description="Create a client or change your search filter." icon={Users} />
           ) : (
@@ -276,4 +273,3 @@ export default function ClientsPage() {
     </div>
   );
 }
-

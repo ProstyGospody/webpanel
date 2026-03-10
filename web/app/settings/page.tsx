@@ -1,42 +1,40 @@
 import Link from "next/link";
-import { Send, Zap } from "lucide-react";
+import { Send, Settings, Zap } from "lucide-react";
 
 import { PageHeader } from "@/components/app/page-header";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function SettingsHubPage() {
   return (
     <div className="space-y-6">
-      <PageHeader title="Settings" description="Configure Hysteria 2 and MTProxy." />
+      <PageHeader title="Settings" icon={<Settings />} description="Choose a service to configure." />
 
       <div className="grid gap-4 xl:grid-cols-2">
         <Card>
-          <CardHeader>
-            <CardTitle>Hysteria 2</CardTitle>
-            <CardDescription>Server configuration and advanced YAML.</CardDescription>
+          <CardHeader className="border-b pb-3">
+            <CardTitle className="flex items-center gap-2">
+              <Zap className="size-4 text-muted-foreground" />
+              Hysteria 2
+            </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-3">
             <Link href="/hysteria/settings" className="inline-flex">
-              <Button variant="secondary">
-                <Zap className="size-4" />
-                Open Hysteria settings
-              </Button>
+              <Button variant="secondary">Open settings</Button>
             </Link>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle>MTProxy</CardTitle>
-            <CardDescription>Runtime parameters and service state.</CardDescription>
+          <CardHeader className="border-b pb-3">
+            <CardTitle className="flex items-center gap-2">
+              <Send className="size-4 text-muted-foreground" />
+              MTProxy
+            </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-3">
             <Link href="/mtproxy/settings" className="inline-flex">
-              <Button variant="secondary">
-                <Send className="size-4" />
-                Open MTProxy settings
-              </Button>
+              <Button variant="secondary">Open settings</Button>
             </Link>
           </CardContent>
         </Card>

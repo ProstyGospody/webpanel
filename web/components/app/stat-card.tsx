@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -15,16 +15,16 @@ type StatCardProps = {
 
 export function StatCard({ label, value, description, icon, className, loading = false }: StatCardProps) {
   return (
-    <Card size="sm" className={cn("gap-1", className)}>
-      <CardHeader className="pb-1">
-        <div className="flex items-start justify-between gap-3">
-          <CardDescription className="text-xs font-medium uppercase tracking-wide">{label}</CardDescription>
+    <Card size="sm" className={cn("gap-2", className)}>
+      <CardHeader className="pb-0">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm font-medium text-muted-foreground">{label}</p>
           {icon ? <span className="text-muted-foreground [&>svg]:size-5">{icon}</span> : null}
         </div>
       </CardHeader>
       <CardContent className="space-y-1">
-        {loading ? <Skeleton className="h-9 w-28 rounded-md" /> : <CardTitle className="text-3xl font-semibold tabular-nums">{value}</CardTitle>}
-        {description ? <CardDescription className="text-xs">{description}</CardDescription> : null}
+        {loading ? <Skeleton className="h-9 w-28 rounded-md" /> : <p className="text-3xl font-semibold tabular-nums">{value}</p>}
+        {description ? <p className="text-xs text-muted-foreground">{description}</p> : null}
       </CardContent>
     </Card>
   );

@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   Activity,
   ArrowDownLeft,
   ArrowUpRight,
   Cpu,
   HardDrive,
+  LayoutDashboard,
   MemoryStick,
   Network,
   RefreshCw,
@@ -21,16 +22,9 @@ import { StatCard } from "@/components/app/stat-card";
 import { StatusBadge } from "@/components/app/status-badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ChartContainer,
@@ -104,10 +98,11 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <PageHeader
         title="Dashboard"
-        description="Server overview."
+        icon={<LayoutDashboard />}
+        description="Server health and traffic overview."
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className="gap-1">
+            <Badge variant="outline" className="gap-1.5">
               <RefreshCw className={refreshing ? "size-3.5 animate-spin" : "size-3.5"} />
               {refreshing ? "Refreshing" : "Live"}
             </Badge>
@@ -116,59 +111,33 @@ export default function DashboardPage() {
         }
       />
 
-      {topError && (
+      {topError ? (
         <Alert variant="destructive">
           <AlertTitle>Dashboard unavailable</AlertTitle>
           <AlertDescription>{topError}</AlertDescription>
         </Alert>
-      )}
+      ) : null}
 
-      {!topError && partialErrors.length > 0 && (
+      {!topError && partialErrors.length > 0 ? (
         <Alert>
           <AlertTitle>Partial data</AlertTitle>
           <AlertDescription>{partialErrors.slice(0, 3).join(" | ")}</AlertDescription>
         </Alert>
-      )}
+      ) : null}
+
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="summary-cards">
-        <StatCard
-          label="CPU"
-          value={formatPercent(data?.summary.cpuPercent)}
-          icon={<Cpu className="size-4" />}
-          loading={loading}
-        />
-        <StatCard
-          label="RAM"
-          value={formatPercent(data?.summary.memoryUsagePercent)}
-          icon={<MemoryStick className="size-4" />}
-          loading={loading}
-        />
-        <StatCard
-          label="Download"
-          value={formatRate(data?.summary.networkRxBps)}
-          icon={<ArrowDownLeft className="size-4" />}
-          loading={loading}
-        />
-        <StatCard
-          label="Upload"
-          value={formatRate(data?.summary.networkTxBps)}
-          icon={<ArrowUpRight className="size-4" />}
-          loading={loading}
-        />
+        <StatCard label="CPU" value={formatPercent(data?.summary.cpuPercent)} icon={<Cpu />} loading={loading} />
+        <StatCard label="RAM" value={formatPercent(data?.summary.memoryUsagePercent)} icon={<MemoryStick />} loading={loading} />
+        <StatCard label="Download" value={formatRate(data?.summary.networkRxBps)} icon={<ArrowDownLeft />} loading={loading} />
+        <StatCard label="Upload" value={formatRate(data?.summary.networkTxBps)} icon={<ArrowUpRight />} loading={loading} />
       </section>
 
       <section className="space-y-4" aria-label="time-series">
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="border-b pb-3">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <CardTitle>CPU usage</CardTitle>
-
-              </div>
-              <Tabs
-                value={cpuWindow}
-                onValueChange={(value) => setCpuWindow(value as CpuWindow)}
-                className="w-full max-w-[260px]"
-              >
+              <CardTitle>CPU usage</CardTitle>
+              <Tabs value={cpuWindow} onValueChange={(value) => setCpuWindow(value as CpuWindow)} className="w-full max-w-[220px]">
                 <TabsList variant="line" className="w-full">
                   <TabsTrigger value="15m" className="flex-1">
                     15m
@@ -180,7 +149,7 @@ export default function DashboardPage() {
               </Tabs>
             </div>
           </CardHeader>
-          <CardContent className="pt-2">
+          <CardContent className="pt-3">
             {loading ? (
               <Skeleton className="h-[280px] w-full rounded-lg" />
             ) : (
@@ -209,11 +178,10 @@ export default function DashboardPage() {
         </Card>
 
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="border-b pb-3">
             <CardTitle>RAM usage</CardTitle>
-
           </CardHeader>
-          <CardContent className="pt-2">
+          <CardContent className="pt-3">
             {loading ? (
               <Skeleton className="h-[280px] w-full rounded-lg" />
             ) : (
@@ -229,37 +197,28 @@ export default function DashboardPage() {
         </Card>
 
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="border-b pb-3">
             <CardTitle>Network throughput</CardTitle>
-
           </CardHeader>
-          <CardContent className="pt-2">
-            {loading ? (
-              <Skeleton className="h-[280px] w-full rounded-lg" />
-            ) : (
-              <NetworkLineChart data={networkData} />
-            )}
-          </CardContent>
+          <CardContent className="pt-3">{loading ? <Skeleton className="h-[280px] w-full rounded-lg" /> : <NetworkLineChart data={networkData} />}</CardContent>
         </Card>
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]" aria-label="bottom-metrics">
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="border-b pb-3">
             <CardTitle>Network interfaces</CardTitle>
-
           </CardHeader>
-          <CardContent className="pt-2">
+          <CardContent className="pt-3">
             <InterfaceTable loading={loading} rows={data?.interfaces || []} />
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="border-b pb-3">
             <CardTitle>Host signals</CardTitle>
-
           </CardHeader>
-          <CardContent className="space-y-3 pt-2">
+          <CardContent className="space-y-3 pt-3">
             {loading ? (
               <>
                 <Skeleton className="h-14 w-full rounded-lg" />
@@ -271,18 +230,10 @@ export default function DashboardPage() {
                 <HostSignalRow
                   label="Load average"
                   value={`${formatLoad(data?.extras.load1)} / ${formatLoad(data?.extras.load5)} / ${formatLoad(data?.extras.load15)}`}
-                  icon={<Activity className="size-4" />}
+                  icon={<Activity className="size-5" />}
                 />
-                <HostSignalRow
-                  label="Disk read"
-                  value={formatRate(data?.extras.diskReadBps)}
-                  icon={<HardDrive className="size-4" />}
-                />
-                <HostSignalRow
-                  label="Disk write"
-                  value={formatRate(data?.extras.diskWriteBps)}
-                  icon={<Network className="size-4" />}
-                />
+                <HostSignalRow label="Disk read" value={formatRate(data?.extras.diskReadBps)} icon={<HardDrive className="size-5" />} />
+                <HostSignalRow label="Disk write" value={formatRate(data?.extras.diskWriteBps)} icon={<Network className="size-5" />} />
               </>
             )}
           </CardContent>
@@ -306,7 +257,7 @@ function SeriesAreaChart({
   yTickFormatter: (value: number) => string;
 }) {
   if (data.length === 0) {
-    return <EmptyChartState message="No samples available for this window." />;
+    return <EmptyChartState message="No samples for this period." />;
   }
 
   return (
@@ -320,12 +271,7 @@ function SeriesAreaChart({
           minTickGap={36}
           tickFormatter={(value) => formatTimeTick(String(value))}
         />
-        <YAxis
-          width={56}
-          tickLine={false}
-          axisLine={false}
-          tickFormatter={(value) => yTickFormatter(Number(value))}
-        />
+        <YAxis width={56} tickLine={false} axisLine={false} tickFormatter={(value) => yTickFormatter(Number(value))} />
         <ChartTooltip
           cursor={false}
           content={
@@ -357,7 +303,7 @@ function SeriesAreaChart({
 
 function NetworkLineChart({ data }: { data: Array<{ timestamp: string; rxBps: number | null; txBps: number | null }> }) {
   if (data.length === 0) {
-    return <EmptyChartState message="No network samples available for this window." />;
+    return <EmptyChartState message="No network samples for this period." />;
   }
 
   return (
@@ -371,12 +317,7 @@ function NetworkLineChart({ data }: { data: Array<{ timestamp: string; rxBps: nu
           minTickGap={36}
           tickFormatter={(value) => formatTimeTick(String(value))}
         />
-        <YAxis
-          width={72}
-          tickLine={false}
-          axisLine={false}
-          tickFormatter={(value) => formatRate(Number(value))}
-        />
+        <YAxis width={72} tickLine={false} axisLine={false} tickFormatter={(value) => formatRate(Number(value))} />
         <ChartTooltip
           cursor={false}
           content={
@@ -393,22 +334,8 @@ function NetworkLineChart({ data }: { data: Array<{ timestamp: string; rxBps: nu
           }
         />
         <ChartLegend content={<ChartLegendContent />} />
-        <Line
-          type="monotone"
-          dataKey="rxBps"
-          stroke="var(--color-rxBps)"
-          strokeWidth={2}
-          dot={false}
-          connectNulls
-        />
-        <Line
-          type="monotone"
-          dataKey="txBps"
-          stroke="var(--color-txBps)"
-          strokeWidth={2}
-          dot={false}
-          connectNulls
-        />
+        <Line type="monotone" dataKey="rxBps" stroke="var(--color-rxBps)" strokeWidth={2} dot={false} connectNulls />
+        <Line type="monotone" dataKey="txBps" stroke="var(--color-txBps)" strokeWidth={2} dot={false} connectNulls />
       </LineChart>
     </ChartContainer>
   );
@@ -487,7 +414,7 @@ function HealthBadge({ health }: { health: DashboardInterfaceRow["health"] }) {
   return <StatusBadge tone="neutral">Unknown</StatusBadge>;
 }
 
-function HostSignalRow({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
+function HostSignalRow({ label, value, icon }: { label: string; value: string; icon: ReactNode }) {
   return (
     <div className="flex items-center justify-between rounded-lg border border-border/70 bg-muted/20 px-3 py-2.5">
       <div className="flex items-center gap-2 text-muted-foreground">
@@ -513,7 +440,6 @@ function formatPercent(value: number | null | undefined): string {
   }
   return `${value.toFixed(1)}%`;
 }
-
 
 function formatSmallRate(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) {
@@ -545,3 +471,4 @@ function formatTimeTick(value: string): string {
     minute: "2-digit",
   });
 }
+

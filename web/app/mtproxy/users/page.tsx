@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Copy, Pencil, Plus, QrCode, Send, Settings, Trash2, Users } from "lucide-react";
+import { Copy, Pencil, Plus, QrCode, Send, Trash2, Users } from "lucide-react";
 
 import { apiFetch, toJSONBody } from "@/lib/api";
 import { copyToClipboard, formatDate } from "@/lib/format";
@@ -52,7 +52,7 @@ const POLL_INTERVAL_MS = 10000;
 
 const tabs = [
   { href: "/mtproxy/users", label: "Users", icon: Users },
-  { href: "/mtproxy/settings", label: "Settings", icon: Settings },
+  { href: "/mtproxy/settings", label: "Settings", icon: Send },
 ];
 
 export default function MTProxyUsersPage() {
@@ -286,7 +286,8 @@ export default function MTProxyUsersPage() {
     <div className="space-y-6">
       <PageHeader
         title="MTProxy"
-        description="Manage MTProxy users."
+        icon={<Send />}
+        description="Manage MTProxy users and connection links."
         actions={
           <Button onClick={openCreate}>
             <Plus className="size-4" />
@@ -297,12 +298,12 @@ export default function MTProxyUsersPage() {
 
       <SectionNav items={tabs} />
 
-      {error && (
+      {error ? (
         <Alert variant="destructive">
           <AlertTitle>Request failed</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
-      )}
+      ) : null}
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <StatCard label="Enabled" value={String(overview?.enabled_secrets ?? 0)} loading={loading} />
@@ -311,10 +312,10 @@ export default function MTProxyUsersPage() {
       </section>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="border-b pb-3">
           <CardTitle>Users</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-3">
           {loading ? (
             <div className="space-y-2">
               <Skeleton className="h-4 w-full" />
@@ -450,34 +451,29 @@ export default function MTProxyUsersPage() {
         busy={deleteBusy}
       />
 
-      <Dialog
-        open={qrOpen}
-        title={qrTitle ? `Show QR: ${qrTitle}` : "Show QR"}
-        onClose={() => setQROpen(false)}
-        size="sm"
-        actions={
-          <Button variant="secondary" type="button" onClick={() => void copyValue(linkValue, "tg-link")}>
-            {copiedKey === "tg-link" ? "Copied" : "Copy link"}
-          </Button>
-        }
-      >
-        <div className="flex justify-center">
-          {qrSecretID && linkValue ? (
-            <button
-              type="button"
-              onClick={() => void copyValue(linkValue, "tg-link")}
-              className="rounded-xl border bg-background p-2 transition-colors hover:bg-muted/40"
-              aria-label="Copy connection link"
-            >
-              <img
-                src={`/api/mtproxy/secrets/${qrSecretID}/qr?size=360`}
-                alt="MTProxy connection QR"
-                className="h-64 w-64 rounded-lg bg-white p-2 object-contain"
-              />
-            </button>
-          ) : (
-            <Skeleton className="h-64 w-64 rounded-lg" />
-          )}
+      <Dialog open={qrOpen} title={qrTitle || "Connection QR"} onClose={() => setQROpen(false)} size="sm">
+        <div className="space-y-3">
+          <div className="flex justify-center">
+            {qrSecretID && linkValue ? (
+              <button
+                type="button"
+                onClick={() => void copyValue(linkValue, "tg-link")}
+                className="rounded-xl border bg-background p-2 transition-colors hover:bg-muted/40"
+                aria-label="Copy connection link"
+              >
+                <img
+                  src={`/api/mtproxy/secrets/${qrSecretID}/qr?size=360`}
+                  alt="MTProxy connection QR"
+                  className="h-64 w-64 rounded-lg bg-white p-2 object-contain"
+                />
+              </button>
+            ) : (
+              <Skeleton className="h-64 w-64 rounded-lg" />
+            )}
+          </div>
+          <p className="text-center text-xs text-muted-foreground">
+            Click QR to copy link {copiedKey === "tg-link" ? "(copied)" : ""}
+          </p>
         </div>
       </Dialog>
     </div>

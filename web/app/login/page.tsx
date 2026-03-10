@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -68,10 +68,10 @@ export default function LoginPage() {
 
   return (
     <div className="grid min-h-screen place-items-center p-4">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md shadow-sm">
         <CardHeader className="space-y-2">
-          <CardTitle className="text-2xl">Proxy Panel Login</CardTitle>
-          <CardDescription>Sign in with your administrator credentials.</CardDescription>
+          <CardTitle className="text-2xl">Proxy Panel</CardTitle>
+          <CardDescription>Sign in to continue.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {error && (
@@ -118,4 +118,5 @@ export default function LoginPage() {
     </div>
   );
 }
+
 
