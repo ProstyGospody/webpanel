@@ -42,7 +42,7 @@ export default function AuditPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Audit" icon={<History />} description="Administrative activity log." />
+      <PageHeader title="Audit" icon={<History />} description="Administrative activity log." meta={`${filtered.length} records`} />
 
       {error ? (
         <Alert variant="destructive">
@@ -101,3 +101,4 @@ export default function AuditPage() {
     </div>
   );
 }
+

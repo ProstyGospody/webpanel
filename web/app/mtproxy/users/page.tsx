@@ -353,7 +353,7 @@ export default function MTProxyUsersPage() {
                       <TableCell className="text-muted-foreground">{formatDate(item.last_seen_at)}</TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-2">
-                          <Button variant="secondary" size="sm" onClick={() => void openQR(item)} disabled={busy}>
+                          <Button variant="outline" size="sm" onClick={() => void openQR(item)} disabled={busy}>
                             <QrCode className="size-4" />
                             Show QR
                           </Button>
@@ -452,7 +452,7 @@ export default function MTProxyUsersPage() {
       />
 
       <Dialog open={qrOpen} title={qrTitle || "Connection QR"} onClose={() => setQROpen(false)} size="sm">
-        <div className="space-y-3">
+        <div className="space-y-2">
           <div className="flex justify-center">
             {qrSecretID && linkValue ? (
               <button
@@ -471,11 +471,9 @@ export default function MTProxyUsersPage() {
               <Skeleton className="h-64 w-64 rounded-lg" />
             )}
           </div>
-          <p className="text-center text-xs text-muted-foreground">
-            Click QR to copy link {copiedKey === "tg-link" ? "(copied)" : ""}
-          </p>
         </div>
       </Dialog>
     </div>
   );
 }
+

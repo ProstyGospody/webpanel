@@ -183,8 +183,6 @@ function generateSecret(size = 16): string {
 
 export default function HysteriaSettingsPage() {
   const { push } = useToast();
-
-  const [path, setPath] = useState("");
   const [settings, setSettings] = useState<Hy2Settings>(DEFAULT_SETTINGS);
   const [savedSettings, setSavedSettings] = useState<Hy2Settings>(DEFAULT_SETTINGS);
   const [publicHost, setPublicHost] = useState("");
@@ -298,9 +296,9 @@ export default function HysteriaSettingsPage() {
       const payload = await apiFetch<Hy2SettingsPayload>("/api/hy2/settings");
       const normalizedSettings = normalizeSettings(payload.settings);
       const listenParts = parseListen(normalizedSettings.listen);
-      const hostFromSettings = normalizedSettings.tlsEnabled && normalizedSettings.tlsMode === "acme" ? normalizedSettings.acme?.domains?.[0] || "" : "";
+      const hostFromSettings =
+        normalizedSettings.tlsEnabled && normalizedSettings.tlsMode === "acme" ? normalizedSettings.acme?.domains?.[0] || "" : "";
 
-      setPath(payload.path || "");
       setSettings(normalizedSettings);
       setSavedSettings(normalizedSettings);
       setPort(listenParts.port || "443");
@@ -458,13 +456,6 @@ export default function HysteriaSettingsPage() {
         </Alert>
       )}
 
-      {loading && (
-        <Alert>
-          <AlertTitle>Loading settings</AlertTitle>
-          <AlertDescription>Please wait.</AlertDescription>
-        </Alert>
-      )}
-
       {rawOnlyPaths.length > 0 && (
         <Alert>
           <AlertTriangle className="size-4" />
@@ -555,15 +546,16 @@ export default function HysteriaSettingsPage() {
           <CardTitle>Authentication</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 pt-3">
-          <SelectField
-            label="Auth mode"
+          <Tabs
             value={settings.auth?.type || "password"}
             onValueChange={(value) => updateSetting("auth", { ...(settings.auth || {}), type: value === "http" ? "http" : "password" })}
-            options={[
-              { value: "password", label: "Password" },
-              { value: "http", label: "HTTP endpoint" },
-            ]}
-          />
+            className="w-full"
+          >
+            <TabsList className="w-full md:w-auto">
+              <TabsTrigger value="password">Password</TabsTrigger>
+              <TabsTrigger value="http">HTTP endpoint</TabsTrigger>
+            </TabsList>
+          </Tabs>
 
           {(settings.auth?.type || "password") === "password" ? (
             <TextField
@@ -843,7 +835,6 @@ export default function HysteriaSettingsPage() {
 
           {advancedOpen && (
             <>
-              <div className="text-xs text-muted-foreground">Path: {path || "-"}</div>
               <TextareaField label="server.yaml" value={rawYaml} onChange={(e) => setRawYaml(e.target.value)} className="min-h-[380px] font-mono text-xs" />
               <div className="flex flex-wrap gap-3">
                 <Button variant="outline" onClick={() => void validateRawYAMLAction()} disabled={validatingYaml || loading}>
@@ -872,22 +863,4 @@ export default function HysteriaSettingsPage() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

@@ -13,7 +13,7 @@ import { StatusBadge } from "@/components/app/status-badge";
 import { StatCard } from "@/components/app/stat-card";
 import { KeyValueList } from "@/components/app/key-value-list";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type MTOverview = {
@@ -127,14 +127,14 @@ export default function MTProxySettingsPage() {
               <StatCard label="Users" value={String(overview?.users_total ?? 0)} />
               <Card size="sm" className="gap-2">
                 <CardHeader className="pb-0">
-                  <CardDescription className="text-xs font-medium uppercase tracking-wide">Service</CardDescription>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Service</p>
+                    <Activity className="size-4 text-muted-foreground" />
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Activity className="size-4 text-muted-foreground" />
-                    <StatusBadge tone={serviceTone(service?.status_text || "")}>{service?.status_text || "-"}</StatusBadge>
-                  </div>
-                  <CardDescription>Updated: {formatDate(service?.checked_at || null)}</CardDescription>
+                  <StatusBadge tone={serviceTone(service?.status_text || "")}>{service?.status_text || "-"}</StatusBadge>
+                  <p className="text-xs text-muted-foreground">Updated {formatDate(service?.checked_at || null)}</p>
                 </CardContent>
               </Card>
             </div>

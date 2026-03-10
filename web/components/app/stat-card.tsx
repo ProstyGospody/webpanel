@@ -18,8 +18,12 @@ export function StatCard({ label, value, description, icon, className, loading =
     <Card size="sm" className={cn("gap-2", className)}>
       <CardHeader className="pb-0">
         <div className="flex items-center justify-between gap-3">
-          <p className="text-sm font-medium text-muted-foreground">{label}</p>
-          {icon ? <span className="text-muted-foreground [&>svg]:size-5">{icon}</span> : null}
+          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{label}</p>
+          {icon ? (
+            <span className="grid size-8 place-items-center rounded-md bg-muted/35 text-muted-foreground [&>svg]:size-4.5">
+              {icon}
+            </span>
+          ) : null}
         </div>
       </CardHeader>
       <CardContent className="space-y-1">
@@ -29,3 +33,4 @@ export function StatCard({ label, value, description, icon, className, loading =
     </Card>
   );
 }
+

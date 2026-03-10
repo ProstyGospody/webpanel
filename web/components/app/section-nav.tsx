@@ -22,7 +22,7 @@ export function SectionNav({ items, className }: SectionNavProps) {
 
   return (
     <nav className={cn("w-full overflow-x-auto", className)} aria-label="Section navigation">
-      <ul className="inline-flex min-w-max items-center gap-1 rounded-lg border bg-muted/40 p-1">
+      <ul className="inline-flex min-w-max items-center gap-1 rounded-lg border bg-muted/35 p-1">
         {items.map((item) => {
           const Icon = item.icon;
           const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -33,8 +33,10 @@ export function SectionNav({ items, className }: SectionNavProps) {
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "inline-flex h-8 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors",
-                  active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:bg-background/70 hover:text-foreground"
+                  "inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors",
+                  active
+                    ? "border border-border/70 bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-background/80 hover:text-foreground"
                 )}
               >
                 {Icon ? <Icon className="size-4" /> : null}
@@ -47,3 +49,4 @@ export function SectionNav({ items, className }: SectionNavProps) {
     </nav>
   );
 }
+

@@ -132,7 +132,7 @@ export default function ServicesPage() {
           </CardHeader>
           <CardContent className="pt-3">
             {services.length === 0 ? (
-              <EmptyState title="No services found" description="Backend did not return managed systemd units." icon={Wrench} />
+              <EmptyState title="No services found" description="No managed services detected." icon={Wrench} />
             ) : (
               <Table>
                 <TableHeader>
@@ -149,19 +149,16 @@ export default function ServicesPage() {
                     return (
                       <TableRow key={name}>
                         <TableCell>
-                          <Button variant="ghost" size="sm" onClick={() => void loadService(name)}>
+                          <button type="button" onClick={() => void loadService(name)} className="text-left font-medium hover:underline">
                             {name}
-                          </Button>
+                          </button>
                         </TableCell>
                         <TableCell>
                           <StatusBadge tone={statusTone(service.status)}>{service.status}</StatusBadge>
                         </TableCell>
                         <TableCell className="text-muted-foreground">{formatDate(service.last_check_at)}</TableCell>
                         <TableCell>
-                          <div className="flex justify-end gap-2">
-                            <Button variant="ghost" size="sm" onClick={() => void loadService(name)}>
-                              View logs
-                            </Button>
+                          <div className="flex justify-end">
                             <OverflowMenu
                               items={[
                                 {
@@ -238,6 +235,4 @@ export default function ServicesPage() {
     </div>
   );
 }
-
-
 

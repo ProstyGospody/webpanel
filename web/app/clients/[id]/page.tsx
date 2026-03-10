@@ -9,6 +9,7 @@ import { copyToClipboard, formatDate } from "@/lib/format";
 import type { Client, Hy2Account, MTProxySecret } from "@/lib/types";
 import { useToast } from "@/components/toast-provider";
 import { ConfirmDialog } from "@/components/dialog";
+import { OverflowMenu } from "@/components/overflow-menu";
 import { PageHeader } from "@/components/app/page-header";
 import { EmptyState } from "@/components/app/empty-state";
 import { StatusBadge } from "@/components/app/status-badge";
@@ -341,14 +342,6 @@ export default function ClientDetailsPage() {
                     <TableCell className="text-muted-foreground">{formatDate(account.last_seen_at)}</TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="sm" onClick={() => void copyValue(account.auth_payload)}>
-                          <Copy className="size-4" />
-                          Copy
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => setPendingAction({ kind: "hy2-kick", id: account.id })}>
-                          <LogOut className="size-4" />
-                          Kick
-                        </Button>
                         {account.is_enabled ? (
                           <Button variant="destructive" size="sm" onClick={() => setPendingAction({ kind: "hy2-toggle", id: account.id, enable: false })}>
                             Disable
@@ -358,6 +351,25 @@ export default function ClientDetailsPage() {
                             Enable
                           </Button>
                         )}
+                        <OverflowMenu
+                          items={[
+                            {
+                              id: "copy",
+                              label: "Copy credential",
+                              icon: Copy,
+                              onSelect: () => {
+                                void copyValue(account.auth_payload);
+                              },
+                            },
+                            {
+                              id: "kick",
+                              label: "Kick sessions",
+                              icon: LogOut,
+                              destructive: true,
+                              onSelect: () => setPendingAction({ kind: "hy2-kick", id: account.id }),
+                            },
+                          ]}
+                        />
                       </div>
                     </TableCell>
                   </TableRow>
@@ -401,10 +413,6 @@ export default function ClientDetailsPage() {
                     <TableCell className="text-muted-foreground">{formatDate(secret.last_seen_at)}</TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="sm" onClick={() => void copyValue(secret.secret)}>
-                          <Copy className="size-4" />
-                          Copy
-                        </Button>
                         {secret.is_enabled ? (
                           <Button variant="destructive" size="sm" onClick={() => setPendingAction({ kind: "secret-toggle", id: secret.id, enable: false })}>
                             Disable
@@ -414,6 +422,18 @@ export default function ClientDetailsPage() {
                             Enable
                           </Button>
                         )}
+                        <OverflowMenu
+                          items={[
+                            {
+                              id: "copy",
+                              label: "Copy secret",
+                              icon: Copy,
+                              onSelect: () => {
+                                void copyValue(secret.secret);
+                              },
+                            },
+                          ]}
+                        />
                       </div>
                     </TableCell>
                   </TableRow>
@@ -453,8 +473,4 @@ export default function ClientDetailsPage() {
     </div>
   );
 }
-
-
-
-
 

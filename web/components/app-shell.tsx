@@ -12,7 +12,8 @@ import {
   Menu,
   Moon,
   PanelLeftClose,
-  PanelLeftOpen,  ShieldCheck,
+  PanelLeftOpen,
+  ShieldCheck,
   Sun,
   User,
   Users,
@@ -25,8 +26,7 @@ import { APIError, apiFetch, toJSONBody } from "@/lib/api";
 import type { Admin } from "@/lib/types";
 import { useToast } from "@/components/toast-provider";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -163,9 +163,6 @@ function ShellNavigation({ pathname, collapsed, adminEmail, onNavigate }: ShellN
           {!collapsed && (
             <>
               <span className="truncate">Proxy Panel</span>
-              <Badge variant="outline" className="h-5 text-[10px]">
-                v1
-              </Badge>
             </>
           )}
         </Link>
@@ -175,7 +172,7 @@ function ShellNavigation({ pathname, collapsed, adminEmail, onNavigate }: ShellN
         <div className="space-y-4">
           {sections.map((section) => (
             <section key={section.title} className="space-y-1">
-              {!collapsed && <p className="px-2 text-xs font-medium text-sidebar-foreground/70">{section.title}</p>}
+              {!collapsed && <p className="px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-sidebar-foreground/55">{section.title}</p>}
               <ul className="space-y-1">
                 {section.items.map((item) => {
                   const active = isActivePath(pathname, item);
@@ -185,11 +182,7 @@ function ShellNavigation({ pathname, collapsed, adminEmail, onNavigate }: ShellN
                     <Link
                       href={item.href}
                       onClick={onNavigate}
-                      className={cn(
-                        buttonVariants({ variant: active ? "secondary" : "ghost", size: collapsed ? "icon" : "sm" }),
-                        "w-full rounded-lg text-sidebar-foreground",
-                        collapsed ? "justify-center" : "justify-start"
-                      )}
+                      className={cn("inline-flex w-full items-center rounded-lg text-sm font-medium transition-colors", collapsed ? "h-8 justify-center px-0" : "h-8 justify-start gap-2 px-2.5", active ? "bg-sidebar-accent text-sidebar-foreground shadow-sm ring-1 ring-sidebar-border" : "text-sidebar-foreground/85 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground")}
                     >
                       <Icon className="size-4 shrink-0" />
                       {!collapsed && <span className="truncate">{item.label}</span>}
@@ -222,7 +215,7 @@ function ShellNavigation({ pathname, collapsed, adminEmail, onNavigate }: ShellN
               render={
                 <button
                   type="button"
-                  className="flex w-full items-center justify-center rounded-lg border border-sidebar-border bg-sidebar-accent/40 p-2"
+                  className="flex w-full items-center justify-center rounded-lg border border-sidebar-border bg-sidebar-accent/35 p-2.5"
                 />
               }
             >
@@ -233,9 +226,8 @@ function ShellNavigation({ pathname, collapsed, adminEmail, onNavigate }: ShellN
             <TooltipContent side="right">{adminEmail}</TooltipContent>
           </Tooltip>
         ) : (
-          <div className="rounded-lg border border-sidebar-border bg-sidebar-accent/40 p-2">
+          <div className="rounded-lg border border-sidebar-border bg-sidebar-accent/35 p-2.5">
             <p className="truncate text-xs font-medium">{adminEmail}</p>
-            
           </div>
         )}
       </div>
@@ -404,7 +396,7 @@ export function AppShell({ children }: PropsWithChildren) {
         </Sheet>
 
         <div className="flex min-h-svh min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-2 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:px-6">
+          <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-2 border-b bg-background/90 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/75 md:px-6">
             <div className="flex min-w-0 items-center gap-2">
               <Button
                 type="button"
@@ -488,13 +480,11 @@ export function AppShell({ children }: PropsWithChildren) {
           </header>
 
           <main className="min-h-0 flex-1 overflow-y-auto">
-            <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6 px-4 py-6 md:px-6 md:py-8">{children}</div>
+            <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-6 px-4 py-6 md:px-6 md:py-8">{children}</div>
           </main>
         </div>
       </div>
     </div>
   );
 }
-
-
 

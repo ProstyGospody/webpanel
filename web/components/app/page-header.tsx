@@ -15,14 +15,14 @@ export function PageHeader({ title, icon, description, actions, meta, className 
   return (
     <header
       data-slot="page-header"
-      className={cn("flex flex-col gap-4 border-b pb-4 md:flex-row md:items-start md:justify-between", className)}
+      className={cn("flex flex-col gap-4 border-b pb-5 md:flex-row md:items-start md:justify-between", className)}
     >
-      <div className="space-y-1.5">
-        <div className="flex items-center gap-2">
+      <div className="space-y-2">
+        <div className="flex items-center gap-2.5">
           {icon ? <span className="text-muted-foreground [&>svg]:size-5">{icon}</span> : null}
-          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">{title}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight md:text-[1.85rem]">{title}</h1>
         </div>
-        {description ? <p className="max-w-3xl text-sm text-muted-foreground">{description}</p> : null}
+        {description ? <p className="max-w-2xl text-sm leading-6 text-muted-foreground">{description}</p> : null}
       </div>
       {actions || meta ? (
         <div className="flex w-full flex-col items-start gap-2 md:w-auto md:items-end">
@@ -33,3 +33,4 @@ export function PageHeader({ title, icon, description, actions, meta, className 
     </header>
   );
 }
+
