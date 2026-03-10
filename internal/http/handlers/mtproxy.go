@@ -124,6 +124,23 @@ func (h *Handler) GetMTProxySecret(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, http.StatusOK, map[string]any{"secret": item, "tg_link": h.buildMTProxyLink(item.Secret), "runtime_secret_id": runtimeID})
 }
 
+func (h *Handler) MTProxySecretQR(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	item, err := h.repo.GetMTProxySecret(r.Context(), id)
+	if err != nil {
+		if repository.IsNotFound(err) {
+			render.Error(w, http.StatusNotFound, "mtproxy secret not found")
+			return
+		}
+		render.Error(w, http.StatusInternalServerError, "failed to get mtproxy secret")
+		return
+	}
+
+	size := parseQRSize(r.URL.Query().Get("size"), 320)
+	if err := renderQRCodePNG(w, h.buildMTProxyLink(item.Secret), size); err != nil {
+		render.Error(w, http.StatusInternalServerError, "failed to render qr code")
+	}
+}
 func (h *Handler) UpdateMTProxySecret(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	current, err := h.repo.GetMTProxySecret(r.Context(), id)

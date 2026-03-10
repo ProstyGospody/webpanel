@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { RefreshCw, RotateCcw, TerminalSquare, Wrench } from "lucide-react";
@@ -118,7 +118,7 @@ export default function ServicesPage() {
     <div className="space-y-6">
       <PageHeader
         title="Services"
-        description="Control systemd units, run safe operations and inspect runtime journal logs."
+        description="Control services and view logs."
       />
 
       {error && (
@@ -132,7 +132,7 @@ export default function ServicesPage() {
         <Card>
           <CardHeader>
             <CardTitle>Managed services</CardTitle>
-            <CardDescription>Runtime state auto-refreshes every 10 seconds.</CardDescription>
+
           </CardHeader>
           <CardContent>
             {services.length === 0 ? (
@@ -197,7 +197,7 @@ export default function ServicesPage() {
         <Card>
           <CardHeader>
             <CardTitle>Service logs</CardTitle>
-            <CardDescription>Latest 120 journal lines for selected service.</CardDescription>
+
           </CardHeader>
           <CardContent className="space-y-3">
             {!selected && (
@@ -243,4 +243,3 @@ export default function ServicesPage() {
     </div>
   );
 }
-

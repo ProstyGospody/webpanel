@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Fragment, type ComponentType, type PropsWithChildren, useEffect, useMemo, useState } from "react";
 import {
   ChevronRight,
-  KeyRound,
+  Send,
   LayoutDashboard,
   Loader2,
   LogOut,
@@ -18,7 +18,7 @@ import {
   Sun,
   User,
   Users,
-  Waves,
+  Zap,
   Wrench,
 } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -76,14 +76,14 @@ const sections: NavigationSection[] = [
   {
     title: "Hysteria",
     items: [
-      { href: "/hysteria/users", label: "Users", icon: Waves },
+      { href: "/hysteria/users", label: "Users", icon: Zap },
       { href: "/hysteria/settings", label: "Settings", icon: Settings },
     ],
   },
   {
     title: "MTProxy",
     items: [
-      { href: "/mtproxy/users", label: "Users", icon: KeyRound },
+      { href: "/mtproxy/users", label: "Users", icon: Send },
       { href: "/mtproxy/settings", label: "Settings", icon: Settings },
     ],
   },
@@ -497,4 +497,3 @@ export function AppShell({ children }: PropsWithChildren) {
     </div>
   );
 }
-

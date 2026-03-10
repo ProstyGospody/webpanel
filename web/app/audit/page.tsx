@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { History } from "lucide-react";
@@ -44,7 +44,7 @@ export default function AuditPage() {
     <div className="space-y-6">
       <PageHeader
         title="Audit"
-        description="Administrative activity feed for operations, account lifecycle actions, and runtime control events."
+        description="Administrative activity log."
       />
 
       {error ? (
@@ -59,7 +59,7 @@ export default function AuditPage() {
           <div>
             <CardTitle>Audit feed</CardTitle>
             <CardDescription>
-              Latest 200 records{query ? ` • ${filtered.length} shown` : ""}.
+              Latest 200 records{query ? ` � ${filtered.length} shown` : ""}.
             </CardDescription>
           </div>
           <div className="w-full max-w-sm">
@@ -107,5 +107,3 @@ export default function AuditPage() {
     </div>
   );
 }
-
-

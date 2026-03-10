@@ -8,13 +8,10 @@ import (
 )
 
 type hy2SettingsValidateResponse struct {
-	Settings          services.Hy2Settings          `json:"settings"`
+	Settings           services.Hy2Settings           `json:"settings"`
 	SettingsValidation services.Hy2SettingsValidation `json:"settings_validation"`
-	ConfigValidation  services.Hy2ConfigValidation  `json:"config_validation"`
-	RawYAML           string                        `json:"raw_yaml"`
-	ClientProfile     services.Hy2ClientProfile     `json:"client_profile"`
-	ClientArtifacts   services.Hy2ClientArtifacts   `json:"client_artifacts"`
-	ClientValidation  services.Hy2ClientValidation  `json:"client_validation"`
+	ConfigValidation   services.Hy2ConfigValidation   `json:"config_validation"`
+	RawYAML            string                         `json:"raw_yaml"`
 }
 
 func (h *Handler) GetHy2Settings(w http.ResponseWriter, r *http.Request) {
@@ -37,9 +34,6 @@ func (h *Handler) GetHy2Settings(w http.ResponseWriter, r *http.Request) {
 	settingsValidation := h.hy2ConfigManager.ValidateSettings(settings)
 	configValidation := h.hy2ConfigManager.Validate(content)
 
-	profile := h.hy2ConfigManager.DefaultClientProfileFromSettings(settings, h.cfg.Hy2Domain, h.cfg.Hy2Port, "replace-with-auth")
-	artifacts, clientValidation := h.hy2ConfigManager.GenerateClientArtifacts(profile, "socks5")
-
 	if parseErr != nil {
 		configValidation.Valid = false
 		configValidation.Errors = append(configValidation.Errors, "failed to parse current YAML into structured settings")
@@ -52,9 +46,6 @@ func (h *Handler) GetHy2Settings(w http.ResponseWriter, r *http.Request) {
 		"settings_validation": settingsValidation,
 		"config_validation":   configValidation,
 		"raw_only_paths":      configValidation.RawOnlyPaths,
-		"client_profile":      profile,
-		"client_artifacts":    artifacts,
-		"client_validation":   clientValidation,
 	})
 }
 
@@ -83,17 +74,12 @@ func (h *Handler) ValidateHy2Settings(w http.ResponseWriter, r *http.Request) {
 	if parseErr != nil {
 		previewSettings = req
 	}
-	profile := h.hy2ConfigManager.DefaultClientProfileFromSettings(previewSettings, h.cfg.Hy2Domain, h.cfg.Hy2Port, "replace-with-auth")
-	artifacts, clientValidation := h.hy2ConfigManager.GenerateClientArtifacts(profile, "socks5")
 
 	render.JSON(w, http.StatusOK, hy2SettingsValidateResponse{
 		Settings:           previewSettings,
 		SettingsValidation: settingsValidation,
 		ConfigValidation:   configValidation,
 		RawYAML:            next,
-		ClientProfile:      profile,
-		ClientArtifacts:    artifacts,
-		ClientValidation:   clientValidation,
 	})
 }
 
@@ -143,8 +129,6 @@ func (h *Handler) SaveHy2Settings(w http.ResponseWriter, r *http.Request) {
 	if parseErr != nil {
 		updated = req
 	}
-	profile := h.hy2ConfigManager.DefaultClientProfileFromSettings(updated, h.cfg.Hy2Domain, h.cfg.Hy2Port, "replace-with-auth")
-	artifacts, clientValidation := h.hy2ConfigManager.GenerateClientArtifacts(profile, "socks5")
 
 	h.audit(r, "hy2.settings.save", "hy2_config", nil, map[string]any{
 		"path":     h.cfg.Hy2ConfigPath,
@@ -162,9 +146,6 @@ func (h *Handler) SaveHy2Settings(w http.ResponseWriter, r *http.Request) {
 		"settings_validation": settingsValidation,
 		"config_validation":   configValidation,
 		"raw_only_paths":      configValidation.RawOnlyPaths,
-		"client_profile":      profile,
-		"client_artifacts":    artifacts,
-		"client_validation":   clientValidation,
 	})
 }
 

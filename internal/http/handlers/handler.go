@@ -173,7 +173,8 @@ func (h *Handler) audit(r *http.Request, action string, entityType string, entit
 }
 
 func (h *Handler) buildHy2URI(account repository.Hy2AccountWithClient) string {
-	profile := h.resolveHy2ClientProfile(account.AuthPayload)
+	auth := h.resolveHy2URIAuth(account.AuthPayload)
+	profile := h.resolveHy2ClientProfile(auth)
 	fragment := strings.TrimSpace(account.ClientName)
 	if fragment == "" {
 		fragment = strings.TrimSpace(account.Hy2Identity)
@@ -187,7 +188,7 @@ func (h *Handler) buildHy2URI(account repository.Hy2AccountWithClient) string {
 	}
 
 	params := h.resolveHy2ClientParams()
-	base := "hysteria2://" + url.PathEscape(account.AuthPayload) + "@" + params.Server + ":" + strconv.Itoa(params.Port) + "/"
+	base := "hysteria2://" + url.PathEscape(auth) + "@" + params.Server + ":" + strconv.Itoa(params.Port) + "/"
 	if params.SNI != "" {
 		base += "?sni=" + url.QueryEscape(params.SNI)
 	}
@@ -198,7 +199,8 @@ func (h *Handler) buildHy2URI(account repository.Hy2AccountWithClient) string {
 }
 
 func (h *Handler) buildHy2V2RayNGURI(account repository.Hy2AccountWithClient) string {
-	profile := h.resolveHy2ClientProfile(account.AuthPayload)
+	auth := h.resolveHy2URIAuth(account.AuthPayload)
+	profile := h.resolveHy2ClientProfile(auth)
 	profile.Name = strings.TrimSpace(account.ClientName)
 	if profile.Name == "" {
 		profile.Name = strings.TrimSpace(account.Hy2Identity)
@@ -235,7 +237,7 @@ func (h *Handler) buildHy2SingBoxOutbound(account repository.Hy2AccountWithClien
 		"tag":         "hy2-" + strings.TrimSpace(account.Hy2Identity),
 		"server":      params.Server,
 		"server_port": serverPort,
-		"password":    account.AuthPayload,
+		"password":    h.resolveHy2URIAuth(account.AuthPayload),
 		"tls":         tls,
 	}
 
@@ -250,6 +252,25 @@ func (h *Handler) buildHy2SingBoxOutbound(account repository.Hy2AccountWithClien
 	return outbound
 }
 
+func (h *Handler) resolveHy2URIAuth(accountAuth string) string {
+	auth := strings.TrimSpace(accountAuth)
+	if h.hy2ConfigManager == nil {
+		return auth
+	}
+
+	content, err := h.hy2ConfigManager.Read()
+	if err != nil {
+		return auth
+	}
+	settings := h.hy2ConfigManager.ExtractSettings(content, h.cfg.Hy2Domain, h.cfg.Hy2Port)
+	if strings.EqualFold(strings.TrimSpace(settings.Auth.Type), "password") {
+		password := strings.TrimSpace(settings.Auth.Password)
+		if password != "" {
+			return password
+		}
+	}
+	return auth
+}
 func (h *Handler) resolveHy2ClientParams() services.Hy2ClientParams {
 	params := services.Hy2ClientParams{
 		Server:   services.NormalizeHost(h.cfg.Hy2Domain),
@@ -378,9 +399,3 @@ func generateHy2Identity() string {
 	}
 	return "hy2-" + raw
 }
-
-
-
-
-
-

@@ -1,19 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Copy, FileText, PlayCircle, QrCode, Save, SearchCheck, Settings, Shield, Users } from "lucide-react";
+import { AlertTriangle, FileText, PlayCircle, Save, SearchCheck, Settings, Shield, Users } from "lucide-react";
 
 import { apiFetch, toJSONBody } from "@/lib/api";
-import type {
-  Hy2ClientArtifacts,
-  Hy2ClientProfile,
-  Hy2ClientValidation,
-  Hy2ConfigValidation,
-  Hy2Settings,
-  Hy2SettingsPayload,
-  Hy2SettingsValidation,
-} from "@/lib/types";
-import { copyToClipboard } from "@/lib/format";
+import type { Hy2ConfigValidation, Hy2Settings, Hy2SettingsPayload, Hy2SettingsValidation } from "@/lib/types";
 import { useToast } from "@/components/toast-provider";
 import { PageHeader } from "@/components/app/page-header";
 import { SectionNav } from "@/components/app/section-nav";
@@ -120,24 +111,13 @@ function buildListen(host: string, port: string): string {
   return `${safeHost}:${safePort}`;
 }
 
-function serverHostFromProfile(profile: Hy2ClientProfile | null | undefined): string {
-  const server = (profile?.server || "").trim();
-  if (!server) return "";
-  if (server.startsWith("[")) {
-    const idx = server.lastIndexOf("]:");
-    return idx > -1 ? server.slice(1, idx).trim() : server.replace(/^[\[]|[\]]$/g, "").trim();
-  }
-  const idx = server.lastIndexOf(":");
-  return idx > 0 ? server.slice(0, idx).trim() : server;
-}
-
 function protectionModeFromSettings(settings: Hy2Settings): ProtectionMode {
   if (settings.obfs?.type) return "obfs";
   if (settings.masquerade?.type) return "masquerade";
   return "none";
 }
 
-function ValidationAlerts({ title, validation }: { title: string; validation: Hy2SettingsValidation | Hy2ConfigValidation | Hy2ClientValidation | null }) {
+function ValidationAlerts({ title, validation }: { title: string; validation: Hy2SettingsValidation | Hy2ConfigValidation | null }) {
   if (!validation) return null;
   return (
     <div className="space-y-3">
@@ -182,8 +162,6 @@ export default function HysteriaSettingsPage() {
   const [rawYaml, setRawYaml] = useState("");
   const [settingsValidation, setSettingsValidation] = useState<Hy2SettingsValidation | null>(null);
   const [configValidation, setConfigValidation] = useState<Hy2ConfigValidation | null>(null);
-  const [clientArtifacts, setClientArtifacts] = useState<Hy2ClientArtifacts | null>(null);
-  const [clientValidation, setClientValidation] = useState<Hy2ClientValidation | null>(null);
   const [rawOnlyPaths, setRawOnlyPaths] = useState<string[]>([]);
 
   const [loading, setLoading] = useState(true);
@@ -195,22 +173,9 @@ export default function HysteriaSettingsPage() {
   const [applyConfirmOpen, setApplyConfirmOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const protectionMode = useMemo(() => protectionModeFromSettings(settings), [settings]);
-
   const isSettingsDirty = useMemo(() => JSON.stringify(settings) !== JSON.stringify(savedSettings), [settings, savedSettings]);
-
-  const qrCodeURL = useMemo(() => {
-    const uri = clientArtifacts?.uri || "";
-    if (!uri) return "";
-    return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(uri)}`;
-  }, [clientArtifacts?.uri]);
-
-  function markCopied(key: string) {
-    setCopiedKey(key);
-    window.setTimeout(() => setCopiedKey((prev) => (prev === key ? null : prev)), 1500);
-  }
 
   function updateSetting<K extends keyof Hy2Settings>(key: K, value: Hy2Settings[K]) {
     setSettings((prev) => normalizeSettings({ ...prev, [key]: value }));
@@ -286,19 +251,16 @@ export default function HysteriaSettingsPage() {
       const normalizedSettings = normalizeSettings(payload.settings);
       const listenParts = parseListen(normalizedSettings.listen);
       const hostFromSettings = normalizedSettings.acme?.domains?.[0] || "";
-      const hostFromProfile = serverHostFromProfile(payload.client_profile);
 
       setPath(payload.path || "");
       setSettings(normalizedSettings);
       setSavedSettings(normalizedSettings);
       setPort(listenParts.port || "443");
-      setPublicHost(hostFromSettings || hostFromProfile);
+      setPublicHost(hostFromSettings || listenParts.host || "");
 
       setRawYaml(payload.raw_yaml || "");
       setSettingsValidation(payload.settings_validation || null);
       setConfigValidation(payload.config_validation || null);
-      setClientArtifacts(payload.client_artifacts || null);
-      setClientValidation(payload.client_validation || null);
       setRawOnlyPaths(payload.raw_only_paths || payload.config_validation?.rawOnlyPaths || []);
       setError(null);
     } catch (err) {
@@ -323,8 +285,6 @@ export default function HysteriaSettingsPage() {
         settings_validation: Hy2SettingsValidation;
         config_validation: Hy2ConfigValidation;
         raw_yaml: string;
-        client_artifacts: Hy2ClientArtifacts;
-        client_validation: Hy2ClientValidation;
       }>("/api/hy2/settings/validate", {
         method: "POST",
         body: toJSONBody(payloadSettings),
@@ -334,8 +294,6 @@ export default function HysteriaSettingsPage() {
       setSettings(normalizedSettings);
       setSettingsValidation(payload.settings_validation || null);
       setConfigValidation(payload.config_validation || null);
-      setClientArtifacts(payload.client_artifacts || null);
-      setClientValidation(payload.client_validation || null);
       setRawYaml(payload.raw_yaml || rawYaml);
       setRawOnlyPaths(payload.config_validation?.rawOnlyPaths || []);
       setError(null);
@@ -398,9 +356,6 @@ export default function HysteriaSettingsPage() {
       const payload = await apiFetch<{
         validation: Hy2ConfigValidation;
         settings: Hy2Settings;
-        client_profile: Hy2ClientProfile;
-        client_artifacts: Hy2ClientArtifacts;
-        client_validation: Hy2ClientValidation;
       }>("/api/hy2/config/validate", {
         method: "POST",
         body: toJSONBody({ content: rawYaml }),
@@ -409,15 +364,12 @@ export default function HysteriaSettingsPage() {
       const normalizedSettings = normalizeSettings(payload.settings);
       const listenParts = parseListen(normalizedSettings.listen);
       const hostFromSettings = normalizedSettings.acme?.domains?.[0] || "";
-      const hostFromProfile = serverHostFromProfile(payload.client_profile);
 
       setSettings(normalizedSettings);
       setSavedSettings(normalizedSettings);
       setPort(listenParts.port || "443");
-      setPublicHost(hostFromSettings || hostFromProfile);
+      setPublicHost(hostFromSettings || listenParts.host || "");
       setConfigValidation(payload.validation || null);
-      setClientArtifacts(payload.client_artifacts || null);
-      setClientValidation(payload.client_validation || null);
       setRawOnlyPaths(payload.validation?.rawOnlyPaths || []);
       setError(null);
 
@@ -446,19 +398,9 @@ export default function HysteriaSettingsPage() {
     }
   }
 
-  async function copyValue(value: string, key: string) {
-    try {
-      await copyToClipboard(value);
-      markCopied(key);
-      push("Copied", "success");
-    } catch {
-      push("Copy failed", "error");
-    }
-  }
-
   return (
     <div className="space-y-6">
-      <PageHeader title="Hysteria" description="Minimal Hysteria 2 settings with stable defaults and clean client output." />
+      <PageHeader title="Hysteria" description="Minimal Hysteria 2 settings." />
       <SectionNav items={tabs} />
 
       {error && (
@@ -472,20 +414,17 @@ export default function HysteriaSettingsPage() {
         <Alert>
           <AlertTriangle className="size-4" />
           <AlertTitle>Advanced fields detected</AlertTitle>
-          <AlertDescription>
-            This config has unmanaged YAML fields. Basic form edits keep them, but advanced behavior should be reviewed in Raw YAML.
-          </AlertDescription>
+          <AlertDescription>Unmanaged YAML fields are present. Review them in Advanced / Raw YAML.</AlertDescription>
         </Alert>
       )}
 
       <ValidationAlerts title="Server settings" validation={settingsValidation} />
       <ValidationAlerts title="Rendered config" validation={configValidation} />
-      <ValidationAlerts title="Client artifacts" validation={clientValidation} />
 
       <Card>
         <CardHeader>
           <CardTitle>Server Connection</CardTitle>
-          <CardDescription>Minimal public endpoint settings.</CardDescription>
+          <CardDescription>Public endpoint settings.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
           <TextField label="Port" value={port} onChange={(e) => setPort(e.target.value.replace(/[^0-9]/g, ""))} placeholder="443" />
@@ -493,7 +432,7 @@ export default function HysteriaSettingsPage() {
             label="Domain / Host"
             value={publicHost}
             onChange={(e) => setPublicHost(e.target.value)}
-            description="Used in ACME and client output."
+            description="Used for ACME and SNI."
             placeholder="hy2.example.com"
           />
         </CardContent>
@@ -532,8 +471,18 @@ export default function HysteriaSettingsPage() {
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
-              <TextField label="TLS cert path" value={settings.tls?.cert || ""} onChange={(e) => updateSetting("tls", { ...(settings.tls || {}), cert: e.target.value })} placeholder="/etc/hysteria/cert.pem" />
-              <TextField label="TLS key path" value={settings.tls?.key || ""} onChange={(e) => updateSetting("tls", { ...(settings.tls || {}), key: e.target.value })} placeholder="/etc/hysteria/key.pem" />
+              <TextField
+                label="TLS cert path"
+                value={settings.tls?.cert || ""}
+                onChange={(e) => updateSetting("tls", { ...(settings.tls || {}), cert: e.target.value })}
+                placeholder="/etc/hysteria/cert.pem"
+              />
+              <TextField
+                label="TLS key path"
+                value={settings.tls?.key || ""}
+                onChange={(e) => updateSetting("tls", { ...(settings.tls || {}), key: e.target.value })}
+                placeholder="/etc/hysteria/key.pem"
+              />
             </div>
           )}
         </CardContent>
@@ -542,7 +491,7 @@ export default function HysteriaSettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Authentication</CardTitle>
-          <CardDescription>Only modes needed for practical server use.</CardDescription>
+          <CardDescription>Choose the authentication mode.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <SelectField
@@ -568,7 +517,6 @@ export default function HysteriaSettingsPage() {
               value={settings.auth?.http?.url || ""}
               onChange={(e) => updateSetting("auth", { ...(settings.auth || {}), http: { ...(settings.auth?.http || {}), url: e.target.value } })}
               placeholder="http://127.0.0.1:18080/internal/hy2/auth/<token>"
-              description="Used by panel-managed users flow."
             />
           )}
         </CardContent>
@@ -577,7 +525,7 @@ export default function HysteriaSettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Optional Protection</CardTitle>
-          <CardDescription>Choose one mode to avoid ambiguous behavior.</CardDescription>
+          <CardDescription>Choose one mode.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <SelectField
@@ -590,7 +538,7 @@ export default function HysteriaSettingsPage() {
                     ...prev,
                     obfs: { type: "salamander", salamander: { password: prev.obfs?.salamander?.password || "" } },
                     masquerade: undefined,
-                  }),
+                  })
                 );
                 return;
               }
@@ -602,7 +550,7 @@ export default function HysteriaSettingsPage() {
                     masquerade: prev.masquerade?.type
                       ? prev.masquerade
                       : { type: "proxy", proxy: { url: "" }, file: { dir: "" }, string: { content: "" } },
-                  }),
+                  })
                 );
                 return;
               }
@@ -626,7 +574,7 @@ export default function HysteriaSettingsPage() {
                     salamander: { password: e.target.value },
                   })
                 }
-                description="If empty, it will be generated automatically on save."
+                description="If empty, it will be generated on save."
                 placeholder="salamander-secret"
               />
               <div className="flex items-end">
@@ -733,7 +681,7 @@ export default function HysteriaSettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Actions</CardTitle>
-          <CardDescription>Validate, save managed settings, then apply runtime restart.</CardDescription>
+          <CardDescription>Validate, save, then apply.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
           <Button variant="outline" onClick={() => void validateSettingsAction()} disabled={validating || loading}>
@@ -753,39 +701,11 @@ export default function HysteriaSettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Client Output</CardTitle>
-          <CardDescription>Generated from server settings with a stable baseline template.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <TextareaField label="hysteria2 URI" value={clientArtifacts?.uri || ""} readOnly className="font-mono text-xs" />
-          <TextareaField label="hy2 URI" value={clientArtifacts?.uriHy2 || ""} readOnly className="font-mono text-xs" />
-          {qrCodeURL && (
-            <div className="rounded-lg border p-3">
-              <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-                <QrCode className="size-4" />
-                QR
-              </div>
-              <img src={qrCodeURL} alt="Hysteria URI QR" className="h-56 w-56 rounded-md border bg-white p-2" />
-            </div>
-          )}
-          <TextareaField label="client.yaml" value={clientArtifacts?.clientYAML || ""} readOnly className="font-mono text-xs" />
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => void copyValue(clientArtifacts?.uri || "", "uri")}>{copiedKey === "uri" ? "Copied" : "Copy URI"}</Button>
-            <Button variant="outline" size="sm" onClick={() => void copyValue(clientArtifacts?.uriHy2 || "", "uri-hy2")}>{copiedKey === "uri-hy2" ? "Copied" : "Copy hy2://"}</Button>
-            <Button variant="outline" size="sm" onClick={() => void copyValue(clientArtifacts?.clientYAML || "", "client-yaml")}>{copiedKey === "client-yaml" ? "Copied" : "Copy client YAML"}</Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Shield className="size-4" />
             Advanced / Raw YAML
           </CardTitle>
-          <CardDescription>
-            Unmanaged low-level options. Use only when needed.
-          </CardDescription>
+          <CardDescription>Unmanaged low-level options.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <Button variant="outline" onClick={() => setAdvancedOpen((prev) => !prev)}>
@@ -825,7 +745,7 @@ export default function HysteriaSettingsPage() {
       {loading && (
         <Alert>
           <AlertTitle>Loading</AlertTitle>
-          <AlertDescription>Fetching current Hysteria configuration...</AlertDescription>
+          <AlertDescription>Loading Hysteria settings...</AlertDescription>
         </Alert>
       )}
     </div>

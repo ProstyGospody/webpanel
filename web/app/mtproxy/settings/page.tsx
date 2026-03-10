@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { Activity, Settings, Users } from "lucide-react";
@@ -79,7 +79,7 @@ export default function MTProxySettingsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="MTProxy" description="Runtime-linked proxy settings and current service health state." />
+      <PageHeader title="MTProxy" description="MTProxy runtime settings." />
 
       <SectionNav items={tabs} />
 
@@ -93,7 +93,7 @@ export default function MTProxySettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Runtime parameters</CardTitle>
-          <CardDescription>Resolved from backend configuration and active runtime context.</CardDescription>
+
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -112,7 +112,7 @@ export default function MTProxySettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Live status</CardTitle>
-          <CardDescription>Current counters and `mtproxy.service` snapshot.</CardDescription>
+
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -124,9 +124,9 @@ export default function MTProxySettingsPage() {
             </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <StatCard label="Enabled users" value={String(overview?.enabled_secrets ?? 0)} />
+              <StatCard label="Enabled" value={String(overview?.enabled_secrets ?? 0)} />
               <StatCard label="Connections" value={String(overview?.connections_total ?? 0)} />
-              <StatCard label="Total users" value={String(overview?.users_total ?? 0)} />
+              <StatCard label="Users" value={String(overview?.users_total ?? 0)} />
               <Card size="sm" className="gap-2">
                 <CardHeader className="pb-0">
                   <CardDescription className="text-xs font-medium uppercase tracking-wide">Service</CardDescription>
@@ -136,7 +136,7 @@ export default function MTProxySettingsPage() {
                     <Activity className="size-4 text-muted-foreground" />
                     <StatusBadge tone={serviceTone(service?.status_text || "")}>{service?.status_text || "-"}</StatusBadge>
                   </div>
-                  <CardDescription>Checked: {formatDate(service?.checked_at || null)}</CardDescription>
+                  <CardDescription>Updated: {formatDate(service?.checked_at || null)}</CardDescription>
                 </CardContent>
               </Card>
             </div>
@@ -160,4 +160,3 @@ function serviceTone(status: string): "success" | "warning" | "danger" | "neutra
   }
   return "neutral";
 }
-

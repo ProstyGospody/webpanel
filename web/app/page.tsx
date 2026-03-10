@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useMemo, useState } from "react";
 import {
@@ -14,7 +14,7 @@ import {
 import { Area, AreaChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 
 import type { DashboardInterfaceRow } from "@/lib/dashboard/types";
-import { formatBytes, formatDate, formatRate } from "@/lib/format";
+import { formatDate, formatRate } from "@/lib/format";
 import { useDashboardMetrics } from "@/hooks/use-dashboard-metrics";
 import { PageHeader } from "@/components/app/page-header";
 import { StatCard } from "@/components/app/stat-card";
@@ -57,11 +57,11 @@ const memoryChartConfig = {
 
 const networkChartConfig = {
   rxBps: {
-    label: "RX",
+    label: "Download",
     color: "hsl(var(--chart-2))",
   },
   txBps: {
-    label: "TX",
+    label: "Upload",
     color: "hsl(var(--chart-1))",
   },
 } satisfies ChartConfig;
@@ -104,7 +104,7 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <PageHeader
         title="Dashboard"
-        description="Live host telemetry from Prometheus + node_exporter, normalized by the Next.js BFF layer."
+        description="Server overview."
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline" className="gap-1">
@@ -128,32 +128,29 @@ export default function DashboardPage() {
           <AlertTitle>Partial data</AlertTitle>
           <AlertDescription>{partialErrors.slice(0, 3).join(" | ")}</AlertDescription>
         </Alert>
-      )}      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="summary-cards">
+      )}
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="summary-cards">
         <StatCard
           label="CPU"
           value={formatPercent(data?.summary.cpuPercent)}
-          description="Current utilization"
           icon={<Cpu className="size-4" />}
           loading={loading}
         />
         <StatCard
           label="RAM"
-          value={formatMemoryUsage(data?.summary.memoryUsedBytes, data?.summary.memoryTotalBytes)}
-          description={`Used ${formatPercent(data?.summary.memoryUsagePercent)}`}
+          value={formatPercent(data?.summary.memoryUsagePercent)}
           icon={<MemoryStick className="size-4" />}
           loading={loading}
         />
         <StatCard
-          label="RX"
+          label="Download"
           value={formatRate(data?.summary.networkRxBps)}
-          description="Ingress now"
           icon={<ArrowDownLeft className="size-4" />}
           loading={loading}
         />
         <StatCard
-          label="TX"
+          label="Upload"
           value={formatRate(data?.summary.networkTxBps)}
-          description="Egress now"
           icon={<ArrowUpRight className="size-4" />}
           loading={loading}
         />
@@ -165,7 +162,7 @@ export default function DashboardPage() {
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <CardTitle>CPU usage</CardTitle>
-                <CardDescription>15 minutes and 1 hour windows from node_cpu_seconds_total.</CardDescription>
+
               </div>
               <Tabs
                 value={cpuWindow}
@@ -214,7 +211,7 @@ export default function DashboardPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle>RAM usage</CardTitle>
-            <CardDescription>1 hour trend from MemAvailable / MemTotal.</CardDescription>
+
           </CardHeader>
           <CardContent className="pt-2">
             {loading ? (
@@ -234,7 +231,7 @@ export default function DashboardPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle>Network throughput</CardTitle>
-            <CardDescription>1 hour ingress/egress trend from node_network_*_bytes_total.</CardDescription>
+
           </CardHeader>
           <CardContent className="pt-2">
             {loading ? (
@@ -250,7 +247,7 @@ export default function DashboardPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle>Network interfaces</CardTitle>
-            <CardDescription>Per-interface RX/TX rates with errors and drops.</CardDescription>
+
           </CardHeader>
           <CardContent className="pt-2">
             <InterfaceTable loading={loading} rows={data?.interfaces || []} />
@@ -260,7 +257,7 @@ export default function DashboardPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle>Host signals</CardTitle>
-            <CardDescription>Load average and disk I/O snapshot.</CardDescription>
+
           </CardHeader>
           <CardContent className="space-y-3 pt-2">
             {loading ? (
@@ -445,12 +442,12 @@ function InterfaceTable({ loading, rows }: { loading: boolean; rows: DashboardIn
       <TableHeader>
         <TableRow>
           <TableHead>Interface</TableHead>
-          <TableHead>RX</TableHead>
-          <TableHead>TX</TableHead>
-          <TableHead>RX errs/s</TableHead>
-          <TableHead>TX errs/s</TableHead>
-          <TableHead>RX drops/s</TableHead>
-          <TableHead>TX drops/s</TableHead>
+          <TableHead>Download</TableHead>
+          <TableHead>Upload</TableHead>
+          <TableHead>Download errs/s</TableHead>
+          <TableHead>Upload errs/s</TableHead>
+          <TableHead>Download drops/s</TableHead>
+          <TableHead>Upload drops/s</TableHead>
           <TableHead>Status</TableHead>
         </TableRow>
       </TableHeader>
@@ -517,12 +514,6 @@ function formatPercent(value: number | null | undefined): string {
   return `${value.toFixed(1)}%`;
 }
 
-function formatMemoryUsage(used: number | null | undefined, total: number | null | undefined): string {
-  if (used === null || used === undefined || total === null || total === undefined || total <= 0) {
-    return "-";
-  }
-  return `${formatBytes(used)} / ${formatBytes(total)}`;
-}
 
 function formatSmallRate(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) {
@@ -554,8 +545,3 @@ function formatTimeTick(value: string): string {
     minute: "2-digit",
   });
 }
-
-
-
-
-

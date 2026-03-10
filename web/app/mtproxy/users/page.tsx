@@ -1,7 +1,7 @@
-﻿"use client";
+"use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Copy, Plus, Settings, Trash2, Users, Vault } from "lucide-react";
+import { Copy, Pencil, Plus, QrCode, Send, Settings, Trash2, Users } from "lucide-react";
 
 import { apiFetch, toJSONBody } from "@/lib/api";
 import { copyToClipboard, formatDate } from "@/lib/format";
@@ -17,7 +17,7 @@ import { Dialog, ConfirmDialog } from "@/components/dialog";
 import { OverflowMenu } from "@/components/overflow-menu";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -76,6 +76,11 @@ export default function MTProxyUsersPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleting, setDeleting] = useState<MTProxySecret | null>(null);
+
+  const [qrOpen, setQROpen] = useState(false);
+  const [qrTitle, setQRTitle] = useState("");
+  const [qrSecretID, setQRSecretID] = useState("");
+  const [linkValue, setLinkValue] = useState("");
 
   const sortedClients = useMemo(() => [...clients].sort((a, b) => a.name.localeCompare(b.name)), [clients]);
 
@@ -182,7 +187,7 @@ export default function MTProxyUsersPage() {
             secret: formState.secret || null,
           }),
         });
-        push("Secret updated", "success");
+        push("User updated", "success");
       } else {
         await apiFetch("/api/mtproxy/secrets", {
           method: "POST",
@@ -192,13 +197,13 @@ export default function MTProxyUsersPage() {
             secret: formState.secret || null,
           }),
         });
-        push("Secret created", "success");
+        push("User created", "success");
       }
 
       closeForm();
       await load(false);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to save secret";
+      const message = err instanceof Error ? err.message : "Failed to save user";
       setError(message);
       push(message, "error");
     } finally {
@@ -221,16 +226,33 @@ export default function MTProxyUsersPage() {
         method: "DELETE",
         body: toJSONBody({}),
       });
-      push("Secret deleted", "success");
+      push("User deleted", "success");
       setDeleteOpen(false);
       setDeleting(null);
       await load(false);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to delete secret";
+      const message = err instanceof Error ? err.message : "Failed to delete user";
       setError(message);
       push(message, "error");
     } finally {
       setDeleteBusy(false);
+    }
+  }
+
+  async function openQR(secret: MTProxySecret) {
+    setBusyID(secret.id);
+    try {
+      const payload = await apiFetch<MTSecretPayload>(`/api/mtproxy/secrets/${secret.id}`);
+      setQRTitle(secret.label || secret.client_name || secret.client_id);
+      setQRSecretID(secret.id);
+      setLinkValue(payload.tg_link);
+      setQROpen(true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to load connection link";
+      setError(message);
+      push(message, "error");
+    } finally {
+      setBusyID((current) => (current === secret.id ? null : current));
     }
   }
 
@@ -240,9 +262,9 @@ export default function MTProxyUsersPage() {
       const payload = await apiFetch<MTSecretPayload>(`/api/mtproxy/secrets/${secret.id}`);
       await copyToClipboard(payload.tg_link);
       markCopied(`tg-${secret.id}`);
-      push("tg:// link copied", "success");
+      push("Link copied", "success");
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to copy tg:// link";
+      const message = err instanceof Error ? err.message : "Failed to copy link";
       setError(message);
       push(message, "error");
     } finally {
@@ -250,11 +272,21 @@ export default function MTProxyUsersPage() {
     }
   }
 
+  async function copyValue(value: string, key: string) {
+    try {
+      await copyToClipboard(value);
+      markCopied(key);
+      push("Copied", "success");
+    } catch {
+      push("Copy failed", "error");
+    }
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="MTProxy"
-        description="Manage proxy users with stable row actions and runtime-safe dialog workflows."
+        description="Manage MTProxy users."
         actions={
           <Button onClick={openCreate}>
             <Plus className="size-4" />
@@ -281,7 +313,6 @@ export default function MTProxyUsersPage() {
       <Card>
         <CardHeader>
           <CardTitle>Users</CardTitle>
-          <CardDescription>Edit is the primary action. Copy/delete are grouped in row actions.</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -291,69 +322,75 @@ export default function MTProxyUsersPage() {
               <Skeleton className="h-4 w-full" />
             </div>
           ) : secrets.length === 0 ? (
-            <EmptyState title="No MTProxy users" description="Create the first secret to activate MTProxy access." icon={Vault} />
+            <EmptyState title="No MTProxy users" description="Create the first secret to activate MTProxy access." icon={Send} />
           ) : (
-            <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>User</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Runtime</TableHead>
-                    <TableHead>Last seen</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {secrets.map((item) => {
-                    const busy = busyID === item.id;
-                    return (
-                      <TableRow key={item.id}>
-                        <TableCell>
-                          <div className="font-medium">{item.label || item.client_name || item.client_id}</div>
-                          <div className="mt-1 max-w-[360px] truncate text-xs text-muted-foreground">Secret: {item.secret}</div>
-                        </TableCell>
-                        <TableCell>
-                          <StatusBadge tone={item.is_enabled ? "success" : "danger"}>{item.is_enabled ? "Enabled" : "Disabled"}</StatusBadge>
-                        </TableCell>
-                        <TableCell>
-                          <StatusBadge tone={item.is_runtime_active ? "success" : "neutral"}>{item.is_runtime_active ? "Active" : "Standby"}</StatusBadge>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">{formatDate(item.last_seen_at)}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center justify-end gap-2">
-                            <Button variant="ghost" size="sm" onClick={() => openEdit(item)} disabled={busy}>
-                              Edit
-                            </Button>
-                            <OverflowMenu
-                              items={[
-                                {
-                                  id: "copy",
-                                  label: copiedKey === `tg-${item.id}` ? "Link copied" : "Copy tg://",
-                                  icon: Copy,
-                                  disabled: busy,
-                                  onSelect: () => {
-                                    void copyTelegramLink(item);
-                                  },
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>User</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Runtime</TableHead>
+                  <TableHead>Last seen</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {secrets.map((item) => {
+                  const busy = busyID === item.id;
+                  return (
+                    <TableRow key={item.id}>
+                      <TableCell>
+                        <div className="font-medium">{item.label || item.client_name || item.client_id}</div>
+                        <div className="mt-1 max-w-[360px] truncate text-xs text-muted-foreground">Secret: {item.secret}</div>
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge tone={item.is_enabled ? "success" : "danger"}>{item.is_enabled ? "Enabled" : "Disabled"}</StatusBadge>
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge tone={item.is_runtime_active ? "success" : "neutral"}>{item.is_runtime_active ? "Active" : "Standby"}</StatusBadge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{formatDate(item.last_seen_at)}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-end gap-2">
+                          <Button variant="secondary" size="sm" onClick={() => void openQR(item)} disabled={busy}>
+                            <QrCode className="size-4" />
+                            Show QR
+                          </Button>
+                          <OverflowMenu
+                            items={[
+                              {
+                                id: "edit",
+                                label: "Edit",
+                                icon: Pencil,
+                                disabled: busy,
+                                onSelect: () => openEdit(item),
+                              },
+                              {
+                                id: "copy",
+                                label: copiedKey === `tg-${item.id}` ? "Link copied" : "Copy link",
+                                icon: Copy,
+                                disabled: busy,
+                                onSelect: () => {
+                                  void copyTelegramLink(item);
                                 },
-                                {
-                                  id: "delete",
-                                  label: "Delete",
-                                  icon: Trash2,
-                                  destructive: true,
-                                  disabled: busy,
-                                  onSelect: () => askDelete(item),
-                                },
-                              ]}
-                            />
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </>
+                              },
+                              {
+                                id: "delete",
+                                label: "Delete",
+                                icon: Trash2,
+                                destructive: true,
+                                disabled: busy,
+                                onSelect: () => askDelete(item),
+                              },
+                            ]}
+                          />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>
@@ -392,7 +429,6 @@ export default function MTProxyUsersPage() {
             label="Label"
             value={formState.label}
             onChange={(event) => setFormState((prev) => ({ ...prev, label: event.target.value }))}
-            description="Optional display name for this secret."
           />
 
           <TextField
@@ -400,22 +436,50 @@ export default function MTProxyUsersPage() {
             value={formState.secret}
             onChange={(event) => setFormState((prev) => ({ ...prev, secret: event.target.value }))}
             placeholder="Auto-generated if empty"
-            description="Leave empty to generate a secure runtime secret."
           />
         </form>
       </Dialog>
 
       <ConfirmDialog
         open={deleteOpen}
-        title="Delete MTProxy user"
+        title="Delete user"
         description={`Delete ${deleting?.label || deleting?.client_name || "this user"}? This action cannot be undone.`}
         confirmLabel="Delete"
         onClose={() => setDeleteOpen(false)}
         onConfirm={removeSecret}
         busy={deleteBusy}
       />
+
+      <Dialog
+        open={qrOpen}
+        title={qrTitle ? `Show QR: ${qrTitle}` : "Show QR"}
+        onClose={() => setQROpen(false)}
+        size="sm"
+        actions={
+          <Button variant="secondary" type="button" onClick={() => void copyValue(linkValue, "tg-link")}>
+            {copiedKey === "tg-link" ? "Copied" : "Copy link"}
+          </Button>
+        }
+      >
+        <div className="flex justify-center">
+          {qrSecretID && linkValue ? (
+            <button
+              type="button"
+              onClick={() => void copyValue(linkValue, "tg-link")}
+              className="rounded-xl border bg-background p-2 transition-colors hover:bg-muted/40"
+              aria-label="Copy connection link"
+            >
+              <img
+                src={`/api/mtproxy/secrets/${qrSecretID}/qr?size=360`}
+                alt="MTProxy connection QR"
+                className="h-64 w-64 rounded-lg bg-white p-2 object-contain"
+              />
+            </button>
+          ) : (
+            <Skeleton className="h-64 w-64 rounded-lg" />
+          )}
+        </div>
+      </Dialog>
     </div>
   );
 }
-
-

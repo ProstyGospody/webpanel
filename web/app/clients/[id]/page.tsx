@@ -1,8 +1,8 @@
-﻿"use client";
+"use client";
 
 import { useParams } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
-import { Copy, LogOut, Plus, Settings2, UserMinus, UserPlus, Waves } from "lucide-react";
+import { Copy, LogOut, Plus, Send, Settings2, UserMinus, UserPlus, Zap } from "lucide-react";
 
 import { apiFetch, toJSONBody } from "@/lib/api";
 import { copyToClipboard, formatDate } from "@/lib/format";
@@ -311,7 +311,7 @@ export default function ClientDetailsPage() {
         <CardHeader className="gap-3 md:flex-row md:items-start md:justify-between">
           <div>
             <CardTitle>Hysteria accounts</CardTitle>
-            <CardDescription>Credential and session controls for this client.</CardDescription>
+            <CardDescription>Hysteria access for this client.</CardDescription>
           </div>
           <Button onClick={() => void createHy2()}>
             <Plus className="size-4" />
@@ -320,7 +320,7 @@ export default function ClientDetailsPage() {
         </CardHeader>
         <CardContent>
           {payload.hy2_accounts.length === 0 ? (
-            <EmptyState title="No Hysteria accounts" description="Create access to issue Hysteria credentials." icon={Waves} />
+            <EmptyState title="No Hysteria accounts" description="Create access to issue Hysteria credentials." icon={Zap} />
           ) : (
             <Table>
               <TableHeader>
@@ -374,7 +374,7 @@ export default function ClientDetailsPage() {
         <CardHeader className="gap-3 md:flex-row md:items-start md:justify-between">
           <div>
             <CardTitle>MTProxy secrets</CardTitle>
-            <CardDescription>Runtime-linked MTProxy keys for this client.</CardDescription>
+            <CardDescription>MTProxy access for this client.</CardDescription>
           </div>
           <Button onClick={() => void createSecret()}>
             <Plus className="size-4" />
@@ -383,7 +383,7 @@ export default function ClientDetailsPage() {
         </CardHeader>
         <CardContent>
           {payload.mtproxy_secrets.length === 0 ? (
-            <EmptyState title="No MTProxy secrets" description="Create a secret to allow MTProxy access." icon={Settings2} />
+            <EmptyState title="No MTProxy secrets" description="Create a secret to allow MTProxy access." icon={Send} />
           ) : (
             <Table>
               <TableHeader>
@@ -456,4 +456,3 @@ export default function ClientDetailsPage() {
     </div>
   );
 }
-

@@ -219,6 +219,23 @@ func (h *Handler) Hy2AccountURI(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, http.StatusOK, map[string]any{"uri": uri, "uri_v2rayng": uriV2RayNG, "singbox_outbound": h.buildHy2SingBoxOutbound(item), "client_params": h.currentHy2ClientParams()})
 }
 
+func (h *Handler) Hy2AccountQR(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	item, err := h.repo.GetHy2Account(r.Context(), id)
+	if err != nil {
+		if repository.IsNotFound(err) {
+			render.Error(w, http.StatusNotFound, "hysteria account not found")
+			return
+		}
+		render.Error(w, http.StatusInternalServerError, "failed to get hysteria account")
+		return
+	}
+
+	size := parseQRSize(r.URL.Query().Get("size"), 320)
+	if err := renderQRCodePNG(w, h.buildHy2URI(item), size); err != nil {
+		render.Error(w, http.StatusInternalServerError, "failed to render qr code")
+	}
+}
 func (h *Handler) KickHy2Account(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	item, err := h.repo.GetHy2Account(r.Context(), id)

@@ -1,7 +1,7 @@
-﻿"use client";
+"use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Copy, Plus, QrCode, Settings, Trash2, Users, Waves } from "lucide-react";
+import { Copy, Pencil, Plus, QrCode, Settings, Trash2, Users, Zap } from "lucide-react";
 
 import { apiFetch, toJSONBody } from "@/lib/api";
 import { copyToClipboard, formatBytes, formatDate } from "@/lib/format";
@@ -12,12 +12,12 @@ import { StatCard } from "@/components/app/stat-card";
 import { SectionNav } from "@/components/app/section-nav";
 import { EmptyState } from "@/components/app/empty-state";
 import { StatusBadge } from "@/components/app/status-badge";
-import { SelectField, TextField, TextareaField } from "@/components/app/fields";
+import { SelectField, TextField } from "@/components/app/fields";
 import { Dialog, ConfirmDialog } from "@/components/dialog";
 import { OverflowMenu } from "@/components/overflow-menu";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -28,22 +28,9 @@ type Hy2Overview = {
   online_count: number;
 };
 
-type Hy2ClientParams = {
-  server?: string;
-  port?: number;
-  sni?: string;
-  insecure?: boolean;
-  pinSHA256?: string;
-  obfsType?: string;
-  obfsPassword?: string;
-};
-
 type Hy2AccountViewPayload = {
   account: Hy2Account;
   uri: string;
-  uri_v2rayng?: string;
-  singbox_outbound?: Record<string, unknown>;
-  client_params?: Hy2ClientParams;
 };
 
 type AccountFormState = {
@@ -92,11 +79,10 @@ export default function HysteriaUsersPage() {
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleting, setDeleting] = useState<Hy2Account | null>(null);
 
-  const [uriOpen, setURIOpen] = useState(false);
-  const [uriTitle, setURITitle] = useState("");
+  const [qrOpen, setQROpen] = useState(false);
+  const [qrTitle, setQRTitle] = useState("");
+  const [qrAccountID, setQRAccountID] = useState("");
   const [uriValue, setURIValue] = useState("");
-  const [uriV2Ray, setURIV2Ray] = useState("");
-  const [uriClientParams, setURIClientParams] = useState<Hy2ClientParams | null>(null);
 
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
@@ -263,11 +249,10 @@ export default function HysteriaUsersPage() {
     setBusyID(account.id);
     try {
       const payload = await apiFetch<Hy2AccountViewPayload>(`/api/hy2/accounts/${account.id}`);
-      setURITitle(account.client_name || account.hy2_identity);
+      setQRTitle(account.client_name || account.hy2_identity);
       setURIValue(payload.uri);
-      setURIV2Ray(payload.uri_v2rayng || "");
-      setURIClientParams(payload.client_params || null);
-      setURIOpen(true);
+      setQRAccountID(account.id);
+      setQROpen(true);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load URI";
       setError(message);
@@ -283,7 +268,7 @@ export default function HysteriaUsersPage() {
       const payload = await apiFetch<Hy2AccountViewPayload>(`/api/hy2/accounts/${account.id}`);
       await copyToClipboard(payload.uri);
       markCopied(`uri-${account.id}`);
-      push("URI copied", "success");
+      push("Link copied", "success");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to copy URI";
       setError(message);
@@ -307,7 +292,7 @@ export default function HysteriaUsersPage() {
     <div className="space-y-6">
       <PageHeader
         title="Hysteria"
-        description="Manage Hysteria users, identity payloads and generated client URIs in one flow."
+        description="Manage Hysteria users."
         actions={
           <Button onClick={openCreate}>
             <Plus className="size-4" />
@@ -328,14 +313,13 @@ export default function HysteriaUsersPage() {
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Enabled" value={String(overview?.enabled_accounts ?? 0)} loading={loading} />
         <StatCard label="Online" value={String(overview?.online_count ?? 0)} loading={loading} />
-        <StatCard label="Total TX" value={formatBytes(overview?.total_tx_bytes ?? 0)} loading={loading} />
-        <StatCard label="Total RX" value={formatBytes(overview?.total_rx_bytes ?? 0)} loading={loading} />
+        <StatCard label="Upload" value={formatBytes(overview?.total_tx_bytes ?? 0)} loading={loading} />
+        <StatCard label="Download" value={formatBytes(overview?.total_rx_bytes ?? 0)} loading={loading} />
       </section>
 
       <Card>
         <CardHeader>
           <CardTitle>Users</CardTitle>
-          <CardDescription>Edit is the primary action. QR/copy/delete are grouped in row actions.</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -345,83 +329,80 @@ export default function HysteriaUsersPage() {
               <Skeleton className="h-4 w-full" />
             </div>
           ) : accounts.length === 0 ? (
-            <EmptyState title="No Hysteria users" description="Create the first user to issue access credentials." icon={Waves} />
+            <EmptyState title="No Hysteria users" description="Create the first user to issue access credentials." icon={Zap} />
           ) : (
-            <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>User</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Traffic</TableHead>
-                    <TableHead>Last seen</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {accounts.map((item) => {
-                    const online = (item.online_count || 0) > 0;
-                    const busy = busyID === item.id;
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>User</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Usage</TableHead>
+                  <TableHead>Last seen</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {accounts.map((item) => {
+                  const online = (item.online_count || 0) > 0;
+                  const busy = busyID === item.id;
 
-                    return (
-                      <TableRow key={item.id}>
-                        <TableCell>
-                          <div className="font-medium">{item.client_name || item.hy2_identity}</div>
-                          <div className="mt-1 max-w-[360px] truncate text-xs text-muted-foreground">Identity: {item.hy2_identity}</div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1.5">
-                            <StatusBadge tone={item.is_enabled ? "success" : "danger"}>{item.is_enabled ? "Enabled" : "Disabled"}</StatusBadge>
-                            <StatusBadge tone={onlineTone(online)}>{online ? "Online" : "Offline"}</StatusBadge>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          TX: {formatBytes(item.last_tx_bytes || 0)} | RX: {formatBytes(item.last_rx_bytes || 0)}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">{formatDate(item.last_seen_at)}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center justify-end gap-2">
-                            <Button variant="ghost" size="sm" onClick={() => openEdit(item)} disabled={busy}>
-                              Edit
-                            </Button>
-                            <OverflowMenu
-                              items={[
-                                {
-                                  id: "qr",
-                                  label: "Show QR",
-                                  icon: QrCode,
-                                  disabled: busy,
-                                  onSelect: () => {
-                                    void openQR(item);
-                                  },
+                  return (
+                    <TableRow key={item.id}>
+                      <TableCell>
+                        <div className="font-medium">{item.client_name || item.hy2_identity}</div>
+                        <div className="mt-1 max-w-[360px] truncate text-xs text-muted-foreground">Identity: {item.hy2_identity}</div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1.5">
+                          <StatusBadge tone={item.is_enabled ? "success" : "danger"}>{item.is_enabled ? "Enabled" : "Disabled"}</StatusBadge>
+                          <StatusBadge tone={onlineTone(online)}>{online ? "Online" : "Offline"}</StatusBadge>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        Upload: {formatBytes(item.last_tx_bytes || 0)} | Download: {formatBytes(item.last_rx_bytes || 0)}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{formatDate(item.last_seen_at)}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-end gap-2">
+                          <Button variant="secondary" size="sm" onClick={() => void openQR(item)} disabled={busy}>
+                            <QrCode className="size-4" />
+                            Show QR
+                          </Button>
+                          <OverflowMenu
+                            items={[
+                              {
+                                id: "edit",
+                                label: "Edit",
+                                icon: Pencil,
+                                disabled: busy,
+                                onSelect: () => openEdit(item),
+                              },
+                              {
+                                id: "copy",
+                                label: copiedKey === `uri-${item.id}` ? "Link copied" : "Copy link",
+                                icon: Copy,
+                                disabled: busy,
+                                onSelect: () => {
+                                  void copyURI(item);
                                 },
-                                {
-                                  id: "copy",
-                                  label: copiedKey === `uri-${item.id}` ? "URI copied" : "Copy URI",
-                                  icon: Copy,
-                                  disabled: busy,
-                                  onSelect: () => {
-                                    void copyURI(item);
-                                  },
-                                },
-                                {
-                                  id: "delete",
-                                  label: "Delete",
-                                  icon: Trash2,
-                                  destructive: true,
-                                  disabled: busy,
-                                  onSelect: () => askDelete(item),
-                                },
-                              ]}
-                            />
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </>
+                              },
+                              {
+                                id: "delete",
+                                label: "Delete",
+                                icon: Trash2,
+                                destructive: true,
+                                disabled: busy,
+                                onSelect: () => askDelete(item),
+                              },
+                            ]}
+                          />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>
@@ -461,7 +442,6 @@ export default function HysteriaUsersPage() {
             value={formState.auth_payload}
             onChange={(event) => setFormState((prev) => ({ ...prev, auth_payload: event.target.value }))}
             placeholder="Auto-generated if empty"
-            description="Optional custom auth payload."
           />
 
           <TextField
@@ -469,7 +449,6 @@ export default function HysteriaUsersPage() {
             value={formState.hy2_identity}
             onChange={(event) => setFormState((prev) => ({ ...prev, hy2_identity: event.target.value }))}
             placeholder="Auto-generated if empty"
-            description="Client identity visible in runtime logs."
           />
         </form>
       </Dialog>
@@ -485,47 +464,35 @@ export default function HysteriaUsersPage() {
       />
 
       <Dialog
-        open={uriOpen}
-        title={`Connection: ${uriTitle}`}
-        onClose={() => setURIOpen(false)}
-        size="lg"
+        open={qrOpen}
+        title={qrTitle ? `Show QR: ${qrTitle}` : "Show QR"}
+        onClose={() => setQROpen(false)}
+        size="sm"
         actions={
-          <>
-            <Button variant="ghost" type="button" onClick={() => void copyValue(uriValue, "uri")}> 
-              {copiedKey === "uri" ? "Copied" : "Copy URI"}
-            </Button>
-            {uriV2Ray && (
-              <Button variant="ghost" type="button" onClick={() => void copyValue(uriV2Ray, "uri-v2")}> 
-                {copiedKey === "uri-v2" ? "Copied" : "Copy hy2://"}
-              </Button>
-            )}
-          </>
+          <Button variant="secondary" type="button" onClick={() => void copyValue(uriValue, "uri")}>
+            {copiedKey === "uri" ? "Copied" : "Copy link"}
+          </Button>
         }
       >
-        <div className="grid gap-3">
-          <TextareaField label="hysteria2 URI" value={uriValue} readOnly className="font-mono text-xs" />
-
-          {uriV2Ray && <TextareaField label="V2RayNG hy2 URI" value={uriV2Ray} readOnly className="font-mono text-xs" />}
-
-          {uriClientParams && (
-            <div className="rounded-lg border bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
-              <div>
-                server: {uriClientParams.server || "-"} | port: {uriClientParams.port || "-"} | sni: {uriClientParams.sni || "-"}
-              </div>
-            </div>
-          )}
-
-          {uriValue && (
-            <img
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(uriValue)}`}
-              alt="Hysteria QR code"
-              className="h-56 w-56 rounded-xl object-contain"
-            />
+        <div className="flex justify-center">
+          {qrAccountID && uriValue ? (
+            <button
+              type="button"
+              onClick={() => void copyValue(uriValue, "uri")}
+              className="rounded-xl border bg-background p-2 transition-colors hover:bg-muted/40"
+              aria-label="Copy connection link"
+            >
+              <img
+                src={`/api/hy2/accounts/${qrAccountID}/qr?size=360`}
+                alt="Hysteria connection QR"
+                className="h-64 w-64 rounded-lg bg-white p-2 object-contain"
+              />
+            </button>
+          ) : (
+            <Skeleton className="h-64 w-64 rounded-lg" />
           )}
         </div>
       </Dialog>
     </div>
   );
 }
-
-

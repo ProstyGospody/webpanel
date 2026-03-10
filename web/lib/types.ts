@@ -130,30 +130,6 @@ export type Hy2ConfigValidation = {
   };
 };
 
-export type Hy2ClientProfile = {
-  name?: string;
-  server: string;
-  auth: string;
-  tls: {
-    sni?: string;
-    insecure?: boolean;
-    pinSHA256?: string[];
-  };
-  obfs?: { type?: string; salamander?: { password?: string } };
-};
-
-export type Hy2ClientArtifacts = {
-  uri: string;
-  uriHy2: string;
-  clientYAML: string;
-};
-
-export type Hy2ClientValidation = {
-  valid: boolean;
-  errors: string[];
-  warnings: string[];
-};
-
 export type Hy2SettingsPayload = {
   path: string;
   raw_yaml: string;
@@ -161,21 +137,8 @@ export type Hy2SettingsPayload = {
   settings_validation: Hy2SettingsValidation;
   config_validation: Hy2ConfigValidation;
   raw_only_paths?: string[];
-  client_profile: Hy2ClientProfile;
-  client_artifacts: Hy2ClientArtifacts;
-  client_validation: Hy2ClientValidation;
 };
 
-export type Hy2ClientParams = {
-  server?: string;
-  port?: number;
-  portUnion?: string;
-  sni?: string;
-  insecure?: boolean;
-  pinSHA256?: string;
-  obfsType?: string;
-  obfsPassword?: string;
-};
 
 export type MTProxySettingsPayload = {
   public_host: string;
