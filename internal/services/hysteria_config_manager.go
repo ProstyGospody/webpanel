@@ -286,15 +286,14 @@ func (m *HysteriaConfigManager) ExtractSettings(content string, fallbackHost str
 }
 
 func (m *HysteriaConfigManager) ValidateSettings(input Hy2Settings) Hy2SettingsValidation {
-	conflict := input.ObfsEnabled && input.MasqueradeEnabled
 	settings := normalizeSettings(input)
 	validation := Hy2SettingsValidation{
 		Errors:   make([]string, 0, 4),
 		Warnings: make([]string, 0, 3),
 	}
 
-	if conflict {
-		validation.Warnings = append(validation.Warnings, "obfs and masquerade cannot be enabled together; masquerade has been disabled")
+	if input.ObfsEnabled && input.MasqueradeEnabled {
+		validation.Errors = append(validation.Errors, "obfs and masquerade are mutually exclusive; choose one mode")
 	}
 
 	if settings.Port <= 0 || settings.Port > 65535 {
@@ -575,18 +574,12 @@ func normalizeSettings(input Hy2Settings) Hy2Settings {
 		if settings.ObfsPassword == "" {
 			settings.ObfsPassword = generateObfsPassword()
 		}
-		settings.MasqueradeEnabled = false
-		settings.MasqueradeType = ""
-		settings.MasqueradeURL = ""
 	}
 
 	if settings.MasqueradeEnabled {
 		if settings.MasqueradeType == "" {
 			settings.MasqueradeType = "proxy"
 		}
-		settings.ObfsEnabled = false
-		settings.ObfsType = ""
-		settings.ObfsPassword = ""
 	}
 
 	if !settings.ObfsEnabled {

@@ -1,13 +1,11 @@
-﻿"use client";
+"use client";
 
 import { type InputHTMLAttributes, type TextareaHTMLAttributes, useId } from "react";
 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 type FieldBaseProps = {
@@ -106,43 +104,6 @@ export function SelectField({
         </SelectContent>
       </Select>
       <FieldMessage id={messageId} description={description} error={error} />
-    </div>
-  );
-}
-
-type SwitchFieldProps = {
-  id: string;
-  label: string;
-  description?: string;
-  checked: boolean;
-  disabled?: boolean;
-  statusLabel?: string;
-  onCheckedChange: (value: boolean) => void;
-};
-
-export function SwitchField({
-  id,
-  label,
-  description,
-  checked,
-  disabled = false,
-  statusLabel,
-  onCheckedChange,
-}: SwitchFieldProps) {
-  return (
-    <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border bg-muted/20 p-3">
-      <div className="space-y-1">
-        <Label htmlFor={id} className="text-sm font-medium">
-          {label}
-        </Label>
-        {description && <p className="text-xs text-muted-foreground">{description}</p>}
-      </div>
-      <div className="flex items-center gap-2">
-        <Badge variant="outline" className="text-[11px]">
-          {statusLabel || (checked ? "Enabled" : "Disabled")}
-        </Badge>
-        <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} disabled={disabled} />
-      </div>
     </div>
   );
 }

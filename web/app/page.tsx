@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useMemo, useState } from "react";
 import {
@@ -16,6 +16,7 @@ import { Area, AreaChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from "r
 import type { DashboardInterfaceRow } from "@/lib/dashboard/types";
 import { formatBytes, formatDate, formatRate } from "@/lib/format";
 import { useDashboardMetrics } from "@/hooks/use-dashboard-metrics";
+import { PageHeader } from "@/components/app/page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -99,21 +100,19 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">
-            Live host telemetry from Prometheus + node_exporter, normalized by the Next.js BFF layer.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className="gap-1">
-            <RefreshCw className={refreshing ? "size-3.5 animate-spin" : "size-3.5"} />
-            {refreshing ? "Refreshing" : "Live"}
-          </Badge>
-          <Badge variant="outline">Updated {formatDate(data?.generatedAt || null)}</Badge>
-        </div>
-      </header>
+      <PageHeader
+        title="Dashboard"
+        description="Live host telemetry from Prometheus + node_exporter, normalized by the Next.js BFF layer."
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline" className="gap-1">
+              <RefreshCw className={refreshing ? "size-3.5 animate-spin" : "size-3.5"} />
+              {refreshing ? "Refreshing" : "Live"}
+            </Badge>
+            <Badge variant="outline">Updated {formatDate(data?.generatedAt || null)}</Badge>
+          </div>
+        }
+      />
 
       {topError && (
         <Alert variant="destructive">

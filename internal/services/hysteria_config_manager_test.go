@@ -157,25 +157,14 @@ tls:
 		ObfsEnabled:           true,
 		ObfsType:              "salamander",
 		ObfsPassword:          "secret-pass",
-		MasqueradeEnabled:     true,
-		MasqueradeType:        "proxy",
-		MasqueradeURL:         "https://www.cloudflare.com",
+		MasqueradeEnabled:     false,
+		MasqueradeType:        "",
+		MasqueradeURL:         "",
 		MasqueradeRewriteHost: true,
 	})
 
 	if !validation.Valid {
 		t.Fatalf("settings should be valid: %#v", validation)
-	}
-
-	warningFound := false
-	for _, warning := range validation.Warnings {
-		if warning == "obfs and masquerade cannot be enabled together; masquerade has been disabled" {
-			warningFound = true
-			break
-		}
-	}
-	if !warningFound {
-		t.Fatalf("expected conflict warning, got: %#v", validation.Warnings)
 	}
 
 	summary := manager.Parse(next)
@@ -191,14 +180,53 @@ tls:
 	if summary.ObfsPassword != "secret-pass" {
 		t.Fatalf("unexpected obfs password: %s", summary.ObfsPassword)
 	}
-	if summary.MasqueradeType != "" {
-		t.Fatalf("masquerade must be disabled when obfs is enabled: %s", summary.MasqueradeType)
-	}
-	if summary.MasqueradeURL != "" {
-		t.Fatalf("masquerade url must be empty when obfs is enabled: %s", summary.MasqueradeURL)
-	}
 	if strings.Contains(next, "masquerade:") {
-		t.Fatalf("masquerade block must be removed when obfs is enabled: %s", next)
+		t.Fatalf("masquerade block must be removed: %s", next)
+	}
+}
+
+func TestHysteriaConfigManagerApplySettingsRejectsModeConflict(t *testing.T) {
+	cfg := `listen: :443
+
+auth:
+  type: http
+  http:
+    url: http://127.0.0.1:18080/internal/hy2/auth
+
+tls:
+  sni: old.example.com
+`
+
+	manager := NewHysteriaConfigManager("/tmp/unused")
+	next, validation := manager.ApplySettings(cfg, Hy2Settings{
+		Port:                  8443,
+		SNI:                   "new.example.com",
+		ObfsEnabled:           true,
+		ObfsType:              "salamander",
+		ObfsPassword:          "secret-pass",
+		MasqueradeEnabled:     true,
+		MasqueradeType:        "proxy",
+		MasqueradeURL:         "https://www.cloudflare.com",
+		MasqueradeRewriteHost: true,
+	})
+
+	if validation.Valid {
+		t.Fatalf("settings should be invalid when both modes are enabled: %#v", validation)
+	}
+
+	found := false
+	for _, err := range validation.Errors {
+		if err == "obfs and masquerade are mutually exclusive; choose one mode" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected mode conflict error, got: %#v", validation.Errors)
+	}
+
+	if next != cfg {
+		t.Fatalf("config must stay unchanged on conflict")
 	}
 }
 

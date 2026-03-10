@@ -108,11 +108,12 @@ func (h *Handler) SaveHy2Settings(w http.ResponseWriter, r *http.Request) {
 	params := h.hy2ConfigManager.ClientParams(next, h.cfg.Hy2Domain, h.cfg.Hy2Port)
 
 	h.audit(r, "hy2.settings.save", "hy2_config", nil, map[string]any{
-		"path":        h.cfg.Hy2ConfigPath,
-		"backup":      backupPath,
-		"port":        updated.Port,
-		"sni":         updated.SNI,
-		"obfs_enabled": updated.ObfsEnabled,
+		"path":               h.cfg.Hy2ConfigPath,
+		"backup":             backupPath,
+		"port":               updated.Port,
+		"sni":                updated.SNI,
+		"obfs_enabled":       updated.ObfsEnabled,
+		"masquerade_enabled": updated.MasqueradeEnabled,
 	})
 
 	render.JSON(w, http.StatusOK, map[string]any{

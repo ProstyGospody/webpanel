@@ -1,8 +1,8 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { type ComponentType, type PropsWithChildren, useEffect, useMemo, useState } from "react";
+import { Fragment, type ComponentType, type PropsWithChildren, useEffect, useMemo, useState } from "react";
 import {
   ChevronRight,
   KeyRound,
@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   Sun,
   User,
+  Users,
   Waves,
   Wrench,
 } from "lucide-react";
@@ -67,7 +68,10 @@ const SIDEBAR_STORAGE_KEY = "pp_sidebar_collapsed";
 const sections: NavigationSection[] = [
   {
     title: "Overview",
-    items: [{ href: "/", label: "Dashboard", icon: LayoutDashboard, exact: true }],
+    items: [
+      { href: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
+      { href: "/clients", label: "Clients", icon: Users },
+    ],
   },
   {
     title: "Hysteria",
@@ -427,7 +431,7 @@ export function AppShell({ children }: PropsWithChildren) {
                     const last = index === breadcrumbs.length - 1;
 
                     return (
-                      <div key={`${item}-${index}`} className="flex items-center">
+                      <Fragment key={`${item}-${index}`}>
                         <BreadcrumbItem>
                           <BreadcrumbPage>{item}</BreadcrumbPage>
                         </BreadcrumbItem>
@@ -436,7 +440,7 @@ export function AppShell({ children }: PropsWithChildren) {
                             <ChevronRight className="size-3.5" />
                           </BreadcrumbSeparator>
                         )}
-                      </div>
+                      </Fragment>
                     );
                   })}
                 </BreadcrumbList>
