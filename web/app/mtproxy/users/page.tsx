@@ -452,25 +452,23 @@ export default function MTProxyUsersPage() {
       />
 
       <Dialog open={qrOpen} title={qrTitle || "Connection QR"} onClose={() => setQROpen(false)} size="sm">
-        <div className="space-y-2">
-          <div className="flex justify-center">
-            {qrSecretID && linkValue ? (
-              <button
-                type="button"
-                onClick={() => void copyValue(linkValue, "tg-link")}
-                className="rounded-xl border bg-background p-2 transition-colors hover:bg-muted/40"
-                aria-label="Copy connection link"
-              >
-                <img
-                  src={`/api/mtproxy/secrets/${qrSecretID}/qr?size=360`}
-                  alt="MTProxy connection QR"
-                  className="h-64 w-64 rounded-lg bg-white p-2 object-contain"
-                />
-              </button>
-            ) : (
-              <Skeleton className="h-64 w-64 rounded-lg" />
-            )}
-          </div>
+        <div className="flex justify-center">
+          {qrSecretID && linkValue ? (
+            <button
+              type="button"
+              onClick={() => void copyValue(linkValue, "tg-link")}
+              className="cursor-copy rounded-xl border bg-background p-2 transition-colors hover:bg-muted/40"
+              aria-label="Copy connection link"
+            >
+              <img
+                src={`/api/mtproxy/secrets/${qrSecretID}/qr?size=360`}
+                alt="MTProxy connection QR"
+                className="h-64 w-64 rounded-lg bg-white p-2 object-contain"
+              />
+            </button>
+          ) : (
+            <Skeleton className="h-64 w-64 rounded-lg" />
+          )}
         </div>
       </Dialog>
     </div>

@@ -162,3 +162,20 @@ func TestHysteriaConfigManagerGenerateClientArtifacts(t *testing.T) {
 		t.Fatalf("client YAML does not contain socks5 mode: %s", artifacts.ClientYAML)
 	}
 }
+
+func TestDefaultClientProfileFromSettingsIgnoresWildcardHosts(t *testing.T) {
+	manager := NewHysteriaConfigManager("/tmp/unused")
+
+	settings := Hy2Settings{
+		Listen:     "0.0.0.0:443",
+		TLSEnabled: true,
+		TLSMode:    "acme",
+		ACME:       &Hy2ServerACME{Domains: []string{"hy2.example.com"}, Email: "admin@example.com"},
+		Auth:       Hy2ServerAuth{Type: "password", Password: "secret"},
+	}
+
+	profile := manager.DefaultClientProfileFromSettings(settings, "0.0.0.0", 443, "token")
+	if !strings.HasPrefix(profile.Server, "127.0.0.1:") {
+		t.Fatalf("expected wildcard host fallback to loopback, got: %s", profile.Server)
+	}
+}

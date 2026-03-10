@@ -359,8 +359,11 @@ export default function HysteriaUsersPage() {
                           <StatusBadge tone={onlineTone(online)}>{online ? "Online" : "Offline"}</StatusBadge>
                         </div>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        Upload: {formatBytes(item.last_tx_bytes || 0)} | Download: {formatBytes(item.last_rx_bytes || 0)}
+                      <TableCell>
+                        <div className="space-y-1 text-xs text-muted-foreground">
+                          <p>Upload {formatBytes(item.last_tx_bytes || 0)}</p>
+                          <p>Download {formatBytes(item.last_rx_bytes || 0)}</p>
+                        </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground">{formatDate(item.last_seen_at)}</TableCell>
                       <TableCell>
@@ -465,25 +468,23 @@ export default function HysteriaUsersPage() {
       />
 
       <Dialog open={qrOpen} title={qrTitle || "Connection QR"} onClose={() => setQROpen(false)} size="sm">
-        <div className="space-y-2">
-          <div className="flex justify-center">
-            {qrAccountID && uriValue ? (
-              <button
-                type="button"
-                onClick={() => void copyValue(uriValue, "uri")}
-                className="rounded-xl border bg-background p-2 transition-colors hover:bg-muted/40"
-                aria-label="Copy connection link"
-              >
-                <img
-                  src={`/api/hy2/accounts/${qrAccountID}/qr?size=360`}
-                  alt="Hysteria connection QR"
-                  className="h-64 w-64 rounded-lg bg-white p-2 object-contain"
-                />
-              </button>
-            ) : (
-              <Skeleton className="h-64 w-64 rounded-lg" />
-            )}
-          </div>
+        <div className="flex justify-center">
+          {qrAccountID && uriValue ? (
+            <button
+              type="button"
+              onClick={() => void copyValue(uriValue, "uri")}
+              className="cursor-copy rounded-xl border bg-background p-2 transition-colors hover:bg-muted/40"
+              aria-label="Copy connection link"
+            >
+              <img
+                src={`/api/hy2/accounts/${qrAccountID}/qr?size=360`}
+                alt="Hysteria connection QR"
+                className="h-64 w-64 rounded-lg bg-white p-2 object-contain"
+              />
+            </button>
+          ) : (
+            <Skeleton className="h-64 w-64 rounded-lg" />
+          )}
         </div>
       </Dialog>
     </div>

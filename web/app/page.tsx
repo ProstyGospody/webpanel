@@ -93,6 +93,7 @@ export default function DashboardPage() {
 
   const topError = error;
   const partialErrors = data?.partial ? data.errors : [];
+  const partialErrorItems = useMemo(() => partialErrors.slice(0, 3).map(formatPartialErrorMessage), [partialErrors]);
 
   return (
     <div className="space-y-6">
@@ -121,7 +122,13 @@ export default function DashboardPage() {
       {!topError && partialErrors.length > 0 ? (
         <Alert>
           <AlertTitle>Partial data</AlertTitle>
-          <AlertDescription>{partialErrors.slice(0, 3).join(" | ")}</AlertDescription>
+          <AlertDescription>
+            <ul className="list-disc space-y-1 pl-5">
+              {partialErrorItems.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </AlertDescription>
         </Alert>
       ) : null}
 
@@ -257,7 +264,7 @@ function SeriesAreaChart({
   yTickFormatter: (value: number) => string;
 }) {
   if (data.length === 0) {
-    return <EmptyChartState message="No samples for this period." />;
+    return <EmptyChartState message="No data for this range." />;
   }
 
   return (
@@ -303,7 +310,7 @@ function SeriesAreaChart({
 
 function NetworkLineChart({ data }: { data: Array<{ timestamp: string; rxBps: number | null; txBps: number | null }> }) {
   if (data.length === 0) {
-    return <EmptyChartState message="No network samples for this period." />;
+    return <EmptyChartState message="No network data for this range." />;
   }
 
   return (
@@ -432,6 +439,10 @@ function EmptyChartState({ message }: { message: string }) {
       {message}
     </div>
   );
+}
+
+function formatPartialErrorMessage(value: string): string {
+  return value.replace(/^[a-z0-9-]+:\s*/i, "").trim() || "Data source unavailable";
 }
 
 function formatPercent(value: number | null | undefined): string {

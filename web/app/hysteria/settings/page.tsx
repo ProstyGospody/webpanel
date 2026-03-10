@@ -233,7 +233,6 @@ export default function HysteriaSettingsPage() {
   const [settings, setSettings] = useState<Hy2Settings>(DEFAULT_SETTINGS);
   const [savedSettings, setSavedSettings] = useState<Hy2Settings>(DEFAULT_SETTINGS);
   const [listenHost, setListenHost] = useState("");
-  const [publicHost, setPublicHost] = useState("");
   const [port, setPort] = useState("443");
 
   const [rawYaml, setRawYaml] = useState("");
@@ -278,7 +277,7 @@ export default function HysteriaSettingsPage() {
         next.tlsMode = "acme";
         next.tls = undefined;
         next.acme = {
-          domains: next.acme?.domains?.length ? next.acme.domains : publicHost ? [publicHost] : [],
+          domains: next.acme?.domains?.length ? next.acme.domains : [],
           email: next.acme?.email || "",
         };
       } else {
@@ -377,7 +376,7 @@ export default function HysteriaSettingsPage() {
       next.tls = undefined;
       next.acme = undefined;
     } else if (next.tlsMode === "acme") {
-      const domain = (publicHost || next.acme?.domains?.[0] || "").trim();
+      const domain = (next.acme?.domains?.[0] || "").trim();
       next.acme = {
         domains: domain ? [domain] : [],
         email: (next.acme?.email || "").trim(),
@@ -456,14 +455,11 @@ export default function HysteriaSettingsPage() {
       const payload = await apiFetch<Hy2SettingsPayload>("/api/hy2/settings");
       const normalizedSettings = normalizeSettings(payload.settings);
       const listenParts = parseListen(normalizedSettings.listen);
-      const hostFromSettings =
-        normalizedSettings.tlsEnabled && normalizedSettings.tlsMode === "acme" ? normalizedSettings.acme?.domains?.[0] || "" : "";
 
       setSettings(normalizedSettings);
       setSavedSettings(normalizedSettings);
       setListenHost(listenParts.host || "");
       setPort(listenParts.port || "443");
-      setPublicHost(hostFromSettings || listenParts.host || "");
 
       setRawYaml(payload.raw_yaml || "");
       setSettingsValidation(payload.settings_validation || null);
@@ -570,13 +566,12 @@ export default function HysteriaSettingsPage() {
 
       const normalizedSettings = normalizeSettings(payload.settings);
       const listenParts = parseListen(normalizedSettings.listen);
-      const hostFromSettings = normalizedSettings.tlsEnabled && normalizedSettings.tlsMode === "acme" ? normalizedSettings.acme?.domains?.[0] || "" : "";
+
 
       setSettings(normalizedSettings);
       setSavedSettings(normalizedSettings);
       setListenHost(listenParts.host || "");
       setPort(listenParts.port || "443");
-      setPublicHost(hostFromSettings || listenParts.host || "");
       setConfigValidation(payload.validation || null);
       setRawOnlyPaths(payload.validation?.rawOnlyPaths || []);
       setError(null);
@@ -613,7 +608,7 @@ export default function HysteriaSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Hysteria settings" icon={<Zap />} description="Mode-driven server configuration for Hysteria 2." />
+      <PageHeader title="Hysteria settings" icon={<Zap />} description="Server configuration for Hysteria 2." />
       <SectionNav items={tabs} />
 
       {error && (
@@ -627,7 +622,7 @@ export default function HysteriaSettingsPage() {
         <Alert>
           <AlertTriangle className="size-4" />
           <AlertTitle>Unmanaged advanced fields detected</AlertTitle>
-          <AlertDescription>Raw YAML contains fields outside the managed settings UI.</AlertDescription>
+          <AlertDescription>Some options are managed only in Raw YAML.</AlertDescription>
         </Alert>
       )}
 
@@ -643,28 +638,21 @@ export default function HysteriaSettingsPage() {
             <CardContent className="space-y-4 pt-3">
               <div className="grid gap-4 md:grid-cols-2">
                 <TextField
-                  label="Public endpoint"
-                  value={publicHost}
-                  onChange={(e) => setPublicHost(e.target.value)}
-                  placeholder="hy2.example.com"
-                  disabled={loading}
-                />
-                <TextField
                   label="Port"
                   value={port}
                   onChange={(e) => setPort(e.target.value.replace(/[^0-9]/g, ""))}
                   placeholder="443"
                   disabled={loading}
                 />
+                <TextField
+                  label="Listen host"
+                  value={listenHost}
+                  onChange={(e) => setListenHost(e.target.value)}
+                  placeholder="0.0.0.0"
+                  description="Leave empty to listen on all interfaces."
+                  disabled={loading}
+                />
               </div>
-              <TextField
-                label="Listen host (optional)"
-                value={listenHost}
-                onChange={(e) => setListenHost(e.target.value)}
-                placeholder="0.0.0.0"
-                description="Leave empty to listen on all interfaces."
-                disabled={loading}
-              />
             </CardContent>
           </Card>
 
@@ -677,9 +665,9 @@ export default function HysteriaSettingsPage() {
                 value={tlsMode}
                 onChange={(value) => setTLSMode(value as TLSMode)}
                 options={[
-                  { value: "acme", label: "ACME", description: "Automatic certificate management." },
-                  { value: "tls", label: "TLS files", description: "Use existing certificate and key files." },
-                  { value: "disabled", label: "Disabled", description: "Removes managed TLS blocks from config." },
+                  { value: "acme", label: "ACME", description: "Automatic certificate." },
+                  { value: "tls", label: "TLS files", description: "Use cert and key files." },
+                  { value: "disabled", label: "Disabled", description: "Do not manage TLS here." },
                 ]}
               />
 
@@ -688,10 +676,9 @@ export default function HysteriaSettingsPage() {
                   <div className="grid gap-4 md:grid-cols-2">
                     <TextField
                       label="ACME domain"
-                      value={settings.acme?.domains?.[0] || publicHost}
+                      value={settings.acme?.domains?.[0] || ""}
                       onChange={(e) => {
                         const value = e.target.value;
-                        setPublicHost(value);
                         updateSetting("acme", { ...(settings.acme || {}), domains: value ? [value] : [] });
                       }}
                       placeholder="hy2.example.com"
@@ -730,7 +717,7 @@ export default function HysteriaSettingsPage() {
               )}
 
               {tlsMode === "disabled" && (
-                <p className="rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground">Managed TLS is disabled for this profile.</p>
+                <p className="rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground">TLS blocks are managed in Raw YAML only.</p>
               )}
             </CardContent>
           </Card>
@@ -745,8 +732,8 @@ export default function HysteriaSettingsPage() {
                 onChange={(value) => setAuthMode(value as AuthMode)}
                 columnsClassName="md:grid-cols-2"
                 options={[
-                  { value: "password", label: "Password", description: "Single shared secret for clients." },
-                  { value: "http", label: "HTTP endpoint", description: "External auth webhook on each session." },
+                  { value: "password", label: "Password", description: "Shared secret." },
+                  { value: "http", label: "HTTP endpoint", description: "External auth webhook." },
                 ]}
               />
 
@@ -782,7 +769,6 @@ export default function HysteriaSettingsPage() {
                   <div className="flex items-center justify-between rounded-lg border bg-background px-3 py-2.5">
                     <div className="space-y-0.5">
                       <Label>Allow insecure TLS for auth endpoint</Label>
-                      <p className="text-xs text-muted-foreground">Use only for trusted internal endpoints with self-signed certs.</p>
                     </div>
                     <Switch
                       checked={Boolean(settings.auth?.http?.insecure)}
@@ -802,16 +788,16 @@ export default function HysteriaSettingsPage() {
 
           <Card>
             <CardHeader className="border-b pb-3">
-              <CardTitle>Transport / Camouflage</CardTitle>
+              <CardTitle>Optional protection</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pt-3">
               <ModeCards
                 value={protectionMode}
                 onChange={(value) => setProtectionMode(value as ProtectionMode)}
                 options={[
-                  { value: "none", label: "None", description: "No additional camouflage layer." },
-                  { value: "obfs", label: "OBFS", description: "Salamander password-based obfuscation." },
-                  { value: "masquerade", label: "Masquerade", description: "Serve traffic through proxy, files, or inline response." },
+                  { value: "none", label: "None", description: "No extra layer." },
+                  { value: "obfs", label: "OBFS", description: "Salamander obfuscation." },
+                  { value: "masquerade", label: "Masquerade", description: "Serve decoy traffic." },
                 ]}
               />
 
@@ -938,7 +924,7 @@ export default function HysteriaSettingsPage() {
         <div className="space-y-6">
           <Card>
             <CardHeader className="border-b pb-3">
-              <CardTitle>Advanced transport (QUIC)</CardTitle>
+              <CardTitle>Advanced QUIC</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pt-3">
               <ModeCards
@@ -946,13 +932,13 @@ export default function HysteriaSettingsPage() {
                 onChange={(value) => setQuicMode(value as QuicMode)}
                 columnsClassName="md:grid-cols-2"
                 options={[
-                  { value: "default", label: "Stable defaults", description: "Recommended for predictable production behavior." },
-                  { value: "custom", label: "Custom QUIC", description: "Override defaults only when tuning is required." },
+                  { value: "default", label: "Stable defaults", description: "Recommended." },
+                  { value: "custom", label: "Custom QUIC", description: "Manual tuning." },
                 ]}
               />
 
               {quicMode === "default" && (
-                <p className="rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground">Using Hysteria default QUIC values.</p>
+                <p className="rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground">Using default QUIC values.</p>
               )}
 
               {quicMode === "custom" && (
@@ -1005,7 +991,6 @@ export default function HysteriaSettingsPage() {
                   <div className="flex items-center justify-between rounded-lg border bg-background px-3 py-2.5">
                     <div className="space-y-0.5">
                       <Label>Disable path MTU discovery</Label>
-                      <p className="text-xs text-muted-foreground">Enable only if MTU discovery causes packet loss on your route.</p>
                     </div>
                     <Switch
                       checked={Boolean(settings.quic?.disablePathMTUDiscovery)}
@@ -1031,7 +1016,7 @@ export default function HysteriaSettingsPage() {
               <div className="rounded-lg border bg-muted/15 px-3 py-3 text-sm">
                 <p className="font-medium">Current profile</p>
                 <p className="mt-1 text-muted-foreground">
-                  TLS: {tlsSummary} · Auth: {authSummary} · Protection: {protectionSummary} · QUIC: {quicSummary}
+                  TLS: {tlsSummary} | Auth: {authSummary} | Protection: {protectionSummary} | QUIC: {quicSummary}
                 </p>
               </div>
 
@@ -1063,7 +1048,6 @@ export default function HysteriaSettingsPage() {
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/10 px-3 py-2.5">
                 <div>
                   <p className="text-sm font-medium">Unmanaged YAML</p>
-                  <p className="text-xs text-muted-foreground">Use this only for options outside managed mode.</p>
                 </div>
                 <Button variant="outline" onClick={() => setAdvancedOpen((prev) => !prev)} disabled={loading}>
                   <FileText className="size-4" />

@@ -15,6 +15,7 @@ import { OverflowMenu } from "@/components/overflow-menu";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type ServiceDetails = {
@@ -116,7 +117,7 @@ export default function ServicesPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Services" icon={<Wrench />} description="Manage service state and recent logs." />
+      <PageHeader title="Services" icon={<Wrench />} description="Service status and controls." />
 
       {error && (
         <Alert variant="destructive">
@@ -193,13 +194,13 @@ export default function ServicesPage() {
           </CardHeader>
           <CardContent className="space-y-3 pt-3">
             {!selected && (
-              <EmptyState title="Select a service" description="Choose a service to inspect runtime status and logs." icon={TerminalSquare} />
+              <EmptyState title="Select a service" description="Pick a service to view status and logs." icon={TerminalSquare} />
             )}
             {selected && loadingDetails && (
-              <Alert>
-                <AlertTitle>Loading</AlertTitle>
-                <AlertDescription>Loading {selected}...</AlertDescription>
-              </Alert>
+              <div className="space-y-2">
+                <Skeleton className="h-5 w-40" />
+                <Skeleton className="h-40 w-full rounded-lg" />
+              </div>
             )}
             {details && (
               <div className="space-y-3">
@@ -207,8 +208,8 @@ export default function ServicesPage() {
                   <strong>{details.name}</strong>
                   <StatusBadge tone={statusTone(details.status_text)}>{details.status_text}</StatusBadge>
                 </div>
-                <div className="text-sm text-muted-foreground">Checked: {formatDate(details.checked_at)}</div>
-                <pre className="overflow-x-auto rounded-lg border bg-muted/20 p-3 font-mono text-xs leading-relaxed">
+                <div className="text-sm text-muted-foreground">Updated {formatDate(details.checked_at)}</div>
+                <pre className="max-h-[360px] overflow-auto rounded-lg border bg-muted/20 p-3 font-mono text-xs leading-relaxed">
                   {(details.last_logs || []).join("\n") || "No logs"}
                 </pre>
               </div>

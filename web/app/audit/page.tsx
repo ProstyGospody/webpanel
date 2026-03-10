@@ -11,17 +11,24 @@ import { EmptyState } from "@/components/app/empty-state";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function AuditPage() {
   const [items, setItems] = useState<AuditLog[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    setLoading(true);
     apiFetch<{ items: AuditLog[] }>("/api/audit?limit=200")
-      .then((resp) => setItems(resp.items || []))
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : "Failed to load audit"));
+      .then((resp) => {
+        setItems(resp.items || []);
+        setError(null);
+      })
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : "Failed to load audit"))
+      .finally(() => setLoading(false));
   }, []);
 
   const filtered = useMemo(() => {
@@ -42,7 +49,7 @@ export default function AuditPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Audit" icon={<History />} description="Administrative activity log." meta={`${filtered.length} records`} />
+      <PageHeader title="Audit" icon={<History />} description="Administrative activity log." meta={loading ? "Loading..." : `${filtered.length} records`} />
 
       {error ? (
         <Alert variant="destructive">
@@ -67,16 +74,23 @@ export default function AuditPage() {
           </div>
         </CardHeader>
         <CardContent className="pt-3">
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ) : filtered.length === 0 ? (
             <EmptyState title="No audit records" description="No entries match the current filter." icon={History} />
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Time</TableHead>
-                  <TableHead>Admin</TableHead>
-                  <TableHead>Action</TableHead>
-                  <TableHead>Entity</TableHead>
+                  <TableHead className="w-[170px]">Time</TableHead>
+                  <TableHead className="w-[200px]">Admin</TableHead>
+                  <TableHead className="w-[220px]">Action</TableHead>
+                  <TableHead className="w-[180px]">Entity</TableHead>
                   <TableHead>Payload</TableHead>
                 </TableRow>
               </TableHeader>
@@ -90,7 +104,9 @@ export default function AuditPage() {
                       {item.entity_type}
                       {item.entity_id ? `/${item.entity_id}` : ""}
                     </TableCell>
-                    <TableCell className="max-w-[420px] truncate font-mono text-xs">{item.payload_json}</TableCell>
+                    <TableCell className="max-w-[420px] truncate text-xs text-muted-foreground" title={item.payload_json}>
+                      {formatPayloadPreview(item.payload_json)}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -102,3 +118,23 @@ export default function AuditPage() {
   );
 }
 
+function formatPayloadPreview(raw: string): string {
+  const value = (raw || "").trim();
+  if (!value) {
+    return "-";
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    const compact = JSON.stringify(parsed);
+    if (compact.length <= 120) {
+      return compact;
+    }
+    return `${compact.slice(0, 117)}...`;
+  } catch {
+    if (value.length <= 120) {
+      return value;
+    }
+    return `${value.slice(0, 117)}...`;
+  }
+}

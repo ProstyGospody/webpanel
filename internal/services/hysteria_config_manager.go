@@ -361,7 +361,7 @@ func (m *HysteriaConfigManager) ClientParams(content string, fallbackHost string
 		port = fallbackPort
 	}
 	if host == "" {
-		host = NormalizeHost(fallbackHost)
+		host = sanitizePublicHost(fallbackHost)
 	}
 	if host == "" {
 		host = "127.0.0.1"
@@ -402,9 +402,9 @@ func (m *HysteriaConfigManager) DefaultClientProfileFromSettings(settings Hy2Set
 		listenPorts = strconv.Itoa(maxInt(fallbackPort, 443))
 	}
 
-	publicHost := NormalizeHost(fallbackHost)
+	publicHost := sanitizePublicHost(fallbackHost)
 	if publicHost == "" {
-		publicHost = NormalizeHost(listenHost)
+		publicHost = sanitizePublicHost(listenHost)
 	}
 	if publicHost == "" {
 		publicHost = "127.0.0.1"
@@ -472,7 +472,7 @@ func (m *HysteriaConfigManager) GenerateClientArtifacts(profile Hy2ClientProfile
 
 func defaultSettings(fallbackHost string, fallbackPort int) Hy2Settings {
 	port := maxInt(fallbackPort, 443)
-	host := NormalizeHost(fallbackHost)
+	host := sanitizePublicHost(fallbackHost)
 	domains := []string{}
 	if host != "" && net.ParseIP(host) == nil {
 		domains = append(domains, host)
@@ -1792,6 +1792,16 @@ func ensureBracketedIPv6(authority string) string {
 		return "[" + strings.Trim(host, "[]") + "]"
 	}
 	return authority
+}
+
+func sanitizePublicHost(raw string) string {
+	host := NormalizeHost(raw)
+	switch host {
+	case "", "0.0.0.0", "::":
+		return ""
+	default:
+		return host
+	}
 }
 
 func validPort(value int) bool {
