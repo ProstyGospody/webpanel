@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 import { Toaster } from "@/components/ui/sonner";
 
-type ToastTone = "success" | "error" | "info";
+type ToastTone = "success" | "error" | "info" | "warning";
 
 type ToastContextValue = {
   push: (message: string, tone?: ToastTone) => void;
@@ -25,7 +25,12 @@ export function ToastProvider({ children }: PropsWithChildren) {
       return;
     }
 
-    toast(message);
+    if (tone === "warning") {
+      toast.warning(message);
+      return;
+    }
+
+    toast.info(message);
   }, []);
 
   const value = useMemo<ToastContextValue>(() => ({ push }), [push]);
@@ -45,4 +50,3 @@ export function useToast() {
   }
   return ctx;
 }
-

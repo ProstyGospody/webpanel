@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { AlertTriangle, FileText, PlayCircle, Save, SearchCheck, Shield, Users, Zap } from "lucide-react";
 
 import { apiFetch, toJSONBody } from "@/lib/api";
@@ -14,6 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
@@ -183,7 +184,7 @@ function ValidationAlerts({ title, validation }: { title: string; validation: Hy
   );
 }
 
-function ModeCards({
+function ModeRadioGroup({
   value,
   onChange,
   options,
@@ -194,31 +195,34 @@ function ModeCards({
   options: ModeOption[];
   columnsClassName?: string;
 }) {
+  const groupId = useId();
+
   return (
-    <div className={cn("grid gap-2", columnsClassName)} role="radiogroup">
-      {options.map((option) => {
+    <RadioGroup value={value} onValueChange={(nextValue) => onChange(String(nextValue))} className={cn("grid gap-2", columnsClassName)}>
+      {options.map((option, index) => {
+        const inputId = `${groupId}-${index}`;
         const active = option.value === value;
+
         return (
-          <button
+          <label
             key={option.value}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            onClick={() => onChange(option.value)}
+            htmlFor={inputId}
             className={cn(
-              "rounded-lg border px-3 py-3 text-left transition-colors",
-              active ? "border-primary/40 bg-primary/5 shadow-sm" : "border-border bg-background hover:bg-muted/35"
+              "flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2.5 transition-colors",
+              active ? "border-primary/40 bg-primary/5" : "border-border hover:bg-muted/30"
             )}
           >
-            <p className="text-sm font-medium leading-none">{option.label}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{option.description}</p>
-          </button>
+            <RadioGroupItem id={inputId} value={option.value} className="mt-0.5" />
+            <div className="space-y-0.5">
+              <p className="text-sm font-medium leading-none">{option.label}</p>
+              {option.description ? <p className="text-xs text-muted-foreground">{option.description}</p> : null}
+            </div>
+          </label>
         );
       })}
-    </div>
+    </RadioGroup>
   );
 }
-
 function generateSecret(size = 16): string {
   if (typeof window !== "undefined" && window.crypto?.getRandomValues) {
     const bytes = new Uint8Array(size);
@@ -455,7 +459,6 @@ export default function HysteriaSettingsPage() {
       const payload = await apiFetch<Hy2SettingsPayload>("/api/hy2/settings");
       const normalizedSettings = normalizeSettings(payload.settings);
       const listenParts = parseListen(normalizedSettings.listen);
-
       setSettings(normalizedSettings);
       setSavedSettings(normalizedSettings);
       setListenHost(listenParts.host || "");
@@ -566,8 +569,6 @@ export default function HysteriaSettingsPage() {
 
       const normalizedSettings = normalizeSettings(payload.settings);
       const listenParts = parseListen(normalizedSettings.listen);
-
-
       setSettings(normalizedSettings);
       setSavedSettings(normalizedSettings);
       setListenHost(listenParts.host || "");
@@ -604,11 +605,11 @@ export default function HysteriaSettingsPage() {
   const tlsSummary = tlsMode === "disabled" ? "Disabled" : tlsMode === "acme" ? "ACME" : "TLS files";
   const authSummary = authMode === "password" ? "Password" : "HTTP endpoint";
   const protectionSummary = protectionMode === "none" ? "None" : protectionMode === "obfs" ? "OBFS" : `Masquerade (${masqueradeMode})`;
-  const quicSummary = quicMode === "default" ? "Stable defaults" : "Custom values";
+  const quicSummary = quicMode === "default" ? "Default" : "Custom";
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Hysteria settings" icon={<Zap />} description="Server configuration for Hysteria 2." />
+      <PageHeader title="Hysteria settings" icon={<Zap />} description="Configure transport, security, and access." />
       <SectionNav items={tabs} />
 
       {error && (
@@ -621,15 +622,15 @@ export default function HysteriaSettingsPage() {
       {rawOnlyPaths.length > 0 && (
         <Alert>
           <AlertTriangle className="size-4" />
-          <AlertTitle>Unmanaged advanced fields detected</AlertTitle>
-          <AlertDescription>Some options are managed only in Raw YAML.</AlertDescription>
+          <AlertTitle>Raw-only fields detected</AlertTitle>
+          <AlertDescription>Some keys are managed only in Raw YAML.</AlertDescription>
         </Alert>
       )}
 
       <ValidationAlerts title="Server settings" validation={settingsValidation} />
       <ValidationAlerts title="Rendered config" validation={configValidation} />
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="space-y-6">
           <Card>
             <CardHeader className="border-b pb-3">
@@ -649,7 +650,6 @@ export default function HysteriaSettingsPage() {
                   value={listenHost}
                   onChange={(e) => setListenHost(e.target.value)}
                   placeholder="0.0.0.0"
-                  description="Leave empty to listen on all interfaces."
                   disabled={loading}
                 />
               </div>
@@ -661,13 +661,13 @@ export default function HysteriaSettingsPage() {
               <CardTitle>TLS / Security</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pt-3">
-              <ModeCards
+              <ModeRadioGroup
                 value={tlsMode}
                 onChange={(value) => setTLSMode(value as TLSMode)}
                 options={[
-                  { value: "acme", label: "ACME", description: "Automatic certificate." },
-                  { value: "tls", label: "TLS files", description: "Use cert and key files." },
-                  { value: "disabled", label: "Disabled", description: "Do not manage TLS here." },
+                  { value: "acme", label: "ACME", description: "Auto certificate." },
+                  { value: "tls", label: "TLS files", description: "Use cert and key." },
+                  { value: "disabled", label: "Disabled", description: "Raw YAML only." },
                 ]}
               />
 
@@ -675,7 +675,7 @@ export default function HysteriaSettingsPage() {
                 <div className="rounded-lg border bg-muted/10 p-4">
                   <div className="grid gap-4 md:grid-cols-2">
                     <TextField
-                      label="ACME domain"
+                      label="Domain"
                       value={settings.acme?.domains?.[0] || ""}
                       onChange={(e) => {
                         const value = e.target.value;
@@ -685,7 +685,7 @@ export default function HysteriaSettingsPage() {
                       disabled={loading}
                     />
                     <TextField
-                      label="ACME email"
+                      label="Email"
                       value={settings.acme?.email || ""}
                       onChange={(e) => updateSetting("acme", { ...(settings.acme || {}), email: e.target.value })}
                       placeholder="admin@example.com"
@@ -706,7 +706,7 @@ export default function HysteriaSettingsPage() {
                       disabled={loading}
                     />
                     <TextField
-                      label="Private key path"
+                      label="Key path"
                       value={settings.tls?.key || ""}
                       onChange={(e) => updateSetting("tls", { ...(settings.tls || {}), key: e.target.value })}
                       placeholder="/etc/hysteria/key.pem"
@@ -714,10 +714,6 @@ export default function HysteriaSettingsPage() {
                     />
                   </div>
                 </div>
-              )}
-
-              {tlsMode === "disabled" && (
-                <p className="rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground">TLS blocks are managed in Raw YAML only.</p>
               )}
             </CardContent>
           </Card>
@@ -727,13 +723,13 @@ export default function HysteriaSettingsPage() {
               <CardTitle>Authentication</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pt-3">
-              <ModeCards
+              <ModeRadioGroup
                 value={authMode}
                 onChange={(value) => setAuthMode(value as AuthMode)}
                 columnsClassName="md:grid-cols-2"
                 options={[
                   { value: "password", label: "Password", description: "Shared secret." },
-                  { value: "http", label: "HTTP endpoint", description: "External auth webhook." },
+                  { value: "http", label: "HTTP", description: "External auth endpoint." },
                 ]}
               />
 
@@ -760,7 +756,7 @@ export default function HysteriaSettingsPage() {
               ) : (
                 <div className="space-y-4 rounded-lg border bg-muted/10 p-4">
                   <TextField
-                    label="HTTP auth URL"
+                    label="Auth URL"
                     value={settings.auth?.http?.url || ""}
                     onChange={(e) => updateSetting("auth", { ...(settings.auth || {}), http: { ...(settings.auth?.http || {}), url: e.target.value } })}
                     placeholder="http://127.0.0.1:18080/internal/hy2/auth/<token>"
@@ -768,7 +764,7 @@ export default function HysteriaSettingsPage() {
                   />
                   <div className="flex items-center justify-between rounded-lg border bg-background px-3 py-2.5">
                     <div className="space-y-0.5">
-                      <Label>Allow insecure TLS for auth endpoint</Label>
+                      <Label>Allow insecure TLS for auth URL</Label>
                     </div>
                     <Switch
                       checked={Boolean(settings.auth?.http?.insecure)}
@@ -791,19 +787,15 @@ export default function HysteriaSettingsPage() {
               <CardTitle>Optional protection</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pt-3">
-              <ModeCards
+              <ModeRadioGroup
                 value={protectionMode}
                 onChange={(value) => setProtectionMode(value as ProtectionMode)}
                 options={[
                   { value: "none", label: "None", description: "No extra layer." },
-                  { value: "obfs", label: "OBFS", description: "Salamander obfuscation." },
-                  { value: "masquerade", label: "Masquerade", description: "Serve decoy traffic." },
+                  { value: "obfs", label: "OBFS", description: "Salamander." },
+                  { value: "masquerade", label: "Masquerade", description: "Decoy traffic." },
                 ]}
               />
-
-              {protectionMode === "none" && (
-                <p className="rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground">OBFS and masquerade are disabled.</p>
-              )}
 
               {protectionMode === "obfs" && (
                 <div className="grid gap-4 rounded-lg border bg-muted/10 p-4 md:grid-cols-[minmax(0,1fr)_auto]">
@@ -816,7 +808,7 @@ export default function HysteriaSettingsPage() {
                         salamander: { password: e.target.value },
                       })
                     }
-                    description="Generated automatically on save if empty."
+                    description="If empty, generated on save."
                     placeholder="salamander-secret"
                     disabled={loading}
                   />
@@ -840,13 +832,13 @@ export default function HysteriaSettingsPage() {
 
               {protectionMode === "masquerade" && (
                 <div className="space-y-4 rounded-lg border bg-muted/10 p-4">
-                  <ModeCards
+                  <ModeRadioGroup
                     value={masqueradeMode}
                     onChange={(value) => setMasqueradeMode(value as MasqueradeMode)}
                     options={[
-                      { value: "proxy", label: "Proxy target", description: "Forward requests to an upstream URL." },
-                      { value: "file", label: "Static files", description: "Serve files from a local directory." },
-                      { value: "string", label: "Inline response", description: "Return a fixed body/status response." },
+                      { value: "proxy", label: "Proxy target", description: "Forward to URL." },
+                      { value: "file", label: "Static files", description: "Serve local directory." },
+                      { value: "string", label: "Inline response", description: "Fixed response." },
                     ]}
                   />
 
@@ -927,19 +919,15 @@ export default function HysteriaSettingsPage() {
               <CardTitle>Advanced QUIC</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pt-3">
-              <ModeCards
+              <ModeRadioGroup
                 value={quicMode}
                 onChange={(value) => setQuicMode(value as QuicMode)}
                 columnsClassName="md:grid-cols-2"
                 options={[
-                  { value: "default", label: "Stable defaults", description: "Recommended." },
-                  { value: "custom", label: "Custom QUIC", description: "Manual tuning." },
+                  { value: "default", label: "Default", description: "Stable profile." },
+                  { value: "custom", label: "Custom", description: "Manual tuning." },
                 ]}
               />
-
-              {quicMode === "default" && (
-                <p className="rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground">Using default QUIC values.</p>
-              )}
 
               {quicMode === "custom" && (
                 <div className="space-y-4 rounded-lg border bg-muted/10 p-4">
@@ -1023,7 +1011,7 @@ export default function HysteriaSettingsPage() {
               <div className="flex flex-wrap gap-3">
                 <Button onClick={() => void saveSettingsAction()} disabled={saving || loading || !isSettingsDirty}>
                   <Save className="size-4" />
-                  {saving ? "Saving..." : "Save settings"}
+                  {saving ? "Saving..." : "Save"}
                 </Button>
                 <Button variant="outline" onClick={() => void validateSettingsAction()} disabled={validating || loading}>
                   <SearchCheck className="size-4" />
@@ -1031,7 +1019,7 @@ export default function HysteriaSettingsPage() {
                 </Button>
                 <Button variant="secondary" onClick={() => setApplyConfirmOpen(true)} disabled={applying || loading}>
                   <PlayCircle className="size-4" />
-                  Apply config
+                  Apply
                 </Button>
               </div>
             </CardContent>
@@ -1051,7 +1039,7 @@ export default function HysteriaSettingsPage() {
                 </div>
                 <Button variant="outline" onClick={() => setAdvancedOpen((prev) => !prev)} disabled={loading}>
                   <FileText className="size-4" />
-                  {advancedOpen ? "Hide raw YAML" : "Show raw YAML"}
+                  {advancedOpen ? "Hide" : "Show"}
                 </Button>
               </div>
 
@@ -1061,7 +1049,7 @@ export default function HysteriaSettingsPage() {
                     label="server.yaml"
                     value={rawYaml}
                     onChange={(e) => setRawYaml(e.target.value)}
-                    className="min-h-[380px] font-mono text-xs"
+                    className="min-h-[360px] font-mono text-xs"
                   />
                   <div className="flex flex-wrap gap-3">
                     <Button variant="outline" onClick={() => void validateRawYAMLAction()} disabled={validatingYaml || loading}>

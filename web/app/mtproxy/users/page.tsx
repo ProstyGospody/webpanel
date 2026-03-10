@@ -398,6 +398,7 @@ export default function MTProxyUsersPage() {
 
       <Dialog
         open={formOpen}
+        size="lg"
         title={editing ? "Edit MTProxy user" : "Create MTProxy user"}
         onClose={closeForm}
         actions={
@@ -411,7 +412,7 @@ export default function MTProxyUsersPage() {
           </>
         }
       >
-        <form id="mtproxy-user-form" className="grid gap-4 md:grid-cols-2" onSubmit={submitForm} noValidate>
+        <form id="mtproxy-user-form" className="grid gap-4 md:grid-cols-2 md:gap-x-5" onSubmit={submitForm} noValidate>
           <SelectField
             label="Client"
             value={formState.client_id}
@@ -433,6 +434,7 @@ export default function MTProxyUsersPage() {
           />
 
           <TextField
+            className="md:col-span-2"
             label="Secret"
             value={formState.secret}
             onChange={(event) => setFormState((prev) => ({ ...prev, secret: event.target.value }))}
@@ -474,4 +476,3 @@ export default function MTProxyUsersPage() {
     </div>
   );
 }
-

@@ -413,6 +413,7 @@ export default function HysteriaUsersPage() {
 
       <Dialog
         open={formOpen}
+        size="lg"
         title={editing ? "Edit Hysteria user" : "Create Hysteria user"}
         onClose={closeForm}
         actions={
@@ -426,7 +427,7 @@ export default function HysteriaUsersPage() {
           </>
         }
       >
-        <form id="hy2-user-form" className="grid gap-4 md:grid-cols-2" onSubmit={submitForm} noValidate>
+        <form id="hy2-user-form" className="grid gap-4 md:grid-cols-2 md:gap-x-5" onSubmit={submitForm} noValidate>
           <SelectField
             label="Client"
             value={formState.client_id}
@@ -449,6 +450,7 @@ export default function HysteriaUsersPage() {
           />
 
           <TextField
+            className="md:col-span-2"
             label="Identity"
             value={formState.hy2_identity}
             onChange={(event) => setFormState((prev) => ({ ...prev, hy2_identity: event.target.value }))}
@@ -490,4 +492,3 @@ export default function HysteriaUsersPage() {
     </div>
   );
 }
-
