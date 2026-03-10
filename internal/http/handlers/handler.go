@@ -293,7 +293,6 @@ func (h *Handler) resolveHy2ClientProfile(auth string) services.Hy2ClientProfile
 		Server:    services.NormalizeHost(h.cfg.Hy2Domain) + ":" + strconv.Itoa(h.cfg.Hy2Port),
 		Auth:      strings.TrimSpace(auth),
 		TLS:       services.Hy2ClientTLS{SNI: services.NormalizeHost(h.cfg.Hy2Domain)},
-		Transport: services.Hy2ClientTransport{Type: "udp"},
 	}
 	if h.hy2ConfigManager != nil {
 		if content, err := h.hy2ConfigManager.Read(); err == nil {
@@ -379,6 +378,7 @@ func generateHy2Identity() string {
 	}
 	return "hy2-" + raw
 }
+
 
 
 

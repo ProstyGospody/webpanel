@@ -73,7 +73,6 @@ func NewRouter(
 			secured.Post("/hy2/settings/validate", h.ValidateHy2Settings)
 			secured.Put("/hy2/settings", h.SaveHy2Settings)
 			secured.Post("/hy2/settings/apply", h.ApplyHy2Settings)
-            secured.Post("/hy2/client/generate", h.GenerateHy2ClientArtifacts)
 
 			secured.Get("/mtproxy/secrets", h.ListMTProxySecrets)
 			secured.Post("/mtproxy/secrets", h.CreateMTProxySecret)

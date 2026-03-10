@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { KeyRound, Waves } from "lucide-react";
 
 import { PageHeader } from "@/components/app/page-header";
@@ -17,7 +17,7 @@ export default function SettingsHubPage() {
         <Card>
           <CardHeader>
             <CardTitle>Hysteria 2</CardTitle>
-            <CardDescription>Transport, OBFS, Masquerade and runtime apply flow.</CardDescription>
+            <CardDescription>Minimal server setup, client URI/QR output, and advanced raw YAML mode.</CardDescription>
           </CardHeader>
           <CardContent>
             <Link href="/hysteria/settings" className="inline-flex">
@@ -47,4 +47,5 @@ export default function SettingsHubPage() {
     </div>
   );
 }
+
 

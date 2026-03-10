@@ -56,7 +56,6 @@ auth:
 		ACME: &Hy2ServerACME{
 			Domains: []string{"hy2.example.com"},
 			Email:   "admin@example.com",
-			Type:    "http",
 		},
 		Auth: Hy2ServerAuth{Type: "password", Password: "new-secret"},
 		Obfs: &Hy2ServerObfs{Type: "salamander", Salamander: &Hy2ServerSalamander{Password: "obfs-pass"}},
@@ -88,7 +87,6 @@ func TestHysteriaConfigManagerGenerateClientArtifacts(t *testing.T) {
 			Insecure: true,
 			PinSHA256: []string{"pin-value"},
 		},
-		Transport: Hy2ClientTransport{Type: "udp"},
 		Obfs: &Hy2ClientObfs{
 			Type: "salamander",
 			Salamander: &Hy2ClientSalamander{Password: "obfs-pass"},
