@@ -921,7 +921,8 @@ func normalizeSettings(input Hy2Settings) Hy2Settings {
 	if settings.TLS != nil {
 		settings.TLS.Cert = strings.TrimSpace(settings.TLS.Cert)
 		settings.TLS.Key = strings.TrimSpace(settings.TLS.Key)
-		settings.TLS.SNIGuard = strings.TrimSpace(settings.TLS.SNIGuard)		settings.TLS.ClientCA = strings.TrimSpace(settings.TLS.ClientCA)
+		settings.TLS.SNIGuard = strings.TrimSpace(settings.TLS.SNIGuard)
+		settings.TLS.ClientCA = strings.TrimSpace(settings.TLS.ClientCA)
 		if isEmptyStruct(settings.TLS) {
 			settings.TLS = nil
 		}
