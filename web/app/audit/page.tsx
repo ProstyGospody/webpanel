@@ -44,35 +44,33 @@ export default function AuditPage() {
     <div className="space-y-6">
       <PageHeader
         title="Audit"
-        description="Recent administrative actions across panel operations, with quick filtering for triage."
+        description="Administrative activity feed for operations, account lifecycle actions, and runtime control events."
       />
 
-      {error && (
+      {error ? (
         <Alert variant="destructive">
           <AlertTitle>Request failed</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
-      )}
+      ) : null}
 
       <Card>
-        <CardHeader>
-          <CardTitle>Filters</CardTitle>
-          <CardDescription>Search by action, admin, entity type or entity id.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <TextField
-            label="Search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Type to filter audit feed"
-          />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Audit feed</CardTitle>
-          <CardDescription>Latest 200 records{query ? ` • ${filtered.length} shown` : ""}.</CardDescription>
+        <CardHeader className="gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <CardTitle>Audit feed</CardTitle>
+            <CardDescription>
+              Latest 200 records{query ? ` • ${filtered.length} shown` : ""}.
+            </CardDescription>
+          </div>
+          <div className="w-full max-w-sm">
+            <TextField
+              className="w-full"
+              label="Search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Action, admin, entity or id"
+            />
+          </div>
         </CardHeader>
         <CardContent>
           {filtered.length === 0 ? (
@@ -109,4 +107,5 @@ export default function AuditPage() {
     </div>
   );
 }
+
 

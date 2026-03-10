@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState } from "react";
 import {
@@ -17,6 +17,8 @@ import type { DashboardInterfaceRow } from "@/lib/dashboard/types";
 import { formatBytes, formatDate, formatRate } from "@/lib/format";
 import { useDashboardMetrics } from "@/hooks/use-dashboard-metrics";
 import { PageHeader } from "@/components/app/page-header";
+import { StatCard } from "@/components/app/stat-card";
+import { StatusBadge } from "@/components/app/status-badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -126,32 +128,30 @@ export default function DashboardPage() {
           <AlertTitle>Partial data</AlertTitle>
           <AlertDescription>{partialErrors.slice(0, 3).join(" | ")}</AlertDescription>
         </Alert>
-      )}
-
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="summary-cards">
-        <SummaryMetricCard
-          title="CPU"
+      )}      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="summary-cards">
+        <StatCard
+          label="CPU"
           value={formatPercent(data?.summary.cpuPercent)}
           description="Current utilization"
           icon={<Cpu className="size-4" />}
           loading={loading}
         />
-        <SummaryMetricCard
-          title="RAM"
+        <StatCard
+          label="RAM"
           value={formatMemoryUsage(data?.summary.memoryUsedBytes, data?.summary.memoryTotalBytes)}
           description={`Used ${formatPercent(data?.summary.memoryUsagePercent)}`}
           icon={<MemoryStick className="size-4" />}
           loading={loading}
         />
-        <SummaryMetricCard
-          title="RX"
+        <StatCard
+          label="RX"
           value={formatRate(data?.summary.networkRxBps)}
           description="Ingress now"
           icon={<ArrowDownLeft className="size-4" />}
           loading={loading}
         />
-        <SummaryMetricCard
-          title="TX"
+        <StatCard
+          label="TX"
           value={formatRate(data?.summary.networkTxBps)}
           description="Egress now"
           icon={<ArrowUpRight className="size-4" />}
@@ -292,35 +292,6 @@ export default function DashboardPage() {
         </Card>
       </section>
     </div>
-  );
-}
-
-function SummaryMetricCard({
-  title,
-  value,
-  description,
-  icon,
-  loading,
-}: {
-  title: string;
-  value: string;
-  description: string;
-  icon: React.ReactNode;
-  loading: boolean;
-}) {
-  return (
-    <Card>
-      <CardHeader className="pb-1">
-        <div className="flex items-center justify-between gap-2">
-          <CardDescription className="text-[11px] font-semibold tracking-[0.08em] uppercase">{title}</CardDescription>
-          <span className="text-muted-foreground">{icon}</span>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-1">
-        {loading ? <Skeleton className="h-8 w-28 rounded-md" /> : <div className="text-2xl font-semibold tabular-nums">{value}</div>}
-        <p className="text-xs text-muted-foreground">{description}</p>
-      </CardContent>
-    </Card>
   );
 }
 
@@ -505,30 +476,18 @@ function InterfaceTable({ loading, rows }: { loading: boolean; rows: DashboardIn
 
 function HealthBadge({ health }: { health: DashboardInterfaceRow["health"] }) {
   if (health === "healthy") {
-    return (
-      <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
-        Healthy
-      </Badge>
-    );
+    return <StatusBadge tone="success">Healthy</StatusBadge>;
   }
 
   if (health === "degraded") {
-    return (
-      <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300">
-        Degraded
-      </Badge>
-    );
+    return <StatusBadge tone="warning">Degraded</StatusBadge>;
   }
 
   if (health === "critical") {
-    return (
-      <Badge variant="outline" className="border-destructive/40 bg-destructive/10 text-destructive">
-        Critical
-      </Badge>
-    );
+    return <StatusBadge tone="danger">Critical</StatusBadge>;
   }
 
-  return <Badge variant="outline">Unknown</Badge>;
+  return <StatusBadge tone="neutral">Unknown</StatusBadge>;
 }
 
 function HostSignalRow({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
@@ -595,3 +554,8 @@ function formatTimeTick(value: string): string {
     minute: "2-digit",
   });
 }
+
+
+
+
+

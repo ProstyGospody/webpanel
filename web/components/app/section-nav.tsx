@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 
-import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export type SectionNavItem = {
@@ -23,7 +22,7 @@ export function SectionNav({ items, className }: SectionNavProps) {
 
   return (
     <nav className={cn("w-full overflow-x-auto", className)} aria-label="Section navigation">
-      <ul className="inline-flex min-w-max items-center gap-1 rounded-lg border bg-muted/30 p-1">
+      <ul className="inline-flex min-w-max items-center gap-1 rounded-lg border bg-muted/40 p-1">
         {items.map((item) => {
           const Icon = item.icon;
           const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -32,13 +31,15 @@ export function SectionNav({ items, className }: SectionNavProps) {
             <li key={item.href}>
               <Link
                 href={item.href}
+                aria-current={active ? "page" : undefined}
                 className={cn(
-                  buttonVariants({ variant: active ? "secondary" : "ghost", size: "sm" }),
-                  "h-8 rounded-md",
-                  active && "shadow-sm"
+                  "inline-flex h-8 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors",
+                  active
+                    ? "bg-background text-foreground shadow-sm ring-1 ring-border/70"
+                    : "text-muted-foreground hover:bg-background/60 hover:text-foreground"
                 )}
               >
-                {Icon && <Icon className="size-4" />}
+                {Icon ? <Icon className="size-4" /> : null}
                 <span>{item.label}</span>
               </Link>
             </li>

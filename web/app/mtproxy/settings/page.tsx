@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Activity, Settings, Users } from "lucide-react";
 
 import { apiFetch } from "@/lib/api";
@@ -10,6 +10,8 @@ import { useToast } from "@/components/toast-provider";
 import { PageHeader } from "@/components/app/page-header";
 import { SectionNav } from "@/components/app/section-nav";
 import { StatusBadge } from "@/components/app/status-badge";
+import { StatCard } from "@/components/app/stat-card";
+import { KeyValueList } from "@/components/app/key-value-list";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -40,6 +42,18 @@ export default function MTProxySettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const runtimeItems = useMemo(
+    () => [
+      { label: "Public host", value: settings?.public_host || "-" },
+      { label: "Port", value: String(settings?.port || "-") },
+      { label: "TLS domain", value: settings?.tls_domain || "-" },
+      { label: "Stats URL", value: settings?.stats_url || "-" },
+      { label: "Stats token", value: settings?.stats_token_config ? "Configured" : "Not configured" },
+      { label: "Active runtime secret", value: settings?.runtime_secret_id || "-" },
+    ],
+    [settings]
+  );
+
   useEffect(() => {
     setLoading(true);
     Promise.all([
@@ -65,21 +79,21 @@ export default function MTProxySettingsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="MTProxy" description="Runtime context and read-only service-linked proxy settings." />
+      <PageHeader title="MTProxy" description="Runtime-linked proxy settings and current service health state." />
 
       <SectionNav items={tabs} />
 
-      {error && (
+      {error ? (
         <Alert variant="destructive">
           <AlertTitle>Request failed</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
-      )}
+      ) : null}
 
       <Card>
         <CardHeader>
           <CardTitle>Runtime parameters</CardTitle>
-          <CardDescription>Resolved from backend configuration and runtime linkage.</CardDescription>
+          <CardDescription>Resolved from backend configuration and active runtime context.</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -90,14 +104,7 @@ export default function MTProxySettingsPage() {
               <Skeleton className="h-10 w-full" />
             </div>
           ) : (
-            <div className="divide-y rounded-lg border">
-              <SettingsRow label="Public host" value={settings?.public_host || "-"} />
-              <SettingsRow label="Port" value={String(settings?.port || "-")} />
-              <SettingsRow label="TLS domain" value={settings?.tls_domain || "-"} />
-              <SettingsRow label="Stats URL" value={settings?.stats_url || "-"} />
-              <SettingsRow label="Stats token" value={settings?.stats_token_config ? "Configured" : "Not configured"} />
-              <SettingsRow label="Active runtime secret" value={settings?.runtime_secret_id || "-"} />
-            </div>
+            <KeyValueList items={runtimeItems} />
           )}
         </CardContent>
       </Card>
@@ -105,29 +112,33 @@ export default function MTProxySettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Live status</CardTitle>
-          <CardDescription>Current counters and mtproxy.service health snapshot.</CardDescription>
+          <CardDescription>Current counters and `mtproxy.service` snapshot.</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <Skeleton className="h-16 w-full rounded-lg" />
-              <Skeleton className="h-16 w-full rounded-lg" />
-              <Skeleton className="h-16 w-full rounded-lg" />
-              <Skeleton className="h-16 w-full rounded-lg" />
+              <Skeleton className="h-20 w-full rounded-lg" />
+              <Skeleton className="h-20 w-full rounded-lg" />
+              <Skeleton className="h-20 w-full rounded-lg" />
+              <Skeleton className="h-20 w-full rounded-lg" />
             </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <MetricCard label="Enabled users" value={String(overview?.enabled_secrets ?? 0)} />
-              <MetricCard label="Connections" value={String(overview?.connections_total ?? 0)} />
-              <MetricCard label="Total users" value={String(overview?.users_total ?? 0)} />
-              <div className="rounded-lg border bg-muted/20 p-3">
-                <p className="mb-1 text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">Service</p>
-                <div className="flex items-center gap-2">
-                  <Activity className="size-4 text-muted-foreground" />
-                  <StatusBadge tone={serviceTone(service?.status_text || "")}>{service?.status_text || "-"}</StatusBadge>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">Checked: {formatDate(service?.checked_at || null)}</p>
-              </div>
+              <StatCard label="Enabled users" value={String(overview?.enabled_secrets ?? 0)} />
+              <StatCard label="Connections" value={String(overview?.connections_total ?? 0)} />
+              <StatCard label="Total users" value={String(overview?.users_total ?? 0)} />
+              <Card size="sm" className="gap-2">
+                <CardHeader className="pb-0">
+                  <CardDescription className="text-xs font-medium uppercase tracking-wide">Service</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Activity className="size-4 text-muted-foreground" />
+                    <StatusBadge tone={serviceTone(service?.status_text || "")}>{service?.status_text || "-"}</StatusBadge>
+                  </div>
+                  <CardDescription>Checked: {formatDate(service?.checked_at || null)}</CardDescription>
+                </CardContent>
+              </Card>
             </div>
           )}
         </CardContent>
@@ -148,23 +159,5 @@ function serviceTone(status: string): "success" | "warning" | "danger" | "neutra
     return "danger";
   }
   return "neutral";
-}
-
-function SettingsRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="grid gap-1 px-3 py-2.5 sm:grid-cols-[180px_minmax(0,1fr)] sm:items-center">
-      <span className="text-xs font-medium text-muted-foreground">{label}</span>
-      <span className="truncate text-sm font-medium">{value}</span>
-    </div>
-  );
-}
-
-function MetricCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border bg-muted/20 p-3">
-      <p className="text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">{label}</p>
-      <div className="mt-1 text-xl font-semibold tabular-nums">{value}</div>
-    </div>
-  );
 }
 
