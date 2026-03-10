@@ -700,12 +700,12 @@ func parseSettingsFromMap(root map[string]any, fallbackHost string, fallbackPort
 
 func parseServerQUIC(m map[string]any) *Hy2ServerQUIC {
 	cfg := &Hy2ServerQUIC{
-		InitStreamReceiveWindow: toInt64(m["initStreamReceiveWindow"]),
-		MaxStreamReceiveWindow:  toInt64(m["maxStreamReceiveWindow"]),
-		InitConnReceiveWindow:   toInt64(m["initConnReceiveWindow"]),
-		MaxConnReceiveWindow:    toInt64(m["maxConnReceiveWindow"]),
+		InitStreamReceiveWindow: toInt64Value(m["initStreamReceiveWindow"]),
+		MaxStreamReceiveWindow:  toInt64Value(m["maxStreamReceiveWindow"]),
+		InitConnReceiveWindow:   toInt64Value(m["initConnReceiveWindow"]),
+		MaxConnReceiveWindow:    toInt64Value(m["maxConnReceiveWindow"]),
 		MaxIdleTimeout:          strings.TrimSpace(toString(m["maxIdleTimeout"])),
-		MaxIncomingStreams:      toInt64(m["maxIncomingStreams"]),
+		MaxIncomingStreams:      toInt64Value(m["maxIncomingStreams"]),
 		DisablePathMTUDiscovery: toBool(m["disablePathMTUDiscovery"]),
 	}
 	if isEmptyStruct(cfg) {
@@ -2217,7 +2217,7 @@ func toInt(value any) int {
 	}
 }
 
-func toInt64(value any) int64 {
+func toInt64Value(value any) int64 {
 	if value == nil {
 		return 0
 	}
