@@ -8,14 +8,14 @@ import type { Hy2ConfigValidation, Hy2Settings, Hy2SettingsPayload, Hy2SettingsV
 import { useToast } from "@/components/toast-provider";
 import { PageHeader } from "@/components/app/page-header";
 import { SectionNav } from "@/components/app/section-nav";
-import { SelectField, TextField, TextareaField } from "@/components/app/fields";
+import { TextField, TextareaField } from "@/components/app/fields";
 import { ConfirmDialog } from "@/components/dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 
 const tabs = [
   { href: "/hysteria/users", label: "Users", icon: Users },
@@ -23,6 +23,16 @@ const tabs = [
 ];
 
 type ProtectionMode = "none" | "obfs" | "masquerade";
+type TLSMode = "disabled" | "acme" | "tls";
+type AuthMode = "password" | "http";
+type MasqueradeMode = "proxy" | "file" | "string";
+type QuicMode = "default" | "custom";
+
+type ModeOption = {
+  value: string;
+  label: string;
+  description: string;
+};
 
 const DEFAULT_SETTINGS: Hy2Settings = {
   listen: ":443",
@@ -83,8 +93,9 @@ function normalizeSettings(input: Hy2Settings | null | undefined): Hy2Settings {
     next.masquerade = {
       type,
       file: { dir: (next.masquerade.file?.dir || "").trim() },
-      proxy: { url: (next.masquerade.proxy?.url || "").trim() },
+      proxy: { ...(next.masquerade.proxy || {}), url: (next.masquerade.proxy?.url || "").trim() },
       string: {
+        ...(next.masquerade.string || {}),
         content: (next.masquerade.string?.content || "").trim(),
         statusCode: Number(next.masquerade.string?.statusCode || 0) || undefined,
       },
@@ -172,6 +183,42 @@ function ValidationAlerts({ title, validation }: { title: string; validation: Hy
   );
 }
 
+function ModeCards({
+  value,
+  onChange,
+  options,
+  columnsClassName = "md:grid-cols-3",
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: ModeOption[];
+  columnsClassName?: string;
+}) {
+  return (
+    <div className={cn("grid gap-2", columnsClassName)} role="radiogroup">
+      {options.map((option) => {
+        const active = option.value === value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            onClick={() => onChange(option.value)}
+            className={cn(
+              "rounded-lg border px-3 py-3 text-left transition-colors",
+              active ? "border-primary/40 bg-primary/5 shadow-sm" : "border-border bg-background hover:bg-muted/35"
+            )}
+          >
+            <p className="text-sm font-medium leading-none">{option.label}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{option.description}</p>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function generateSecret(size = 16): string {
   if (typeof window !== "undefined" && window.crypto?.getRandomValues) {
     const bytes = new Uint8Array(size);
@@ -185,6 +232,7 @@ export default function HysteriaSettingsPage() {
   const { push } = useToast();
   const [settings, setSettings] = useState<Hy2Settings>(DEFAULT_SETTINGS);
   const [savedSettings, setSavedSettings] = useState<Hy2Settings>(DEFAULT_SETTINGS);
+  const [listenHost, setListenHost] = useState("");
   const [publicHost, setPublicHost] = useState("");
   const [port, setPort] = useState("443");
 
@@ -204,16 +252,126 @@ export default function HysteriaSettingsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const protectionMode = useMemo(() => protectionModeFromSettings(settings), [settings]);
+  const tlsMode: TLSMode = !settings.tlsEnabled ? "disabled" : settings.tlsMode === "tls" ? "tls" : "acme";
+  const authMode: AuthMode = settings.auth?.type === "http" ? "http" : "password";
+  const masqueradeMode: MasqueradeMode =
+    settings.masquerade?.type === "file" ? "file" : settings.masquerade?.type === "string" ? "string" : "proxy";
+  const quicMode: QuicMode = settings.quicEnabled ? "custom" : "default";
   const isSettingsDirty = useMemo(() => JSON.stringify(settings) !== JSON.stringify(savedSettings), [settings, savedSettings]);
 
   function updateSetting<K extends keyof Hy2Settings>(key: K, value: Hy2Settings[K]) {
     setSettings((prev) => normalizeSettings({ ...prev, [key]: value }));
   }
 
+  function setTLSMode(mode: TLSMode) {
+    setSettings((prev) => {
+      const next = normalizeSettings({ ...prev });
+      if (mode === "disabled") {
+        next.tlsEnabled = false;
+        next.tls = undefined;
+        next.acme = undefined;
+        return normalizeSettings(next);
+      }
+
+      next.tlsEnabled = true;
+      if (mode === "acme") {
+        next.tlsMode = "acme";
+        next.tls = undefined;
+        next.acme = {
+          domains: next.acme?.domains?.length ? next.acme.domains : publicHost ? [publicHost] : [],
+          email: next.acme?.email || "",
+        };
+      } else {
+        next.tlsMode = "tls";
+        next.acme = undefined;
+        next.tls = {
+          cert: next.tls?.cert || "",
+          key: next.tls?.key || "",
+        };
+      }
+
+      return normalizeSettings(next);
+    });
+  }
+
+  function setAuthMode(mode: AuthMode) {
+    if (mode === "http") {
+      updateSetting("auth", {
+        type: "http",
+        http: {
+          url: settings.auth?.http?.url || "",
+          insecure: Boolean(settings.auth?.http?.insecure),
+        },
+      });
+      return;
+    }
+
+    updateSetting("auth", {
+      type: "password",
+      password: settings.auth?.password || "",
+    });
+  }
+
+  function setProtectionMode(mode: ProtectionMode) {
+    if (mode === "obfs") {
+      setSettings((prev) =>
+        normalizeSettings({
+          ...prev,
+          obfs: { type: "salamander", salamander: { password: prev.obfs?.salamander?.password || "" } },
+          masquerade: undefined,
+        })
+      );
+      return;
+    }
+
+    if (mode === "masquerade") {
+      setSettings((prev) =>
+        normalizeSettings({
+          ...prev,
+          obfs: undefined,
+          masquerade: prev.masquerade?.type
+            ? prev.masquerade
+            : { type: "proxy", proxy: { url: "" }, file: { dir: "" }, string: { content: "" } },
+        })
+      );
+      return;
+    }
+
+    setSettings((prev) => normalizeSettings({ ...prev, obfs: undefined, masquerade: undefined }));
+  }
+
+  function setMasqueradeMode(mode: MasqueradeMode) {
+    updateSetting("masquerade", {
+      ...(settings.masquerade || {}),
+      type: mode,
+      file: { ...(settings.masquerade?.file || {}), dir: settings.masquerade?.file?.dir || "" },
+      proxy: { ...(settings.masquerade?.proxy || {}), url: settings.masquerade?.proxy?.url || "" },
+      string: {
+        ...(settings.masquerade?.string || {}),
+        content: settings.masquerade?.string?.content || "",
+        statusCode: settings.masquerade?.string?.statusCode,
+      },
+    });
+  }
+
+  function setQuicMode(mode: QuicMode) {
+    if (mode === "default") {
+      setSettings((prev) => normalizeSettings({ ...prev, quicEnabled: false, quic: undefined }));
+      return;
+    }
+
+    setSettings((prev) =>
+      normalizeSettings({
+        ...prev,
+        quicEnabled: true,
+        quic: prev.quic || { maxIdleTimeout: "30s" },
+      })
+    );
+  }
+
   function getSettingsPayload(): Hy2Settings {
     const next = normalizeSettings(settings);
-    const listenParts = parseListen(next.listen);
-    next.listen = buildListen(listenParts.host, port);
+    next.listen = buildListen(listenHost, port);
 
     if (!next.tlsEnabled) {
       next.tls = undefined;
@@ -263,10 +421,12 @@ export default function HysteriaSettingsPage() {
     if (protectionMode === "masquerade") {
       next.obfs = undefined;
       next.masquerade = {
+        ...(next.masquerade || {}),
         type: next.masquerade?.type || "proxy",
         file: { dir: (next.masquerade?.file?.dir || "").trim() },
-        proxy: { url: (next.masquerade?.proxy?.url || "").trim() },
+        proxy: { ...(next.masquerade?.proxy || {}), url: (next.masquerade?.proxy?.url || "").trim() },
         string: {
+          ...(next.masquerade?.string || {}),
           content: (next.masquerade?.string?.content || "").trim(),
           statusCode: Number(next.masquerade?.string?.statusCode || 0) || undefined,
         },
@@ -301,6 +461,7 @@ export default function HysteriaSettingsPage() {
 
       setSettings(normalizedSettings);
       setSavedSettings(normalizedSettings);
+      setListenHost(listenParts.host || "");
       setPort(listenParts.port || "443");
       setPublicHost(hostFromSettings || listenParts.host || "");
 
@@ -413,6 +574,7 @@ export default function HysteriaSettingsPage() {
 
       setSettings(normalizedSettings);
       setSavedSettings(normalizedSettings);
+      setListenHost(listenParts.host || "");
       setPort(listenParts.port || "443");
       setPublicHost(hostFromSettings || listenParts.host || "");
       setConfigValidation(payload.validation || null);
@@ -444,9 +606,14 @@ export default function HysteriaSettingsPage() {
     }
   }
 
+  const tlsSummary = tlsMode === "disabled" ? "Disabled" : tlsMode === "acme" ? "ACME" : "TLS files";
+  const authSummary = authMode === "password" ? "Password" : "HTTP endpoint";
+  const protectionSummary = protectionMode === "none" ? "None" : protectionMode === "obfs" ? "OBFS" : `Masquerade (${masqueradeMode})`;
+  const quicSummary = quicMode === "default" ? "Stable defaults" : "Custom values";
+
   return (
     <div className="space-y-6">
-      <PageHeader title="Hysteria settings" icon={<Zap />} description="Configure server, TLS, authentication and transport modes." />
+      <PageHeader title="Hysteria settings" icon={<Zap />} description="Mode-driven server configuration for Hysteria 2." />
       <SectionNav items={tabs} />
 
       {error && (
@@ -460,396 +627,474 @@ export default function HysteriaSettingsPage() {
         <Alert>
           <AlertTriangle className="size-4" />
           <AlertTitle>Unmanaged advanced fields detected</AlertTitle>
-          <AlertDescription>Raw YAML contains fields outside managed UI.</AlertDescription>
+          <AlertDescription>Raw YAML contains fields outside the managed settings UI.</AlertDescription>
         </Alert>
       )}
 
       <ValidationAlerts title="Server settings" validation={settingsValidation} />
       <ValidationAlerts title="Rendered config" validation={configValidation} />
 
-      <Card>
-        <CardHeader className="border-b pb-3">
-          <CardTitle>Server connection</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 pt-3 md:grid-cols-2">
-          <TextField label="Port" value={port} onChange={(e) => setPort(e.target.value.replace(/[^0-9]/g, ""))} placeholder="443" />
-          <TextField label="Domain or host" value={publicHost} onChange={(e) => setPublicHost(e.target.value)} placeholder="hy2.example.com" />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="border-b pb-3">
-          <CardTitle>TLS and certificates</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4 pt-3">
-          <div className="flex items-center justify-between rounded-lg border px-3 py-2">
-            <div className="space-y-0.5">
-              <Label>Enable TLS</Label>
-              <p className="text-xs text-muted-foreground">Disable only for explicit non-TLS deployments.</p>
-            </div>
-            <Switch checked={settings.tlsEnabled} onCheckedChange={(checked) => updateSetting("tlsEnabled", Boolean(checked))} />
-          </div>
-
-          {settings.tlsEnabled ? (
-            <>
-              <Tabs
-                value={settings.tlsMode}
-                onValueChange={(value) => updateSetting("tlsMode", value === "tls" ? "tls" : "acme")}
-                className="w-full"
-              >
-                <TabsList className="w-full md:w-auto">
-                  <TabsTrigger value="acme">ACME</TabsTrigger>
-                  <TabsTrigger value="tls">TLS files</TabsTrigger>
-                </TabsList>
-              </Tabs>
-
-              {settings.tlsMode === "acme" ? (
-                <div className="grid gap-4 md:grid-cols-2">
-                  <TextField
-                    label="ACME domain"
-                    value={settings.acme?.domains?.[0] || publicHost}
-                    onChange={(e) => { const value = e.target.value; setPublicHost(value); updateSetting("acme", { ...(settings.acme || {}), domains: [value] }); }}
-                    placeholder="hy2.example.com"
-                  />
-                  <TextField
-                    label="ACME email"
-                    value={settings.acme?.email || ""}
-                    onChange={(e) => updateSetting("acme", { ...(settings.acme || {}), email: e.target.value })}
-                    placeholder="admin@example.com"
-                  />
-                </div>
-              ) : (
-                <div className="grid gap-4 md:grid-cols-2">
-                  <TextField
-                    label="Certificate path"
-                    value={settings.tls?.cert || ""}
-                    onChange={(e) => updateSetting("tls", { ...(settings.tls || {}), cert: e.target.value })}
-                    placeholder="/etc/hysteria/cert.pem"
-                  />
-                  <TextField
-                    label="Private key path"
-                    value={settings.tls?.key || ""}
-                    onChange={(e) => updateSetting("tls", { ...(settings.tls || {}), key: e.target.value })}
-                    placeholder="/etc/hysteria/key.pem"
-                  />
-                </div>
-              )}
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">Enable TLS to configure certificates.</p>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="border-b pb-3">
-          <CardTitle>Authentication</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4 pt-3">
-          <Tabs
-            value={settings.auth?.type || "password"}
-            onValueChange={(value) => updateSetting("auth", { ...(settings.auth || {}), type: value === "http" ? "http" : "password" })}
-            className="w-full"
-          >
-            <TabsList className="w-full md:w-auto">
-              <TabsTrigger value="password">Password</TabsTrigger>
-              <TabsTrigger value="http">HTTP endpoint</TabsTrigger>
-            </TabsList>
-          </Tabs>
-
-          {(settings.auth?.type || "password") === "password" ? (
-            <TextField
-              label="Auth secret"
-              value={settings.auth?.password || ""}
-              onChange={(e) => updateSetting("auth", { ...(settings.auth || {}), password: e.target.value })}
-              placeholder="strong-shared-secret"
-            />
-          ) : (
-            <TextField
-              label="HTTP auth URL"
-              value={settings.auth?.http?.url || ""}
-              onChange={(e) => updateSetting("auth", { ...(settings.auth || {}), http: { ...(settings.auth?.http || {}), url: e.target.value } })}
-              placeholder="http://127.0.0.1:18080/internal/hy2/auth/<token>"
-            />
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="border-b pb-3">
-          <CardTitle>Optional protection</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4 pt-3">
-          <Tabs
-            value={protectionMode}
-            onValueChange={(value) => {
-              if (value === "obfs") {
-                setSettings((prev) =>
-                  normalizeSettings({
-                    ...prev,
-                    obfs: { type: "salamander", salamander: { password: prev.obfs?.salamander?.password || "" } },
-                    masquerade: undefined,
-                  })
-                );
-                return;
-              }
-              if (value === "masquerade") {
-                setSettings((prev) =>
-                  normalizeSettings({
-                    ...prev,
-                    obfs: undefined,
-                    masquerade: prev.masquerade?.type
-                      ? prev.masquerade
-                      : { type: "proxy", proxy: { url: "" }, file: { dir: "" }, string: { content: "" } },
-                  })
-                );
-                return;
-              }
-              setSettings((prev) => normalizeSettings({ ...prev, obfs: undefined, masquerade: undefined }));
-            }}
-            className="w-full"
-          >
-            <TabsList className="w-full md:w-auto">
-              <TabsTrigger value="none">None</TabsTrigger>
-              <TabsTrigger value="obfs">OBFS</TabsTrigger>
-              <TabsTrigger value="masquerade">Masquerade</TabsTrigger>
-            </TabsList>
-          </Tabs>
-
-          {protectionMode === "obfs" && (
-            <div className="grid gap-4 md:grid-cols-[1fr_auto]">
-              <TextField
-                label="OBFS password"
-                value={settings.obfs?.salamander?.password || ""}
-                onChange={(e) =>
-                  updateSetting("obfs", {
-                    type: "salamander",
-                    salamander: { password: e.target.value },
-                  })
-                }
-                description="Auto-generated on save if empty."
-                placeholder="salamander-secret"
-              />
-              <div className="flex items-end">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() =>
-                    updateSetting("obfs", {
-                      type: "salamander",
-                      salamander: { password: generateSecret(16) },
-                    })
-                  }
-                >
-                  Generate
-                </Button>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]">
+        <div className="space-y-6">
+          <Card>
+            <CardHeader className="border-b pb-3">
+              <CardTitle>Basic</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 pt-3">
+              <div className="grid gap-4 md:grid-cols-2">
+                <TextField
+                  label="Public endpoint"
+                  value={publicHost}
+                  onChange={(e) => setPublicHost(e.target.value)}
+                  placeholder="hy2.example.com"
+                  disabled={loading}
+                />
+                <TextField
+                  label="Port"
+                  value={port}
+                  onChange={(e) => setPort(e.target.value.replace(/[^0-9]/g, ""))}
+                  placeholder="443"
+                  disabled={loading}
+                />
               </div>
-            </div>
-          )}
+              <TextField
+                label="Listen host (optional)"
+                value={listenHost}
+                onChange={(e) => setListenHost(e.target.value)}
+                placeholder="0.0.0.0"
+                description="Leave empty to listen on all interfaces."
+                disabled={loading}
+              />
+            </CardContent>
+          </Card>
 
-          {protectionMode === "masquerade" && (
-            <div className="space-y-4">
-              <SelectField
-                label="Masquerade mode"
-                value={settings.masquerade?.type || "proxy"}
-                onValueChange={(value) =>
-                  updateSetting("masquerade", {
-                    ...(settings.masquerade || {}),
-                    type: value,
-                  })
-                }
+          <Card>
+            <CardHeader className="border-b pb-3">
+              <CardTitle>TLS / Security</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 pt-3">
+              <ModeCards
+                value={tlsMode}
+                onChange={(value) => setTLSMode(value as TLSMode)}
                 options={[
-                  { value: "proxy", label: "Proxy target" },
-                  { value: "file", label: "Static files" },
-                  { value: "string", label: "Inline response" },
+                  { value: "acme", label: "ACME", description: "Automatic certificate management." },
+                  { value: "tls", label: "TLS files", description: "Use existing certificate and key files." },
+                  { value: "disabled", label: "Disabled", description: "Removes managed TLS blocks from config." },
                 ]}
               />
 
-              {(settings.masquerade?.type || "proxy") === "proxy" && (
-                <TextField
-                  label="Proxy URL"
-                  value={settings.masquerade?.proxy?.url || ""}
-                  onChange={(e) =>
-                    updateSetting("masquerade", {
-                      ...(settings.masquerade || {}),
-                      type: "proxy",
-                      proxy: { ...(settings.masquerade?.proxy || {}), url: e.target.value },
-                    })
-                  }
-                  placeholder="https://example.org"
-                />
-              )}
-
-              {(settings.masquerade?.type || "proxy") === "file" && (
-                <TextField
-                  label="Static directory"
-                  value={settings.masquerade?.file?.dir || ""}
-                  onChange={(e) =>
-                    updateSetting("masquerade", {
-                      ...(settings.masquerade || {}),
-                      type: "file",
-                      file: { ...(settings.masquerade?.file || {}), dir: e.target.value },
-                    })
-                  }
-                  placeholder="/var/www/html"
-                />
-              )}
-
-              {(settings.masquerade?.type || "proxy") === "string" && (
-                <>
-                  <TextField
-                    label="Response content"
-                    value={settings.masquerade?.string?.content || ""}
-                    onChange={(e) =>
-                      updateSetting("masquerade", {
-                        ...(settings.masquerade || {}),
-                        type: "string",
-                        string: { ...(settings.masquerade?.string || {}), content: e.target.value },
-                      })
-                    }
-                    placeholder="OK"
-                  />
-                  <TextField
-                    label="Status code"
-                    value={String(settings.masquerade?.string?.statusCode || "")}
-                    onChange={(e) =>
-                      updateSetting("masquerade", {
-                        ...(settings.masquerade || {}),
-                        type: "string",
-                        string: {
-                          ...(settings.masquerade?.string || {}),
-                          statusCode: Number(e.target.value || 0) || undefined,
-                        },
-                      })
-                    }
-                    placeholder="200"
-                  />
-                </>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="border-b pb-3">
-          <CardTitle>Advanced QUIC</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4 pt-3">
-          <div className="flex items-center justify-between rounded-lg border px-3 py-2">
-            <div className="space-y-0.5">
-              <Label>Use custom QUIC values</Label>
-              <p className="text-xs text-muted-foreground">Disabled means stable defaults.</p>
-            </div>
-            <Switch checked={settings.quicEnabled} onCheckedChange={(checked) => updateSetting("quicEnabled", Boolean(checked))} />
-          </div>
-
-          {settings.quicEnabled && (
-            <div className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <TextField
-                  label="initStreamReceiveWindow"
-                  value={settings.quic?.initStreamReceiveWindow ? String(settings.quic.initStreamReceiveWindow) : ""}
-                  onChange={(e) => updateSetting("quic", { ...(settings.quic || {}), initStreamReceiveWindow: toPositiveInt(e.target.value) })}
-                  placeholder="8388608"
-                />
-                <TextField
-                  label="maxStreamReceiveWindow"
-                  value={settings.quic?.maxStreamReceiveWindow ? String(settings.quic.maxStreamReceiveWindow) : ""}
-                  onChange={(e) => updateSetting("quic", { ...(settings.quic || {}), maxStreamReceiveWindow: toPositiveInt(e.target.value) })}
-                  placeholder="8388608"
-                />
-                <TextField
-                  label="initConnReceiveWindow"
-                  value={settings.quic?.initConnReceiveWindow ? String(settings.quic.initConnReceiveWindow) : ""}
-                  onChange={(e) => updateSetting("quic", { ...(settings.quic || {}), initConnReceiveWindow: toPositiveInt(e.target.value) })}
-                  placeholder="20971520"
-                />
-                <TextField
-                  label="maxConnReceiveWindow"
-                  value={settings.quic?.maxConnReceiveWindow ? String(settings.quic.maxConnReceiveWindow) : ""}
-                  onChange={(e) => updateSetting("quic", { ...(settings.quic || {}), maxConnReceiveWindow: toPositiveInt(e.target.value) })}
-                  placeholder="20971520"
-                />
-                <TextField
-                  label="maxIdleTimeout"
-                  value={settings.quic?.maxIdleTimeout || ""}
-                  onChange={(e) => updateSetting("quic", { ...(settings.quic || {}), maxIdleTimeout: e.target.value })}
-                  placeholder="30s"
-                />
-                <TextField
-                  label="maxIncomingStreams"
-                  value={settings.quic?.maxIncomingStreams ? String(settings.quic.maxIncomingStreams) : ""}
-                  onChange={(e) => updateSetting("quic", { ...(settings.quic || {}), maxIncomingStreams: toPositiveInt(e.target.value) })}
-                  placeholder="1024"
-                />
-              </div>
-
-              <div className="flex items-center justify-between rounded-lg border px-3 py-2">
-                <div className="space-y-0.5">
-                  <Label>disablePathMTUDiscovery</Label>
-                  <p className="text-xs text-muted-foreground">Use only if MTU discovery breaks traffic on your path.</p>
+              {tlsMode === "acme" && (
+                <div className="rounded-lg border bg-muted/10 p-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <TextField
+                      label="ACME domain"
+                      value={settings.acme?.domains?.[0] || publicHost}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setPublicHost(value);
+                        updateSetting("acme", { ...(settings.acme || {}), domains: value ? [value] : [] });
+                      }}
+                      placeholder="hy2.example.com"
+                      disabled={loading}
+                    />
+                    <TextField
+                      label="ACME email"
+                      value={settings.acme?.email || ""}
+                      onChange={(e) => updateSetting("acme", { ...(settings.acme || {}), email: e.target.value })}
+                      placeholder="admin@example.com"
+                      disabled={loading}
+                    />
+                  </div>
                 </div>
-                <Switch
-                  checked={Boolean(settings.quic?.disablePathMTUDiscovery)}
-                  onCheckedChange={(checked) => updateSetting("quic", { ...(settings.quic || {}), disablePathMTUDiscovery: Boolean(checked) })}
-                />
+              )}
+
+              {tlsMode === "tls" && (
+                <div className="rounded-lg border bg-muted/10 p-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <TextField
+                      label="Certificate path"
+                      value={settings.tls?.cert || ""}
+                      onChange={(e) => updateSetting("tls", { ...(settings.tls || {}), cert: e.target.value })}
+                      placeholder="/etc/hysteria/cert.pem"
+                      disabled={loading}
+                    />
+                    <TextField
+                      label="Private key path"
+                      value={settings.tls?.key || ""}
+                      onChange={(e) => updateSetting("tls", { ...(settings.tls || {}), key: e.target.value })}
+                      placeholder="/etc/hysteria/key.pem"
+                      disabled={loading}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {tlsMode === "disabled" && (
+                <p className="rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground">Managed TLS is disabled for this profile.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="border-b pb-3">
+              <CardTitle>Authentication</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 pt-3">
+              <ModeCards
+                value={authMode}
+                onChange={(value) => setAuthMode(value as AuthMode)}
+                columnsClassName="md:grid-cols-2"
+                options={[
+                  { value: "password", label: "Password", description: "Single shared secret for clients." },
+                  { value: "http", label: "HTTP endpoint", description: "External auth webhook on each session." },
+                ]}
+              />
+
+              {authMode === "password" ? (
+                <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto]">
+                  <TextField
+                    label="Auth secret"
+                    value={settings.auth?.password || ""}
+                    onChange={(e) => updateSetting("auth", { ...(settings.auth || {}), password: e.target.value })}
+                    placeholder="strong-shared-secret"
+                    disabled={loading}
+                  />
+                  <div className="flex items-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => updateSetting("auth", { ...(settings.auth || {}), password: generateSecret(16) })}
+                      disabled={loading}
+                    >
+                      Generate
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4 rounded-lg border bg-muted/10 p-4">
+                  <TextField
+                    label="HTTP auth URL"
+                    value={settings.auth?.http?.url || ""}
+                    onChange={(e) => updateSetting("auth", { ...(settings.auth || {}), http: { ...(settings.auth?.http || {}), url: e.target.value } })}
+                    placeholder="http://127.0.0.1:18080/internal/hy2/auth/<token>"
+                    disabled={loading}
+                  />
+                  <div className="flex items-center justify-between rounded-lg border bg-background px-3 py-2.5">
+                    <div className="space-y-0.5">
+                      <Label>Allow insecure TLS for auth endpoint</Label>
+                      <p className="text-xs text-muted-foreground">Use only for trusted internal endpoints with self-signed certs.</p>
+                    </div>
+                    <Switch
+                      checked={Boolean(settings.auth?.http?.insecure)}
+                      onCheckedChange={(checked) =>
+                        updateSetting("auth", {
+                          ...(settings.auth || {}),
+                          http: { ...(settings.auth?.http || {}), insecure: Boolean(checked) },
+                        })
+                      }
+                      disabled={loading}
+                    />
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="border-b pb-3">
+              <CardTitle>Transport / Camouflage</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 pt-3">
+              <ModeCards
+                value={protectionMode}
+                onChange={(value) => setProtectionMode(value as ProtectionMode)}
+                options={[
+                  { value: "none", label: "None", description: "No additional camouflage layer." },
+                  { value: "obfs", label: "OBFS", description: "Salamander password-based obfuscation." },
+                  { value: "masquerade", label: "Masquerade", description: "Serve traffic through proxy, files, or inline response." },
+                ]}
+              />
+
+              {protectionMode === "none" && (
+                <p className="rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground">OBFS and masquerade are disabled.</p>
+              )}
+
+              {protectionMode === "obfs" && (
+                <div className="grid gap-4 rounded-lg border bg-muted/10 p-4 md:grid-cols-[minmax(0,1fr)_auto]">
+                  <TextField
+                    label="OBFS password"
+                    value={settings.obfs?.salamander?.password || ""}
+                    onChange={(e) =>
+                      updateSetting("obfs", {
+                        type: "salamander",
+                        salamander: { password: e.target.value },
+                      })
+                    }
+                    description="Generated automatically on save if empty."
+                    placeholder="salamander-secret"
+                    disabled={loading}
+                  />
+                  <div className="flex items-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        updateSetting("obfs", {
+                          type: "salamander",
+                          salamander: { password: generateSecret(16) },
+                        })
+                      }
+                      disabled={loading}
+                    >
+                      Generate
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {protectionMode === "masquerade" && (
+                <div className="space-y-4 rounded-lg border bg-muted/10 p-4">
+                  <ModeCards
+                    value={masqueradeMode}
+                    onChange={(value) => setMasqueradeMode(value as MasqueradeMode)}
+                    options={[
+                      { value: "proxy", label: "Proxy target", description: "Forward requests to an upstream URL." },
+                      { value: "file", label: "Static files", description: "Serve files from a local directory." },
+                      { value: "string", label: "Inline response", description: "Return a fixed body/status response." },
+                    ]}
+                  />
+
+                  {masqueradeMode === "proxy" && (
+                    <TextField
+                      label="Proxy URL"
+                      value={settings.masquerade?.proxy?.url || ""}
+                      onChange={(e) =>
+                        updateSetting("masquerade", {
+                          ...(settings.masquerade || {}),
+                          type: "proxy",
+                          proxy: { ...(settings.masquerade?.proxy || {}), url: e.target.value },
+                        })
+                      }
+                      placeholder="https://example.org"
+                      disabled={loading}
+                    />
+                  )}
+
+                  {masqueradeMode === "file" && (
+                    <TextField
+                      label="Static directory"
+                      value={settings.masquerade?.file?.dir || ""}
+                      onChange={(e) =>
+                        updateSetting("masquerade", {
+                          ...(settings.masquerade || {}),
+                          type: "file",
+                          file: { ...(settings.masquerade?.file || {}), dir: e.target.value },
+                        })
+                      }
+                      placeholder="/var/www/html"
+                      disabled={loading}
+                    />
+                  )}
+
+                  {masqueradeMode === "string" && (
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <TextField
+                        label="Response content"
+                        value={settings.masquerade?.string?.content || ""}
+                        onChange={(e) =>
+                          updateSetting("masquerade", {
+                            ...(settings.masquerade || {}),
+                            type: "string",
+                            string: { ...(settings.masquerade?.string || {}), content: e.target.value },
+                          })
+                        }
+                        placeholder="OK"
+                        disabled={loading}
+                      />
+                      <TextField
+                        label="Status code"
+                        value={String(settings.masquerade?.string?.statusCode || "")}
+                        onChange={(e) =>
+                          updateSetting("masquerade", {
+                            ...(settings.masquerade || {}),
+                            type: "string",
+                            string: {
+                              ...(settings.masquerade?.string || {}),
+                              statusCode: Number(e.target.value || 0) || undefined,
+                            },
+                          })
+                        }
+                        placeholder="200"
+                        disabled={loading}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="space-y-6">
+          <Card>
+            <CardHeader className="border-b pb-3">
+              <CardTitle>Advanced transport (QUIC)</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 pt-3">
+              <ModeCards
+                value={quicMode}
+                onChange={(value) => setQuicMode(value as QuicMode)}
+                columnsClassName="md:grid-cols-2"
+                options={[
+                  { value: "default", label: "Stable defaults", description: "Recommended for predictable production behavior." },
+                  { value: "custom", label: "Custom QUIC", description: "Override defaults only when tuning is required." },
+                ]}
+              />
+
+              {quicMode === "default" && (
+                <p className="rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground">Using Hysteria default QUIC values.</p>
+              )}
+
+              {quicMode === "custom" && (
+                <div className="space-y-4 rounded-lg border bg-muted/10 p-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <TextField
+                      label="Initial stream window"
+                      value={settings.quic?.initStreamReceiveWindow ? String(settings.quic.initStreamReceiveWindow) : ""}
+                      onChange={(e) => updateSetting("quic", { ...(settings.quic || {}), initStreamReceiveWindow: toPositiveInt(e.target.value) })}
+                      placeholder="8388608"
+                      disabled={loading}
+                    />
+                    <TextField
+                      label="Maximum stream window"
+                      value={settings.quic?.maxStreamReceiveWindow ? String(settings.quic.maxStreamReceiveWindow) : ""}
+                      onChange={(e) => updateSetting("quic", { ...(settings.quic || {}), maxStreamReceiveWindow: toPositiveInt(e.target.value) })}
+                      placeholder="8388608"
+                      disabled={loading}
+                    />
+                    <TextField
+                      label="Initial connection window"
+                      value={settings.quic?.initConnReceiveWindow ? String(settings.quic.initConnReceiveWindow) : ""}
+                      onChange={(e) => updateSetting("quic", { ...(settings.quic || {}), initConnReceiveWindow: toPositiveInt(e.target.value) })}
+                      placeholder="20971520"
+                      disabled={loading}
+                    />
+                    <TextField
+                      label="Maximum connection window"
+                      value={settings.quic?.maxConnReceiveWindow ? String(settings.quic.maxConnReceiveWindow) : ""}
+                      onChange={(e) => updateSetting("quic", { ...(settings.quic || {}), maxConnReceiveWindow: toPositiveInt(e.target.value) })}
+                      placeholder="20971520"
+                      disabled={loading}
+                    />
+                    <TextField
+                      label="Max idle timeout"
+                      value={settings.quic?.maxIdleTimeout || ""}
+                      onChange={(e) => updateSetting("quic", { ...(settings.quic || {}), maxIdleTimeout: e.target.value })}
+                      placeholder="30s"
+                      disabled={loading}
+                    />
+                    <TextField
+                      label="Max incoming streams"
+                      value={settings.quic?.maxIncomingStreams ? String(settings.quic.maxIncomingStreams) : ""}
+                      onChange={(e) => updateSetting("quic", { ...(settings.quic || {}), maxIncomingStreams: toPositiveInt(e.target.value) })}
+                      placeholder="1024"
+                      disabled={loading}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-lg border bg-background px-3 py-2.5">
+                    <div className="space-y-0.5">
+                      <Label>Disable path MTU discovery</Label>
+                      <p className="text-xs text-muted-foreground">Enable only if MTU discovery causes packet loss on your route.</p>
+                    </div>
+                    <Switch
+                      checked={Boolean(settings.quic?.disablePathMTUDiscovery)}
+                      onCheckedChange={(checked) =>
+                        updateSetting("quic", {
+                          ...(settings.quic || {}),
+                          disablePathMTUDiscovery: Boolean(checked),
+                        })
+                      }
+                      disabled={loading}
+                    />
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="border-b pb-3">
+              <CardTitle>Actions</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 pt-3">
+              <div className="rounded-lg border bg-muted/15 px-3 py-3 text-sm">
+                <p className="font-medium">Current profile</p>
+                <p className="mt-1 text-muted-foreground">
+                  TLS: {tlsSummary} · Auth: {authSummary} · Protection: {protectionSummary} · QUIC: {quicSummary}
+                </p>
               </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
-      <Card>
-        <CardHeader className="border-b pb-3">
-          <CardTitle>Actions</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-3 pt-3">
-          <Button variant="outline" onClick={() => void validateSettingsAction()} disabled={validating || loading}>
-            <SearchCheck className="size-4" />
-            {validating ? "Validating..." : "Validate"}
-          </Button>
-          <Button onClick={() => void saveSettingsAction()} disabled={saving || loading || (!isSettingsDirty && settingsValidation?.valid)}>
-            <Save className="size-4" />
-            {saving ? "Saving..." : "Save settings"}
-          </Button>
-          <Button variant="secondary" onClick={() => setApplyConfirmOpen(true)} disabled={applying || loading}>
-            <PlayCircle className="size-4" />
-            Apply config
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="border-b pb-3">
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="size-4" />
-            Advanced / Raw YAML
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4 pt-3">
-          <Button variant="outline" onClick={() => setAdvancedOpen((prev) => !prev)}>
-            <FileText className="size-4" />
-            {advancedOpen ? "Hide raw YAML" : "Show raw YAML"}
-          </Button>
-
-          {advancedOpen && (
-            <>
-              <TextareaField label="server.yaml" value={rawYaml} onChange={(e) => setRawYaml(e.target.value)} className="min-h-[380px] font-mono text-xs" />
               <div className="flex flex-wrap gap-3">
-                <Button variant="outline" onClick={() => void validateRawYAMLAction()} disabled={validatingYaml || loading}>
-                  <SearchCheck className="size-4" />
-                  {validatingYaml ? "Validating..." : "Validate YAML"}
-                </Button>
-                <Button onClick={() => void saveRawYAMLAction()} disabled={savingYaml || loading}>
+                <Button onClick={() => void saveSettingsAction()} disabled={saving || loading || !isSettingsDirty}>
                   <Save className="size-4" />
-                  {savingYaml ? "Saving..." : "Save YAML"}
+                  {saving ? "Saving..." : "Save settings"}
+                </Button>
+                <Button variant="outline" onClick={() => void validateSettingsAction()} disabled={validating || loading}>
+                  <SearchCheck className="size-4" />
+                  {validating ? "Validating..." : "Validate"}
+                </Button>
+                <Button variant="secondary" onClick={() => setApplyConfirmOpen(true)} disabled={applying || loading}>
+                  <PlayCircle className="size-4" />
+                  Apply config
                 </Button>
               </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="border-b pb-3">
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="size-4" />
+                Advanced / Raw config
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 pt-3">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/10 px-3 py-2.5">
+                <div>
+                  <p className="text-sm font-medium">Unmanaged YAML</p>
+                  <p className="text-xs text-muted-foreground">Use this only for options outside managed mode.</p>
+                </div>
+                <Button variant="outline" onClick={() => setAdvancedOpen((prev) => !prev)} disabled={loading}>
+                  <FileText className="size-4" />
+                  {advancedOpen ? "Hide raw YAML" : "Show raw YAML"}
+                </Button>
+              </div>
+
+              {advancedOpen && (
+                <div className="space-y-4 rounded-lg border bg-muted/10 p-3">
+                  <TextareaField
+                    label="server.yaml"
+                    value={rawYaml}
+                    onChange={(e) => setRawYaml(e.target.value)}
+                    className="min-h-[380px] font-mono text-xs"
+                  />
+                  <div className="flex flex-wrap gap-3">
+                    <Button variant="outline" onClick={() => void validateRawYAMLAction()} disabled={validatingYaml || loading}>
+                      <SearchCheck className="size-4" />
+                      {validatingYaml ? "Validating..." : "Validate YAML"}
+                    </Button>
+                    <Button onClick={() => void saveRawYAMLAction()} disabled={savingYaml || loading}>
+                      <Save className="size-4" />
+                      {savingYaml ? "Saving..." : "Save YAML"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
 
       <ConfirmDialog
         open={applyConfirmOpen}
@@ -863,4 +1108,3 @@ export default function HysteriaSettingsPage() {
     </div>
   );
 }
-
