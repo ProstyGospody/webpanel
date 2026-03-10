@@ -105,3 +105,37 @@
     text-wrap: balance;
   }
 }
+
+@layer components {
+  .cn-toast {
+    @apply w-[360px] max-w-[calc(100vw-1.5rem)] rounded-xl border border-border/80 bg-card px-3 py-3 text-card-foreground shadow-lg backdrop-blur transition-colors;
+  }
+
+  .cn-toast-title {
+    @apply text-sm font-medium leading-5;
+  }
+
+  .cn-toast-description {
+    @apply text-xs leading-5 text-muted-foreground;
+  }
+
+  .cn-toast-close {
+    @apply !border-border !bg-background/80 !text-muted-foreground hover:!bg-muted hover:!text-foreground;
+  }
+
+  .cn-toast-success {
+    @apply border-emerald-500/35 bg-emerald-500/[0.07];
+  }
+
+  .cn-toast-info {
+    @apply border-sky-500/30 bg-sky-500/[0.07];
+  }
+
+  .cn-toast-warning {
+    @apply border-amber-500/35 bg-amber-500/[0.08];
+  }
+
+  .cn-toast-error {
+    @apply border-red-500/35 bg-red-500/[0.07];
+  }
+}

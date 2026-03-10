@@ -38,7 +38,7 @@ export function ToastProvider({ children }: PropsWithChildren) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <Toaster position="bottom-right" closeButton richColors />
+      <Toaster position="bottom-right" closeButton />
     </ToastContext.Provider>
   );
 }

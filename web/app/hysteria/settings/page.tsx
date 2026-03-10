@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useState } from "react";
-import { AlertTriangle, FileText, PlayCircle, Save, SearchCheck, Shield, Users, Zap } from "lucide-react";
+import { FileText, PlayCircle, Save, SearchCheck, Shield, Users, Zap } from "lucide-react";
 
 import { apiFetch, toJSONBody } from "@/lib/api";
 import type { Hy2ConfigValidation, Hy2Settings, Hy2SettingsPayload, Hy2SettingsValidation } from "@/lib/types";
@@ -32,7 +32,7 @@ type QuicMode = "default" | "custom";
 type ModeOption = {
   value: string;
   label: string;
-  description: string;
+  description?: string;
 };
 
 const DEFAULT_SETTINGS: Hy2Settings = {
@@ -160,30 +160,16 @@ function protectionModeFromSettings(settings: Hy2Settings): ProtectionMode {
   return "none";
 }
 
-function ValidationAlerts({ title, validation }: { title: string; validation: Hy2SettingsValidation | Hy2ConfigValidation | null }) {
-  if (!validation) return null;
-  return (
-    <div className="space-y-3">
-      {validation.errors.length > 0 && (
-        <Alert variant="destructive">
-          <AlertTitle>{title}: errors</AlertTitle>
-          <AlertDescription>
-            <ul className="list-disc space-y-1 pl-5">{validation.errors.map((item) => <li key={item}>{item}</li>)}</ul>
-          </AlertDescription>
-        </Alert>
-      )}
-      {validation.warnings.length > 0 && (
-        <Alert>
-          <AlertTitle>{title}: warnings</AlertTitle>
-          <AlertDescription>
-            <ul className="list-disc space-y-1 pl-5">{validation.warnings.map((item) => <li key={item}>{item}</li>)}</ul>
-          </AlertDescription>
-        </Alert>
-      )}
-    </div>
-  );
-}
+function collectValidationErrors(
+  settingsValidation: Hy2SettingsValidation | null,
+  configValidation: Hy2ConfigValidation | null
+): string[] {
+  const all = [...(settingsValidation?.errors || []), ...(configValidation?.errors || [])]
+    .map((item) => item.trim())
+    .filter(Boolean);
 
+  return Array.from(new Set(all));
+}
 function ModeRadioGroup({
   value,
   onChange,
@@ -208,13 +194,13 @@ function ModeRadioGroup({
             key={option.value}
             htmlFor={inputId}
             className={cn(
-              "flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2.5 transition-colors",
-              active ? "border-primary/40 bg-primary/5" : "border-border hover:bg-muted/30"
+              "flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border px-3.5 py-2.5 transition-colors",
+              active ? "border-primary/45 bg-primary/5" : "border-border hover:bg-muted/25"
             )}
           >
-            <RadioGroupItem id={inputId} value={option.value} className="mt-0.5" />
+            <RadioGroupItem id={inputId} value={option.value} className={cn("mt-0.5", !option.description && "mt-0")} />
             <div className="space-y-0.5">
-              <p className="text-sm font-medium leading-none">{option.label}</p>
+              <p className="text-sm font-medium leading-5">{option.label}</p>
               {option.description ? <p className="text-xs text-muted-foreground">{option.description}</p> : null}
             </div>
           </label>
@@ -242,7 +228,6 @@ export default function HysteriaSettingsPage() {
   const [rawYaml, setRawYaml] = useState("");
   const [settingsValidation, setSettingsValidation] = useState<Hy2SettingsValidation | null>(null);
   const [configValidation, setConfigValidation] = useState<Hy2ConfigValidation | null>(null);
-  const [rawOnlyPaths, setRawOnlyPaths] = useState<string[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [validating, setValidating] = useState(false);
@@ -261,6 +246,7 @@ export default function HysteriaSettingsPage() {
     settings.masquerade?.type === "file" ? "file" : settings.masquerade?.type === "string" ? "string" : "proxy";
   const quicMode: QuicMode = settings.quicEnabled ? "custom" : "default";
   const isSettingsDirty = useMemo(() => JSON.stringify(settings) !== JSON.stringify(savedSettings), [settings, savedSettings]);
+  const validationErrors = useMemo(() => collectValidationErrors(settingsValidation, configValidation), [settingsValidation, configValidation]);
 
   function updateSetting<K extends keyof Hy2Settings>(key: K, value: Hy2Settings[K]) {
     setSettings((prev) => normalizeSettings({ ...prev, [key]: value }));
@@ -467,7 +453,6 @@ export default function HysteriaSettingsPage() {
       setRawYaml(payload.raw_yaml || "");
       setSettingsValidation(payload.settings_validation || null);
       setConfigValidation(payload.config_validation || null);
-      setRawOnlyPaths(payload.raw_only_paths || payload.config_validation?.rawOnlyPaths || []);
       setError(null);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load Hysteria settings";
@@ -501,7 +486,6 @@ export default function HysteriaSettingsPage() {
       setSettingsValidation(payload.settings_validation || null);
       setConfigValidation(payload.config_validation || null);
       setRawYaml(payload.raw_yaml || rawYaml);
-      setRawOnlyPaths(payload.config_validation?.rawOnlyPaths || []);
       setError(null);
 
       const ok = Boolean(payload.settings_validation?.valid && payload.config_validation?.valid);
@@ -574,7 +558,6 @@ export default function HysteriaSettingsPage() {
       setListenHost(listenParts.host || "");
       setPort(listenParts.port || "443");
       setConfigValidation(payload.validation || null);
-      setRawOnlyPaths(payload.validation?.rawOnlyPaths || []);
       setError(null);
 
       push(payload.validation?.valid ? "YAML is valid" : "YAML has validation issues", payload.validation?.valid ? "success" : "error");
@@ -609,9 +592,8 @@ export default function HysteriaSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Hysteria settings" icon={<Zap />} description="Configure transport, security, and access." />
+      <PageHeader title="Hysteria settings" icon={<Zap />} description="Server connection and security." />
       <SectionNav items={tabs} />
-
       {error && (
         <Alert variant="destructive">
           <AlertTitle>Request failed</AlertTitle>
@@ -619,18 +601,20 @@ export default function HysteriaSettingsPage() {
         </Alert>
       )}
 
-      {rawOnlyPaths.length > 0 && (
-        <Alert>
-          <AlertTriangle className="size-4" />
-          <AlertTitle>Raw-only fields detected</AlertTitle>
-          <AlertDescription>Some keys are managed only in Raw YAML.</AlertDescription>
+      {validationErrors.length > 0 && (
+        <Alert variant="destructive">
+          <AlertTitle>Validation issues</AlertTitle>
+          <AlertDescription>
+            <ul className="list-disc space-y-1 pl-5">
+              {validationErrors.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </AlertDescription>
         </Alert>
       )}
 
-      <ValidationAlerts title="Server settings" validation={settingsValidation} />
-      <ValidationAlerts title="Rendered config" validation={configValidation} />
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-6">
           <Card>
             <CardHeader className="border-b pb-3">
@@ -665,9 +649,9 @@ export default function HysteriaSettingsPage() {
                 value={tlsMode}
                 onChange={(value) => setTLSMode(value as TLSMode)}
                 options={[
-                  { value: "acme", label: "ACME", description: "Auto certificate." },
-                  { value: "tls", label: "TLS files", description: "Use cert and key." },
-                  { value: "disabled", label: "Disabled", description: "Raw YAML only." },
+                  { value: "acme", label: "Auto certificate" },
+                  { value: "tls", label: "TLS files" },
+                  { value: "disabled", label: "Disabled" },
                 ]}
               />
 
@@ -728,8 +712,8 @@ export default function HysteriaSettingsPage() {
                 onChange={(value) => setAuthMode(value as AuthMode)}
                 columnsClassName="md:grid-cols-2"
                 options={[
-                  { value: "password", label: "Password", description: "Shared secret." },
-                  { value: "http", label: "HTTP", description: "External auth endpoint." },
+                  { value: "password", label: "Password" },
+                  { value: "http", label: "HTTP" },
                 ]}
               />
 
@@ -791,9 +775,9 @@ export default function HysteriaSettingsPage() {
                 value={protectionMode}
                 onChange={(value) => setProtectionMode(value as ProtectionMode)}
                 options={[
-                  { value: "none", label: "None", description: "No extra layer." },
-                  { value: "obfs", label: "OBFS", description: "Salamander." },
-                  { value: "masquerade", label: "Masquerade", description: "Decoy traffic." },
+                  { value: "none", label: "None" },
+                  { value: "obfs", label: "OBFS" },
+                  { value: "masquerade", label: "Masquerade" },
                 ]}
               />
 
@@ -808,7 +792,6 @@ export default function HysteriaSettingsPage() {
                         salamander: { password: e.target.value },
                       })
                     }
-                    description="If empty, generated on save."
                     placeholder="salamander-secret"
                     disabled={loading}
                   />
@@ -836,9 +819,9 @@ export default function HysteriaSettingsPage() {
                     value={masqueradeMode}
                     onChange={(value) => setMasqueradeMode(value as MasqueradeMode)}
                     options={[
-                      { value: "proxy", label: "Proxy target", description: "Forward to URL." },
-                      { value: "file", label: "Static files", description: "Serve local directory." },
-                      { value: "string", label: "Inline response", description: "Fixed response." },
+                      { value: "proxy", label: "Proxy target" },
+                      { value: "file", label: "Static files" },
+                      { value: "string", label: "Inline response" },
                     ]}
                   />
 
@@ -913,7 +896,7 @@ export default function HysteriaSettingsPage() {
           </Card>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-6 self-start 2xl:sticky 2xl:top-20">
           <Card>
             <CardHeader className="border-b pb-3">
               <CardTitle>Advanced QUIC</CardTitle>
@@ -924,8 +907,8 @@ export default function HysteriaSettingsPage() {
                 onChange={(value) => setQuicMode(value as QuicMode)}
                 columnsClassName="md:grid-cols-2"
                 options={[
-                  { value: "default", label: "Default", description: "Stable profile." },
-                  { value: "custom", label: "Custom", description: "Manual tuning." },
+                  { value: "default", label: "Default" },
+                  { value: "custom", label: "Custom" },
                 ]}
               />
 
@@ -1035,7 +1018,7 @@ export default function HysteriaSettingsPage() {
             <CardContent className="space-y-4 pt-3">
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/10 px-3 py-2.5">
                 <div>
-                  <p className="text-sm font-medium">Unmanaged YAML</p>
+                  <p className="text-sm font-medium">Raw YAML</p>
                 </div>
                 <Button variant="outline" onClick={() => setAdvancedOpen((prev) => !prev)} disabled={loading}>
                   <FileText className="size-4" />
