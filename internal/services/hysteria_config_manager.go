@@ -1197,12 +1197,7 @@ func normalizeYAMLValue(value any) any {
 			out = append(out, normalizeYAMLValue(item))
 		}
 		return out
-	case []interface{}:
-		out := make([]any, 0, len(typed))
-		for _, item := range typed {
-			out = append(out, normalizeYAMLValue(item))
-		}
-		return out
+
 	default:
 		return value
 	}
@@ -1233,12 +1228,7 @@ func toAnySlice(value any) ([]any, bool) {
 	switch typed := value.(type) {
 	case []any:
 		return typed, true
-	case []interface{}:
-		out := make([]any, 0, len(typed))
-		for _, item := range typed {
-			out = append(out, item)
-		}
-		return out, true
+
 	default:
 		return nil, false
 	}
@@ -1651,4 +1641,5 @@ func buildServerSchema() *schemaNode {
 		},
 	}}
 }
+
 
