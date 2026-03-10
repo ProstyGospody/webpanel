@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Copy, Plus, QrCode, Settings, Trash2, Users, Waves } from "lucide-react";
@@ -32,9 +32,9 @@ type Hy2ClientParams = {
   port?: number;
   sni?: string;
   insecure?: boolean;
-  pin_sha256?: string;
-  obfs_type?: string;
-  obfs_password?: string;
+  pinSHA256?: string;
+  obfsType?: string;
+  obfsPassword?: string;
 };
 
 type Hy2AccountViewPayload = {

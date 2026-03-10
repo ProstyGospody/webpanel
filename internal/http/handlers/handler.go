@@ -173,56 +173,48 @@ func (h *Handler) audit(r *http.Request, action string, entityType string, entit
 }
 
 func (h *Handler) buildHy2URI(account repository.Hy2AccountWithClient) string {
+	profile := h.resolveHy2ClientProfile(account.AuthPayload)
+	fragment := strings.TrimSpace(account.ClientName)
+	if fragment == "" {
+		fragment = strings.TrimSpace(account.Hy2Identity)
+	}
+	profile.Name = fragment
+
+	if h.hy2ConfigManager != nil {
+		if artifacts, validation := h.hy2ConfigManager.GenerateClientArtifacts(profile, "socks5"); validation.Valid {
+			return artifacts.URI
+		}
+	}
+
 	params := h.resolveHy2ClientParams()
-
-	query := url.Values{}
-	if params.SNI != "" {
-		query.Set("sni", params.SNI)
-	}
-	if params.Insecure {
-		query.Set("insecure", "1")
-	}
-	if strings.TrimSpace(params.PinSHA256) != "" {
-		query.Set("pinSHA256", strings.TrimSpace(params.PinSHA256))
-	}
-	if strings.TrimSpace(params.ObfsType) != "" {
-		query.Set("obfs", strings.TrimSpace(params.ObfsType))
-	}
-	if strings.TrimSpace(params.ObfsPassword) != "" {
-		query.Set("obfs-password", strings.TrimSpace(params.ObfsPassword))
-	}
-
-	fragment := account.ClientName
-	if strings.TrimSpace(fragment) == "" {
-		fragment = account.Hy2Identity
-	}
-
 	base := "hysteria2://" + url.PathEscape(account.AuthPayload) + "@" + params.Server + ":" + strconv.Itoa(params.Port) + "/"
-	if encodedQuery := query.Encode(); encodedQuery != "" {
-		base += "?" + encodedQuery
+	if params.SNI != "" {
+		base += "?sni=" + url.QueryEscape(params.SNI)
 	}
-	return base + "#" + url.QueryEscape(fragment)
+	if fragment != "" {
+		base += "#" + url.QueryEscape(fragment)
+	}
+	return base
 }
 
 func (h *Handler) buildHy2V2RayNGURI(account repository.Hy2AccountWithClient) string {
-	uri := h.buildHy2URI(account)
-	parsed, err := url.Parse(uri)
-	if err != nil {
-		return strings.Replace(uri, "hysteria2://", "hy2://", 1)
+	profile := h.resolveHy2ClientProfile(account.AuthPayload)
+	profile.Name = strings.TrimSpace(account.ClientName)
+	if profile.Name == "" {
+		profile.Name = strings.TrimSpace(account.Hy2Identity)
 	}
-	parsed.Scheme = "hy2"
-	query := parsed.Query()
-	query.Del("pinSHA256")
-	parsed.RawQuery = query.Encode()
-	return parsed.String()
+	if h.hy2ConfigManager != nil {
+		if artifacts, validation := h.hy2ConfigManager.GenerateClientArtifacts(profile, "socks5"); validation.Valid {
+			return artifacts.URIHy2
+		}
+	}
+	return strings.Replace(h.buildHy2URI(account), "hysteria2://", "hy2://", 1)
 }
 
 func (h *Handler) buildHy2SingBoxOutbound(account repository.Hy2AccountWithClient) map[string]any {
 	params := h.resolveHy2ClientParams()
 
-	tls := map[string]any{
-		"enabled": true,
-	}
+	tls := map[string]any{"enabled": true}
 	if strings.TrimSpace(params.SNI) != "" {
 		tls["server_name"] = strings.TrimSpace(params.SNI)
 	}
@@ -232,23 +224,23 @@ func (h *Handler) buildHy2SingBoxOutbound(account repository.Hy2AccountWithClien
 	if strings.TrimSpace(params.PinSHA256) != "" {
 		tls["certificate_public_key_sha256"] = []string{strings.TrimSpace(params.PinSHA256)}
 	}
-	if len(params.ALPN) > 0 {
-		tls["alpn"] = params.ALPN
+
+	serverPort := params.Port
+	if serverPort <= 0 {
+		serverPort = h.cfg.Hy2Port
 	}
 
 	outbound := map[string]any{
 		"type":        "hysteria2",
 		"tag":         "hy2-" + strings.TrimSpace(account.Hy2Identity),
 		"server":      params.Server,
-		"server_port": params.Port,
+		"server_port": serverPort,
 		"password":    account.AuthPayload,
 		"tls":         tls,
 	}
 
 	if strings.TrimSpace(params.ObfsType) != "" {
-		obfs := map[string]any{
-			"type": strings.TrimSpace(params.ObfsType),
-		}
+		obfs := map[string]any{"type": strings.TrimSpace(params.ObfsType)}
 		if strings.TrimSpace(params.ObfsPassword) != "" {
 			obfs["password"] = strings.TrimSpace(params.ObfsPassword)
 		}
@@ -294,6 +286,32 @@ func (h *Handler) resolveHy2ClientParams() services.Hy2ClientParams {
 	}
 
 	return params
+}
+
+func (h *Handler) resolveHy2ClientProfile(auth string) services.Hy2ClientProfile {
+	profile := services.Hy2ClientProfile{
+		Server:    services.NormalizeHost(h.cfg.Hy2Domain) + ":" + strconv.Itoa(h.cfg.Hy2Port),
+		Auth:      strings.TrimSpace(auth),
+		TLS:       services.Hy2ClientTLS{SNI: services.NormalizeHost(h.cfg.Hy2Domain)},
+		Transport: services.Hy2ClientTransport{Type: "udp"},
+	}
+	if h.hy2ConfigManager != nil {
+		if content, err := h.hy2ConfigManager.Read(); err == nil {
+			profile = h.hy2ConfigManager.DefaultClientProfile(content, h.cfg.Hy2Domain, h.cfg.Hy2Port, auth)
+		}
+	}
+	profile.Auth = strings.TrimSpace(auth)
+	if strings.TrimSpace(profile.Server) == "" {
+		host := services.NormalizeHost(h.cfg.Hy2Domain)
+		if host == "" {
+			host = services.NormalizeHost(h.cfg.PanelPublicHost)
+		}
+		if host == "" {
+			host = "127.0.0.1"
+		}
+		profile.Server = host + ":" + strconv.Itoa(h.cfg.Hy2Port)
+	}
+	return profile
 }
 func (h *Handler) buildMTProxyLink(secret string) string {
 	host := services.NormalizeHost(h.cfg.MTProxyPublicHost)
@@ -361,6 +379,7 @@ func generateHy2Identity() string {
 	}
 	return "hy2-" + raw
 }
+
 
 
 

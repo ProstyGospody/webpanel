@@ -22,12 +22,18 @@ func (h *Handler) GetHy2Config(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	validation := h.hy2ConfigManager.Validate(content)
-	params := h.hy2ConfigManager.ClientParams(content, h.cfg.Hy2Domain, h.cfg.Hy2Port)
+	settings := h.hy2ConfigManager.ExtractSettings(content, h.cfg.Hy2Domain, h.cfg.Hy2Port)
+	profile := h.hy2ConfigManager.DefaultClientProfileFromSettings(settings, h.cfg.Hy2Domain, h.cfg.Hy2Port, "replace-with-auth")
+	artifacts, clientValidation := h.hy2ConfigManager.GenerateClientArtifacts(profile, "socks5")
 	render.JSON(w, http.StatusOK, map[string]any{
-		"path":          h.cfg.Hy2ConfigPath,
-		"content":       content,
-		"validation":    validation,
-		"client_params": params,
+		"path":             h.cfg.Hy2ConfigPath,
+		"content":          content,
+		"validation":       validation,
+		"settings":         settings,
+		"raw_only_paths":   validation.RawOnlyPaths,
+		"client_profile":   profile,
+		"client_artifacts": artifacts,
+		"client_validation": clientValidation,
 	})
 }
 
@@ -42,8 +48,17 @@ func (h *Handler) ValidateHy2Config(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	validation := h.hy2ConfigManager.Validate(req.Content)
-	params := h.hy2ConfigManager.ClientParams(req.Content, h.cfg.Hy2Domain, h.cfg.Hy2Port)
-	render.JSON(w, http.StatusOK, map[string]any{"validation": validation, "client_params": params})
+	settings := h.hy2ConfigManager.ExtractSettings(req.Content, h.cfg.Hy2Domain, h.cfg.Hy2Port)
+	profile := h.hy2ConfigManager.DefaultClientProfileFromSettings(settings, h.cfg.Hy2Domain, h.cfg.Hy2Port, "replace-with-auth")
+	artifacts, clientValidation := h.hy2ConfigManager.GenerateClientArtifacts(profile, "socks5")
+	render.JSON(w, http.StatusOK, map[string]any{
+		"validation":        validation,
+		"settings":          settings,
+		"raw_only_paths":    validation.RawOnlyPaths,
+		"client_profile":    profile,
+		"client_artifacts":  artifacts,
+		"client_validation": clientValidation,
+	})
 }
 
 func (h *Handler) SaveHy2Config(w http.ResponseWriter, r *http.Request) {
@@ -69,10 +84,10 @@ func (h *Handler) SaveHy2Config(w http.ResponseWriter, r *http.Request) {
 	}
 	h.audit(r, "hy2.config.save", "hy2_config", nil, map[string]any{"path": h.cfg.Hy2ConfigPath, "backup": backupPath})
 	render.JSON(w, http.StatusOK, map[string]any{
-		"ok":         true,
-		"path":       h.cfg.Hy2ConfigPath,
+		"ok":          true,
+		"path":        h.cfg.Hy2ConfigPath,
 		"backup_path": backupPath,
-		"validation": validation,
+		"validation":  validation,
 	})
 }
 
