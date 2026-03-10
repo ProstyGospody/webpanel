@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { cn, MaterialIcon } from "@/components/ui";
 import { Button } from "@/components/ui/button";
@@ -36,7 +36,11 @@ export function OverflowMenu({ ariaLabel = "More actions", items }: OverflowMenu
             disabled={item.disabled}
             variant={item.danger ? "destructive" : "default"}
             onClick={item.onSelect}
-            className={cn("gap-2")}
+            className={cn(
+              "gap-2",
+              item.danger &&
+                "font-semibold text-destructive hover:bg-destructive/20 focus:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus:bg-destructive/30"
+            )}
           >
             {item.icon && <MaterialIcon name={item.icon} className="size-4" />}
             {item.label}
@@ -46,4 +50,3 @@ export function OverflowMenu({ ariaLabel = "More actions", items }: OverflowMenu
     </DropdownMenu>
   );
 }
-

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { ReactNode } from "react";
 
@@ -20,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
 type DialogSize = "sm" | "md" | "lg";
 
@@ -39,10 +40,10 @@ function contentSizeClass(size: DialogSize): string {
   }
 
   if (size === "lg") {
-    return "sm:max-w-4xl";
+    return "sm:max-w-3xl";
   }
 
-  return "sm:max-w-2xl";
+  return "sm:max-w-xl";
 }
 
 export function Dialog({ open, title, description, onClose, actions, size = "md", children }: DialogProps) {
@@ -55,7 +56,7 @@ export function Dialog({ open, title, description, onClose, actions, size = "md"
         }
       }}
     >
-      <DialogContent className={contentSizeClass(size)}>
+      <DialogContent className={cn(contentSizeClass(size), "max-h-[88vh] overflow-y-auto")}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}
@@ -97,7 +98,7 @@ export function ConfirmDialog({
         }
       }}
     >
-      <AlertDialogContent>
+      <AlertDialogContent size="sm">
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
@@ -116,6 +117,3 @@ export function ConfirmDialog({
     </AlertDialog>
   );
 }
-
-
-

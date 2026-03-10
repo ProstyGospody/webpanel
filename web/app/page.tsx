@@ -1,348 +1,598 @@
-"use client";
+﻿"use client";
 
-import { ReactNode, useEffect, useMemo, useState } from "react";
-import { Activity, Clock3, Cpu, MemoryStick } from "lucide-react";
+import { useMemo, useState } from "react";
+import {
+  Activity,
+  ArrowDownLeft,
+  ArrowUpRight,
+  Cpu,
+  HardDrive,
+  MemoryStick,
+  Network,
+  RefreshCw,
+} from "lucide-react";
+import { Area, AreaChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 
-import { apiFetch } from "@/lib/api";
-import type { LiveDashboardPayload } from "@/lib/types";
-import { formatBytes, formatDate, formatRate, formatUptime } from "@/lib/format";
+import type { DashboardInterfaceRow } from "@/lib/dashboard/types";
+import { formatBytes, formatDate, formatRate } from "@/lib/format";
+import { useDashboardMetrics } from "@/hooks/use-dashboard-metrics";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  ChartContainer,
+  type ChartConfig,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
 
-const POLL_INTERVAL_MS = 5000;
-const HISTORY_LIMIT = 72;
+const cpuChartConfig = {
+  cpu: {
+    label: "CPU",
+    color: "hsl(var(--chart-1))",
+  },
+} satisfies ChartConfig;
 
-type MetricSnapshot = {
-  timestamp: number;
-  cpu: number;
-  memory: number;
-  uptime: number;
-  network: number;
-};
+const memoryChartConfig = {
+  usage: {
+    label: "RAM",
+    color: "hsl(var(--chart-2))",
+  },
+} satisfies ChartConfig;
 
-type SeriesStats = {
-  min: number;
-  max: number;
-  avg: number;
-  current: number;
-};
+const networkChartConfig = {
+  rxBps: {
+    label: "RX",
+    color: "hsl(var(--chart-2))",
+  },
+  txBps: {
+    label: "TX",
+    color: "hsl(var(--chart-1))",
+  },
+} satisfies ChartConfig;
 
-function appendSnapshot(history: MetricSnapshot[], snapshot: MetricSnapshot): MetricSnapshot[] {
-  if (history.length > 0 && history[history.length - 1].timestamp === snapshot.timestamp) {
-    return [...history.slice(0, -1), snapshot];
-  }
+type CpuWindow = "15m" | "1h";
 
-  return [...history, snapshot].slice(-HISTORY_LIMIT);
-}
+export default function DashboardPage() {
+  const { data, loading, refreshing, error } = useDashboardMetrics();
+  const [cpuWindow, setCpuWindow] = useState<CpuWindow>("15m");
 
-function getSeriesStats(values: number[]): SeriesStats | null {
-  if (values.length === 0) {
-    return null;
-  }
+  const cpu15mData = useMemo(
+    () => (data?.cpu.window15m || []).map((point) => ({ timestamp: point.timestamp, cpu: point.value })),
+    [data?.cpu.window15m]
+  );
 
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const avg = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const cpu1hData = useMemo(
+    () => (data?.cpu.window1h || []).map((point) => ({ timestamp: point.timestamp, cpu: point.value })),
+    [data?.cpu.window1h]
+  );
 
-  return {
-    min,
-    max,
-    avg,
-    current: values[values.length - 1],
-  };
-}
+  const memoryData = useMemo(
+    () => (data?.memory.window1h || []).map((point) => ({ timestamp: point.timestamp, usage: point.value })),
+    [data?.memory.window1h]
+  );
 
-function buildSeriesPolyline(values: number[]): { line: string; area: string } {
-  if (values.length === 0) {
-    return { line: "", area: "" };
-  }
+  const networkData = useMemo(
+    () =>
+      (data?.network.window1h || []).map((point) => ({
+        timestamp: point.timestamp,
+        rxBps: point.rxBps,
+        txBps: point.txBps,
+      })),
+    [data?.network.window1h]
+  );
 
-  const minValue = Math.min(...values);
-  const maxValue = Math.max(...values);
-  const range = maxValue - minValue || 1;
-
-  const points = values.map((value, index) => {
-    const x = values.length === 1 ? 100 : (index / (values.length - 1)) * 100;
-    const y = 100 - ((value - minValue) / range) * 100;
-    return `${x},${y}`;
-  });
-
-  const line = points.join(" ");
-  const area = `0,100 ${line} 100,100`;
-
-  return { line, area };
-}
-
-function formatWindowLabel(samples: number): string {
-  if (samples <= 1) {
-    return "Window: instant";
-  }
-
-  const duration = Math.max(0, (samples - 1) * (POLL_INTERVAL_MS / 1000));
-  return `Window: ${formatUptime(duration)}`;
-}
-
-function formatTrend(values: number[], formatter: (delta: number) => string): string {
-  if (values.length < 2) {
-    return "Trend: waiting";
-  }
-
-  const start = values[0];
-  const end = values[values.length - 1];
-  const delta = end - start;
-
-  if (Math.abs(delta) < 0.0001) {
-    return "Trend: stable";
-  }
-
-  return `Trend: ${delta > 0 ? "up" : "down"} ${formatter(Math.abs(delta))}`;
-}
-
-function MetricChartCard({
-  label,
-  current,
-  context,
-  loading,
-  failed,
-  values,
-  icon,
-  valueFormatter,
-  trendFormatter,
-}: {
-  label: string;
-  current: string;
-  context: string;
-  loading: boolean;
-  failed: boolean;
-  values: number[];
-  icon: ReactNode;
-  valueFormatter: (value: number) => string;
-  trendFormatter: (values: number[]) => string;
-}) {
-  const stats = getSeriesStats(values);
-  const chart = buildSeriesPolyline(values);
+  const topError = error;
+  const partialErrors = data?.partial ? data.errors : [];
 
   return (
-    <Card className="border-border/70">
-      <CardHeader className="space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">{label}</span>
-          <span className="text-muted-foreground">{icon}</span>
+    <div className="space-y-6">
+      <header className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+          <p className="text-sm text-muted-foreground">
+            Live host telemetry from Prometheus + node_exporter, normalized by the Next.js BFF layer.
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <CardTitle className="text-2xl font-semibold tracking-tight tabular-nums">{current}</CardTitle>
-          <Badge variant="outline" className="text-[11px]">
-            {trendFormatter(values)}
+          <Badge variant="outline" className="gap-1">
+            <RefreshCw className={refreshing ? "size-3.5 animate-spin" : "size-3.5"} />
+            {refreshing ? "Refreshing" : "Live"}
           </Badge>
+          <Badge variant="outline">Updated {formatDate(data?.generatedAt || null)}</Badge>
         </div>
-        <p className="text-xs text-muted-foreground">{context}</p>
-      </CardHeader>
+      </header>
 
-      <CardContent className="space-y-4">
-        {loading && values.length === 0 ? (
-          <Skeleton className="h-56 w-full rounded-lg" />
-        ) : values.length === 0 ? (
-          <div className="flex h-56 items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted-foreground">
-            {failed ? "Data unavailable" : "Waiting for data"}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <div className="relative h-56 overflow-hidden rounded-lg border border-border/70 bg-gradient-to-b from-muted/25 to-background">
-              <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-full w-full">
-                <line x1="0" y1="0" x2="100" y2="0" className="stroke-border/50" strokeWidth="0.4" />
-                <line x1="0" y1="50" x2="100" y2="50" className="stroke-border/50" strokeWidth="0.4" />
-                <line x1="0" y1="100" x2="100" y2="100" className="stroke-border/50" strokeWidth="0.4" />
+      {topError && (
+        <Alert variant="destructive">
+          <AlertTitle>Dashboard unavailable</AlertTitle>
+          <AlertDescription>{topError}</AlertDescription>
+        </Alert>
+      )}
 
-                <polygon points={chart.area} fill="hsl(var(--primary) / 0.14)" />
-                <polyline
-                  points={chart.line}
-                  fill="none"
-                  stroke="hsl(var(--primary))"
-                  strokeWidth="1.8"
-                  vectorEffect="non-scaling-stroke"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+      {!topError && partialErrors.length > 0 && (
+        <Alert>
+          <AlertTitle>Partial data</AlertTitle>
+          <AlertDescription>{partialErrors.slice(0, 3).join(" | ")}</AlertDescription>
+        </Alert>
+      )}
 
-              {stats && (
-                <div className="pointer-events-none absolute right-2 top-2 space-y-1 rounded-md bg-background/80 px-2 py-1 text-[10px] text-muted-foreground shadow-sm ring-1 ring-border/60">
-                  <div>max: {valueFormatter(stats.max)}</div>
-                  <div>mid: {valueFormatter((stats.max + stats.min) / 2)}</div>
-                  <div>min: {valueFormatter(stats.min)}</div>
-                </div>
-              )}
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="summary-cards">
+        <SummaryMetricCard
+          title="CPU"
+          value={formatPercent(data?.summary.cpuPercent)}
+          description="Current utilization"
+          icon={<Cpu className="size-4" />}
+          loading={loading}
+        />
+        <SummaryMetricCard
+          title="RAM"
+          value={formatMemoryUsage(data?.summary.memoryUsedBytes, data?.summary.memoryTotalBytes)}
+          description={`Used ${formatPercent(data?.summary.memoryUsagePercent)}`}
+          icon={<MemoryStick className="size-4" />}
+          loading={loading}
+        />
+        <SummaryMetricCard
+          title="RX"
+          value={formatRate(data?.summary.networkRxBps)}
+          description="Ingress now"
+          icon={<ArrowDownLeft className="size-4" />}
+          loading={loading}
+        />
+        <SummaryMetricCard
+          title="TX"
+          value={formatRate(data?.summary.networkTxBps)}
+          description="Egress now"
+          icon={<ArrowUpRight className="size-4" />}
+          loading={loading}
+        />
+      </section>
 
-              {failed && <span className="absolute bottom-2 right-2 text-[10px] text-muted-foreground">degraded source</span>}
-            </div>
-
-            {stats && (
-              <div className="grid gap-2 text-xs sm:grid-cols-3">
-                <div className="rounded-md border border-border/70 bg-muted/30 px-3 py-2">
-                  <p className="text-muted-foreground">Min</p>
-                  <p className="font-medium tabular-nums">{valueFormatter(stats.min)}</p>
-                </div>
-                <div className="rounded-md border border-border/70 bg-muted/30 px-3 py-2">
-                  <p className="text-muted-foreground">Average</p>
-                  <p className="font-medium tabular-nums">{valueFormatter(stats.avg)}</p>
-                </div>
-                <div className="rounded-md border border-border/70 bg-muted/30 px-3 py-2">
-                  <p className="text-muted-foreground">Max</p>
-                  <p className="font-medium tabular-nums">{valueFormatter(stats.max)}</p>
-                </div>
+      <section className="space-y-4" aria-label="time-series">
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <CardTitle>CPU usage</CardTitle>
+                <CardDescription>15 minutes and 1 hour windows from node_cpu_seconds_total.</CardDescription>
               </div>
-            )}
-
-            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-              <span>{formatWindowLabel(values.length)}</span>
-              <span>Now</span>
+              <Tabs
+                value={cpuWindow}
+                onValueChange={(value) => setCpuWindow(value as CpuWindow)}
+                className="w-full max-w-[260px]"
+              >
+                <TabsList variant="line" className="w-full">
+                  <TabsTrigger value="15m" className="flex-1">
+                    15m
+                  </TabsTrigger>
+                  <TabsTrigger value="1h" className="flex-1">
+                    1h
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
             </div>
-          </div>
-        )}
+          </CardHeader>
+          <CardContent className="pt-2">
+            {loading ? (
+              <Skeleton className="h-[280px] w-full rounded-lg" />
+            ) : (
+              <Tabs value={cpuWindow} onValueChange={(value) => setCpuWindow(value as CpuWindow)} className="w-full">
+                <TabsContent value="15m" className="m-0">
+                  <SeriesAreaChart
+                    data={cpu15mData}
+                    config={cpuChartConfig}
+                    dataKey="cpu"
+                    valueFormatter={(value) => `${value.toFixed(1)}%`}
+                    yTickFormatter={(value) => `${value}%`}
+                  />
+                </TabsContent>
+                <TabsContent value="1h" className="m-0">
+                  <SeriesAreaChart
+                    data={cpu1hData}
+                    config={cpuChartConfig}
+                    dataKey="cpu"
+                    valueFormatter={(value) => `${value.toFixed(1)}%`}
+                    yTickFormatter={(value) => `${value}%`}
+                  />
+                </TabsContent>
+              </Tabs>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle>RAM usage</CardTitle>
+            <CardDescription>1 hour trend from MemAvailable / MemTotal.</CardDescription>
+          </CardHeader>
+          <CardContent className="pt-2">
+            {loading ? (
+              <Skeleton className="h-[280px] w-full rounded-lg" />
+            ) : (
+              <SeriesAreaChart
+                data={memoryData}
+                config={memoryChartConfig}
+                dataKey="usage"
+                valueFormatter={(value) => `${value.toFixed(1)}%`}
+                yTickFormatter={(value) => `${value}%`}
+              />
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle>Network throughput</CardTitle>
+            <CardDescription>1 hour ingress/egress trend from node_network_*_bytes_total.</CardDescription>
+          </CardHeader>
+          <CardContent className="pt-2">
+            {loading ? (
+              <Skeleton className="h-[280px] w-full rounded-lg" />
+            ) : (
+              <NetworkLineChart data={networkData} />
+            )}
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]" aria-label="bottom-metrics">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle>Network interfaces</CardTitle>
+            <CardDescription>Per-interface RX/TX rates with errors and drops.</CardDescription>
+          </CardHeader>
+          <CardContent className="pt-2">
+            <InterfaceTable loading={loading} rows={data?.interfaces || []} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle>Host signals</CardTitle>
+            <CardDescription>Load average and disk I/O snapshot.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 pt-2">
+            {loading ? (
+              <>
+                <Skeleton className="h-14 w-full rounded-lg" />
+                <Skeleton className="h-14 w-full rounded-lg" />
+                <Skeleton className="h-14 w-full rounded-lg" />
+              </>
+            ) : (
+              <>
+                <HostSignalRow
+                  label="Load average"
+                  value={`${formatLoad(data?.extras.load1)} / ${formatLoad(data?.extras.load5)} / ${formatLoad(data?.extras.load15)}`}
+                  icon={<Activity className="size-4" />}
+                />
+                <HostSignalRow
+                  label="Disk read"
+                  value={formatRate(data?.extras.diskReadBps)}
+                  icon={<HardDrive className="size-4" />}
+                />
+                <HostSignalRow
+                  label="Disk write"
+                  value={formatRate(data?.extras.diskWriteBps)}
+                  icon={<Network className="size-4" />}
+                />
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </section>
+    </div>
+  );
+}
+
+function SummaryMetricCard({
+  title,
+  value,
+  description,
+  icon,
+  loading,
+}: {
+  title: string;
+  value: string;
+  description: string;
+  icon: React.ReactNode;
+  loading: boolean;
+}) {
+  return (
+    <Card>
+      <CardHeader className="pb-1">
+        <div className="flex items-center justify-between gap-2">
+          <CardDescription className="text-[11px] font-semibold tracking-[0.08em] uppercase">{title}</CardDescription>
+          <span className="text-muted-foreground">{icon}</span>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-1">
+        {loading ? <Skeleton className="h-8 w-28 rounded-md" /> : <div className="text-2xl font-semibold tabular-nums">{value}</div>}
+        <p className="text-xs text-muted-foreground">{description}</p>
       </CardContent>
     </Card>
   );
 }
 
-export default function DashboardPage() {
-  const [data, setData] = useState<LiveDashboardPayload | null>(null);
-  const [history, setHistory] = useState<MetricSnapshot[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function load(initial = false) {
-    if (initial) {
-      setLoading(true);
-    } else {
-      setRefreshing(true);
-    }
-
-    try {
-      const payload = await apiFetch<LiveDashboardPayload>("/api/system/live");
-      const backendIssues = (payload.errors || []).filter((issue, index, all) => issue && all.indexOf(issue) === index);
-
-      setData(payload);
-      setError(backendIssues.length > 0 ? backendIssues.join(". ") : null);
-      setHistory((prev) =>
-        appendSnapshot(prev, {
-          timestamp: Date.parse(payload.collected_at) || Date.now(),
-          cpu: payload.system.cpu_usage_percent,
-          memory: payload.system.memory_used_percent,
-          uptime: payload.system.uptime_seconds,
-          network: (payload.system.network_rx_bps || 0) + (payload.system.network_tx_bps || 0),
-        })
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load dashboard");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+function SeriesAreaChart({
+  data,
+  config,
+  dataKey,
+  valueFormatter,
+  yTickFormatter,
+}: {
+  data: Array<{ timestamp: string; [key: string]: string | number | null }>;
+  config: ChartConfig;
+  dataKey: string;
+  valueFormatter: (value: number) => string;
+  yTickFormatter: (value: number) => string;
+}) {
+  if (data.length === 0) {
+    return <EmptyChartState message="No samples available for this window." />;
   }
 
-  useEffect(() => {
-    let cancelled = false;
+  return (
+    <ChartContainer config={config} className="h-[280px] w-full aspect-auto">
+      <AreaChart data={data} margin={{ left: 12, right: 12, top: 8, bottom: 8 }}>
+        <CartesianGrid vertical={false} />
+        <XAxis
+          dataKey="timestamp"
+          tickLine={false}
+          axisLine={false}
+          minTickGap={36}
+          tickFormatter={(value) => formatTimeTick(String(value))}
+        />
+        <YAxis
+          width={56}
+          tickLine={false}
+          axisLine={false}
+          tickFormatter={(value) => yTickFormatter(Number(value))}
+        />
+        <ChartTooltip
+          cursor={false}
+          content={
+            <ChartTooltipContent
+              labelFormatter={(value) => formatDate(String(value))}
+              formatter={(value) => {
+                const numeric = Number(value);
+                if (!Number.isFinite(numeric)) {
+                  return "-";
+                }
+                return valueFormatter(numeric);
+              }}
+            />
+          }
+        />
+        <Area
+          type="monotone"
+          dataKey={dataKey}
+          stroke={`var(--color-${dataKey})`}
+          fill={`var(--color-${dataKey})`}
+          fillOpacity={0.18}
+          strokeWidth={2}
+          connectNulls
+        />
+      </AreaChart>
+    </ChartContainer>
+  );
+}
 
-    load(true).catch(() => {
-      // handled in load
-    });
-
-    const timer = window.setInterval(() => {
-      if (!cancelled) {
-        load(false).catch(() => {
-          // handled in load
-        });
-      }
-    }, POLL_INTERVAL_MS);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, []);
-
-  const system = data?.system;
-
-  const cpuSeries = useMemo(() => history.map((point) => point.cpu), [history]);
-  const memorySeries = useMemo(() => history.map((point) => point.memory), [history]);
-  const uptimeSeries = useMemo(() => history.map((point) => point.uptime), [history]);
-  const networkSeries = useMemo(() => history.map((point) => point.network), [history]);
-
-  const hasHardFailure = Boolean(error && !data);
+function NetworkLineChart({ data }: { data: Array<{ timestamp: string; rxBps: number | null; txBps: number | null }> }) {
+  if (data.length === 0) {
+    return <EmptyChartState message="No network samples available for this window." />;
+  }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Badge variant="outline">{refreshing ? "Refreshing" : "Live | 5s"}</Badge>
-          <span>Updated: {formatDate(data?.collected_at)}</span>
-        </div>
-      </div>
-
-      {error && (
-        <Alert variant={hasHardFailure ? "destructive" : "default"}>
-          <AlertTitle>{hasHardFailure ? "Dashboard unavailable" : "Partial data"}</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      <section className="space-y-4" aria-label="System metrics">
-        <MetricChartCard
-          label="CPU"
-          current={system ? `${system.cpu_usage_percent.toFixed(1)}%` : "--"}
-          context={system ? `${system.source}${system.is_stale ? " | stale" : " | live"}` : "No sample yet"}
-          loading={loading}
-          failed={hasHardFailure}
-          values={cpuSeries}
-          valueFormatter={(value) => `${value.toFixed(1)}%`}
-          trendFormatter={(values) => formatTrend(values, (delta) => `${delta.toFixed(1)} pp`) }
-          icon={<Cpu className="size-4" />}
+    <ChartContainer config={networkChartConfig} className="h-[280px] w-full aspect-auto">
+      <LineChart data={data} margin={{ left: 12, right: 12, top: 8, bottom: 8 }}>
+        <CartesianGrid vertical={false} />
+        <XAxis
+          dataKey="timestamp"
+          tickLine={false}
+          axisLine={false}
+          minTickGap={36}
+          tickFormatter={(value) => formatTimeTick(String(value))}
         />
-
-        <MetricChartCard
-          label="MEMORY"
-          current={system ? `${system.memory_used_percent.toFixed(1)}%` : "--"}
-          context={system ? `${formatBytes(system.memory_used_bytes)} of ${formatBytes(system.memory_total_bytes)}` : "No sample yet"}
-          loading={loading}
-          failed={hasHardFailure}
-          values={memorySeries}
-          valueFormatter={(value) => `${value.toFixed(1)}%`}
-          trendFormatter={(values) => formatTrend(values, (delta) => `${delta.toFixed(1)} pp`) }
-          icon={<MemoryStick className="size-4" />}
+        <YAxis
+          width={72}
+          tickLine={false}
+          axisLine={false}
+          tickFormatter={(value) => formatRate(Number(value))}
         />
-
-        <MetricChartCard
-          label="UPTIME"
-          current={system ? formatUptime(system.uptime_seconds) : "--"}
-          context={system ? `Collected: ${formatDate(system.collected_at)}` : "No sample yet"}
-          loading={loading}
-          failed={hasHardFailure}
-          values={uptimeSeries}
-          valueFormatter={(value) => formatUptime(value)}
-          trendFormatter={(values) => formatTrend(values, (delta) => formatUptime(delta))}
-          icon={<Clock3 className="size-4" />}
-        />
-
-        <MetricChartCard
-          label="NETWORK"
-          current={system ? formatRate((system.network_rx_bps || 0) + (system.network_tx_bps || 0)) : "--"}
-          context={
-            system
-              ? `RX ${formatRate(system.network_rx_bps || 0)} | TX ${formatRate(system.network_tx_bps || 0)}`
-              : "No sample yet"
+        <ChartTooltip
+          cursor={false}
+          content={
+            <ChartTooltipContent
+              labelFormatter={(value) => formatDate(String(value))}
+              formatter={(value) => {
+                const numeric = Number(value);
+                if (!Number.isFinite(numeric)) {
+                  return "-";
+                }
+                return formatRate(numeric);
+              }}
+            />
           }
-          loading={loading}
-          failed={hasHardFailure}
-          values={networkSeries}
-          valueFormatter={(value) => formatRate(value)}
-          trendFormatter={(values) => formatTrend(values, (delta) => formatRate(delta))}
-          icon={<Activity className="size-4" />}
         />
-      </section>
+        <ChartLegend content={<ChartLegendContent />} />
+        <Line
+          type="monotone"
+          dataKey="rxBps"
+          stroke="var(--color-rxBps)"
+          strokeWidth={2}
+          dot={false}
+          connectNulls
+        />
+        <Line
+          type="monotone"
+          dataKey="txBps"
+          stroke="var(--color-txBps)"
+          strokeWidth={2}
+          dot={false}
+          connectNulls
+        />
+      </LineChart>
+    </ChartContainer>
+  );
+}
+
+function InterfaceTable({ loading, rows }: { loading: boolean; rows: DashboardInterfaceRow[] }) {
+  if (loading) {
+    return <Skeleton className="h-[260px] w-full rounded-lg" />;
+  }
+
+  if (rows.length === 0) {
+    return (
+      <div className="flex h-[220px] items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
+        No interface metrics available.
+      </div>
+    );
+  }
+
+  return (
+    <Table className="table-fixed min-w-[920px]">
+      <colgroup>
+        <col className="w-[16%]" />
+        <col className="w-[14%]" />
+        <col className="w-[14%]" />
+        <col className="w-[12%]" />
+        <col className="w-[12%]" />
+        <col className="w-[12%]" />
+        <col className="w-[12%]" />
+        <col className="w-[8%]" />
+      </colgroup>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Interface</TableHead>
+          <TableHead>RX</TableHead>
+          <TableHead>TX</TableHead>
+          <TableHead>RX errs/s</TableHead>
+          <TableHead>TX errs/s</TableHead>
+          <TableHead>RX drops/s</TableHead>
+          <TableHead>TX drops/s</TableHead>
+          <TableHead>Status</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {rows.map((row) => (
+          <TableRow key={row.device}>
+            <TableCell className="font-medium">{row.device}</TableCell>
+            <TableCell className="tabular-nums">{formatRate(row.rxBps)}</TableCell>
+            <TableCell className="tabular-nums">{formatRate(row.txBps)}</TableCell>
+            <TableCell className="tabular-nums">{formatSmallRate(row.rxErrorsPerSec)}</TableCell>
+            <TableCell className="tabular-nums">{formatSmallRate(row.txErrorsPerSec)}</TableCell>
+            <TableCell className="tabular-nums">{formatSmallRate(row.rxDropsPerSec)}</TableCell>
+            <TableCell className="tabular-nums">{formatSmallRate(row.txDropsPerSec)}</TableCell>
+            <TableCell>
+              <HealthBadge health={row.health} />
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
+function HealthBadge({ health }: { health: DashboardInterfaceRow["health"] }) {
+  if (health === "healthy") {
+    return (
+      <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+        Healthy
+      </Badge>
+    );
+  }
+
+  if (health === "degraded") {
+    return (
+      <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300">
+        Degraded
+      </Badge>
+    );
+  }
+
+  if (health === "critical") {
+    return (
+      <Badge variant="outline" className="border-destructive/40 bg-destructive/10 text-destructive">
+        Critical
+      </Badge>
+    );
+  }
+
+  return <Badge variant="outline">Unknown</Badge>;
+}
+
+function HostSignalRow({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between rounded-lg border border-border/70 bg-muted/20 px-3 py-2.5">
+      <div className="flex items-center gap-2 text-muted-foreground">
+        {icon}
+        <span className="text-sm">{label}</span>
+      </div>
+      <span className="text-sm font-medium tabular-nums">{value}</span>
     </div>
   );
+}
+
+function EmptyChartState({ message }: { message: string }) {
+  return (
+    <div className="flex h-[280px] items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
+      {message}
+    </div>
+  );
+}
+
+function formatPercent(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "-";
+  }
+  return `${value.toFixed(1)}%`;
+}
+
+function formatMemoryUsage(used: number | null | undefined, total: number | null | undefined): string {
+  if (used === null || used === undefined || total === null || total === undefined || total <= 0) {
+    return "-";
+  }
+  return `${formatBytes(used)} / ${formatBytes(total)}`;
+}
+
+function formatSmallRate(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "-";
+  }
+
+  return value.toLocaleString("en-US", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: value < 1 ? 3 : 2,
+  });
+}
+
+function formatLoad(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "-";
+  }
+
+  return value.toFixed(2);
+}
+
+function formatTimeTick(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return date.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }

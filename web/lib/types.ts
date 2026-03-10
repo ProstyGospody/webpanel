@@ -1,4 +1,4 @@
-export type Admin = {
+﻿export type Admin = {
   id: string;
   email: string;
   is_active?: boolean;
@@ -66,50 +66,6 @@ export type SystemMetrics = {
   memory_used_percent: number;
   uptime_seconds: number;
   collected_at: string;
-};
-
-export type LiveSystemMetrics = SystemMetrics & {
-  network_rx_bps: number;
-  network_tx_bps: number;
-  source: "prometheus" | "procfs" | "unavailable" | string;
-  is_stale: boolean;
-};
-
-export type LiveHy2Overview = {
-  enabled_accounts: number;
-  total_tx_bytes: number;
-  total_rx_bytes: number;
-  online_count: number;
-  collected_at: string;
-  source: "live" | "snapshot" | "unavailable" | string;
-  is_stale: boolean;
-};
-
-export type LiveMTProxyOverview = {
-  enabled_secrets: number;
-  connections_total?: number | null;
-  users_total?: number | null;
-  collected_at?: string | null;
-  source: "live" | "snapshot" | "unavailable" | string;
-  is_stale: boolean;
-};
-
-export type LiveServiceStatus = {
-  service_name: string;
-  status: string;
-  last_check_at: string;
-  source: "live" | "cache" | "error" | string;
-  is_stale: boolean;
-  error?: string;
-};
-
-export type LiveDashboardPayload = {
-  collected_at: string;
-  system: LiveSystemMetrics;
-  hysteria: LiveHy2Overview;
-  mtproxy: LiveMTProxyOverview;
-  services: LiveServiceStatus[];
-  errors: string[];
 };
 
 export type Hy2Settings = {

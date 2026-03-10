@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 
@@ -24,6 +24,7 @@ export default function AuditPage() {
     if (!q) {
       return items;
     }
+
     return items.filter((item) => {
       return (
         item.action.toLowerCase().includes(q) ||
@@ -52,7 +53,7 @@ export default function AuditPage() {
         />
       </Card>
 
-      <Card title="Audit feed" subtitle={`Latest 200 records${query ? ` Р’В· ${filtered.length} shown` : ""}.`}>
+      <Card title="Audit feed" subtitle={`Latest 200 records${query ? ` • ${filtered.length} shown` : ""}.`}>
         {filtered.length === 0 ? (
           <EmptyState title="No audit records" description="No entries match the current filter." icon="history_toggle_off" />
         ) : (
@@ -76,7 +77,7 @@ export default function AuditPage() {
                     {item.entity_type}
                     {item.entity_id ? `/${item.entity_id}` : ""}
                   </TableCell>
-                  <TableCell className="max-w-[360px] truncate font-mono text-xs">{item.payload_json}</TableCell>
+                  <TableCell className="max-w-[420px] truncate font-mono text-xs">{item.payload_json}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -86,4 +87,3 @@ export default function AuditPage() {
     </div>
   );
 }
-

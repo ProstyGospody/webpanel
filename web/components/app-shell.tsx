@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -376,7 +376,7 @@ export function AppShell({ children }: PropsWithChildren) {
           </div>
         </header>
 
-        <main className={cn("mx-auto w-full max-w-7xl p-4 sm:p-6")}>{children}</main>
+        <div className={cn("w-full flex-1 p-4 md:p-6")}>{children}</div>
       </SidebarInset>
     </SidebarProvider>
   );
