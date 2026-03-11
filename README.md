@@ -120,3 +120,29 @@ The script syncs repo to `/opt/proxy-panel/current`, rebuilds binaries, keeps ge
 - [Architecture](./docs/architecture.md)
 - [Deploy details](./docs/deploy.md)
 - [Operations](./docs/operations.md)
+
+## Local Docker development
+
+Run the full local stack (`panel-api` + `panel-web` + PostgreSQL) without installing Go/Node/PostgreSQL on your host:
+
+```bash
+docker compose up --build
+```
+
+Open panel:
+
+- `http://localhost:13000`
+
+Default dev admin (from `.env.docker`):
+
+- email: `admin@example.com`
+- password: `admin12345`
+
+Useful commands:
+
+```bash
+docker compose down
+docker compose down -v   # reset DB volume
+```
+
+You can change any dev settings in `.env.docker`.

@@ -1,0 +1,60 @@
+name: proxy-panel-dev
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: proxy_panel
+      POSTGRES_USER: proxy_panel
+      POSTGRES_PASSWORD: proxy_panel
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U proxy_panel -d proxy_panel"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  api:
+    image: golang:1.24-alpine
+    restart: unless-stopped
+    working_dir: /workspace
+    command: ["sh", "/workspace/scripts/docker-api-entrypoint.sh"]
+    env_file:
+      - .env.docker
+    volumes:
+      - ./:/workspace
+      - go-mod-cache:/go/pkg/mod
+      - go-build-cache:/root/.cache/go-build
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "18080:18080"
+
+  web:
+    image: node:22-alpine
+    restart: unless-stopped
+    working_dir: /workspace/web
+    command: ["sh", "/workspace/scripts/docker-web-entrypoint.sh"]
+    env_file:
+      - .env.docker
+    environment:
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - ./:/workspace
+      - web-node-modules:/workspace/web/node_modules
+    depends_on:
+      api:
+        condition: service_started
+    ports:
+      - "13000:13000"
+
+volumes:
+  pgdata:
+  go-mod-cache:
+  go-build-cache:
+  web-node-modules:
