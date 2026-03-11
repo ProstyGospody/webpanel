@@ -2,10 +2,22 @@
 set -euo pipefail
 
 RECONFIGURE=0
-if [[ "${1:-}" == "--reconfigure" ]]; then
-  RECONFIGURE=1
+NONINTERACTIVE="${PROXY_PANEL_NONINTERACTIVE:-0}"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --reconfigure)
+      RECONFIGURE=1
+      ;;
+    --non-interactive)
+      NONINTERACTIVE=1
+      ;;
+    *)
+      printf "[error] Unknown argument: %s\n" "$1" >&2
+      exit 1
+      ;;
+  esac
   shift
-fi
+done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -23,6 +35,22 @@ MTPROXY_DIR="${ETC_ROOT}/mtproxy"
 
 PANEL_API_PORT="18080"
 PANEL_WEB_PORT="13000"
+
+ENV_OVERRIDE_KEYS=(
+  PANEL_PUBLIC_HOST
+  PANEL_PUBLIC_PORT
+  PANEL_ACME_EMAIL
+  HY2_DOMAIN
+  HY2_PORT
+  HY2_STATS_PORT
+  MTPROXY_PUBLIC_HOST
+  MTPROXY_PORT
+  MTPROXY_STATS_PORT
+  MTPROXY_TLS_DOMAIN
+  INITIAL_ADMIN_EMAIL
+  INITIAL_ADMIN_PASSWORD
+  PROMETHEUS_ENABLED
+)
 
 action() {
   printf "\n==> %s\n" "$1"
@@ -45,8 +73,8 @@ check_os() {
   fi
   # shellcheck disable=SC1091
   source /etc/os-release
-  if [[ "${ID}" != "debian" || "${VERSION_ID}" != "12" ]]; then
-    fatal "This installer supports Debian 12 only"
+  if [[ "${ID}" != "ubuntu" || "${VERSION_ID}" != "24.04" ]]; then
+    fatal "This installer supports Ubuntu 24.04 only"
   fi
 }
 
@@ -54,6 +82,17 @@ version_gte() {
   local required="$1"
   local current="$2"
   [[ "$(printf '%s\n' "${required}" "${current}" | sort -V | head -n1)" == "${required}" ]]
+}
+
+is_noninteractive() {
+  case "${NONINTERACTIVE}" in
+    1|true|TRUE|yes|YES)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
 }
 
 install_system_packages() {
@@ -165,6 +204,25 @@ create_system_users() {
   usermod -a -G proxy-panel hysteria || true
 }
 
+capture_env_overrides() {
+  local key
+  for key in "${ENV_OVERRIDE_KEYS[@]}"; do
+    if [[ -n "${!key+x}" ]]; then
+      printf -v "__OVERRIDE_${key}" '%s' "${!key}"
+    fi
+  done
+}
+
+apply_env_overrides() {
+  local key override_name
+  for key in "${ENV_OVERRIDE_KEYS[@]}"; do
+    override_name="__OVERRIDE_${key}"
+    if [[ -n "${!override_name+x}" ]]; then
+      printf -v "${key}" '%s' "${!override_name}"
+    fi
+  done
+}
+
 prepare_directories() {
   action "Preparing directories"
 
@@ -185,7 +243,7 @@ sync_source_tree() {
   action "Syncing repository to ${SRC_DIR}"
   mkdir -p "${SRC_DIR}"
   rsync -a --delete --exclude '.git' "${REPO_ROOT}/" "${SRC_DIR}/"
-  chmod +x "${SRC_DIR}/scripts/run-mtproxy.sh" "${SRC_DIR}/scripts/smoke-check.sh" "${SRC_DIR}/tests/smoke.sh" "${SRC_DIR}/deploy/install.sh"
+  chmod +x "${SRC_DIR}/scripts/run-mtproxy.sh" "${SRC_DIR}/scripts/smoke-check.sh" "${SRC_DIR}/tests/smoke.sh" "${SRC_DIR}/deploy/install.sh" "${SRC_DIR}/deploy/ubuntu24-host-install.sh"
 }
 
 load_existing_values() {
@@ -207,6 +265,17 @@ prompt_value() {
 
   if [[ -n "${current}" && "${RECONFIGURE}" -eq 0 ]]; then
     return
+  fi
+
+  if is_noninteractive; then
+    if [[ -n "${current}" ]]; then
+      return
+    fi
+    if [[ -n "${default_value}" ]]; then
+      printf -v "${var_name}" '%s' "${default_value}"
+      return
+    fi
+    fatal "Value required in non-interactive mode: ${var_name}"
   fi
 
   local answer=""
@@ -234,6 +303,17 @@ prompt_password() {
   local current="${!var_name:-}"
 
   if [[ -n "${current}" && "${RECONFIGURE}" -eq 0 ]]; then
+    return
+  fi
+
+  if is_noninteractive; then
+    if [[ -n "${current}" ]]; then
+      return
+    fi
+    local generated
+    generated="$(openssl rand -base64 24 | tr -d '=+/\n' | cut -c1-20)"
+    printf -v "${var_name}" '%s' "${generated}"
+    echo "Generated random initial admin password (non-interactive mode)"
     return
   fi
 
@@ -651,6 +731,7 @@ Useful commands:
   journalctl -u proxy-panel-api -n 100 --no-pager
   bash ${SRC_DIR}/scripts/smoke-check.sh ${ENV_FILE}
   sudo bash ${REPO_ROOT}/deploy/install.sh --reconfigure
+  sudo bash ${REPO_ROOT}/deploy/ubuntu24-host-install.sh
 EOF
 }
 
@@ -668,7 +749,9 @@ main() {
   prepare_directories
   sync_source_tree
 
+  capture_env_overrides
   load_existing_values
+  apply_env_overrides
   collect_configuration
   write_env_files
 
@@ -690,3 +773,7 @@ main() {
 }
 
 main "$@"
+
+
+
+

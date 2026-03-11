@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- Clean Debian 12 server
+- Clean Ubuntu 24.04 LTS server
 - Root access (or sudo)
 - DNS records prepared for panel/Hysteria domains
 - Ports open:
@@ -11,38 +11,45 @@
   - Hysteria (`443/udp`)
   - MTProxy (`443/tcp`)
 
-## One-line install
+## One-command install
 
 ```bash
-sudo bash ./deploy/install.sh
+sudo bash ./deploy/ubuntu24-host-install.sh
 ```
+
+First run creates `deploy/ansible/group_vars/all.yml` from `all.yml.example` and exits.
+Fill values and rerun the same command.
 
 ## Reconfigure
 
+Update `deploy/ansible/group_vars/all.yml` and rerun:
+
 ```bash
-sudo bash ./deploy/install.sh --reconfigure
+sudo bash ./deploy/ubuntu24-host-install.sh
 ```
 
-Reconfigure mode re-asks interactive values and re-renders runtime config while keeping generated defaults unless changed.
+## Configuration
 
-## Interactive prompts
+Deployment values come from `deploy/ansible/group_vars/all.yml`.
 
-The installer asks for:
+Main vars:
 
-- `PANEL_PUBLIC_HOST`
-- `PANEL_PUBLIC_PORT` (default: `8443`)
-- `PANEL_ACME_EMAIL`
-- `HY2_DOMAIN`
-- `MTPROXY_PUBLIC_HOST`
-- `MTPROXY_TLS_DOMAIN` (optional, used for ee-formatted tg:// secret generation)
-- `INITIAL_ADMIN_EMAIL`
-- `INITIAL_ADMIN_PASSWORD` (blank => generated)
+- `panel_public_host`
+- `panel_public_port` (default: `8443`)
+- `panel_acme_email`
+- `hy2_domain`
+- `hy2_port` (default: `443`)
+- `mtproxy_public_host`
+- `mtproxy_port` (default: `443`)
+- `mtproxy_tls_domain`
+- `initial_admin_email`
+- `initial_admin_password` (blank => generated)
 
-Everything else is generated automatically.
+Everything else is generated automatically by installer logic.
 
 ## Generated runtime env
 
-Main runtime env is written to:
+Main runtime env:
 
 - `/opt/proxy-panel/.env.generated`
 
@@ -58,10 +65,10 @@ sudo bash ./deploy/verify.sh
 
 This checks service status, API health/readiness, and admin login flow.
 
-## Install script phases
+## Install phases
 
-1. OS/root checks
-2. Package installation
+1. Ubuntu 24.04 + root checks
+2. Package installation (host/system packages)
 3. Go/Node install
 4. Hysteria + MTProxy install
 5. User/group and directory setup

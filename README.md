@@ -1,6 +1,6 @@
 # Proxy Panel (Hysteria 2 + MTProxy)
 
-Production-minded single-repo control plane for managing two native services on one Debian 12 VDS:
+Production-minded single-repo control plane for managing two native services on one Ubuntu 24.04 LTS host:
 
 - Hysteria 2 (data plane stays native on host)
 - MTProxy for Telegram (native binary on host)
@@ -14,48 +14,52 @@ Control plane stack:
 - Prometheus + node_exporter (live host metrics)
 - systemd
 
-## One-command deploy
+## One-command deploy (Ubuntu 24.04 host + Ansible)
 
 ```bash
-sudo bash ./deploy/install.sh
+sudo bash ./deploy/ubuntu24-host-install.sh
 ```
 
-Reconfigure mode:
-
-```bash
-sudo bash ./deploy/install.sh --reconfigure
-```
+First run creates `deploy/ansible/group_vars/all.yml` from `all.yml.example` and exits.
+Fill values and rerun the same command.
 
 ## What deploy does
 
-`deploy/install.sh` is idempotent and performs:
+`deploy/ubuntu24-host-install.sh` installs Ansible and runs `deploy/ansible/site.yml`, which triggers idempotent host installer logic in `deploy/install.sh`.
 
-1. Debian 12 + root checks
-2. Installs dependencies (Go, Node, PostgreSQL, Caddy, Prometheus, node_exporter, build tools)
+Installer phases:
+
+1. Ubuntu 24.04 + root checks
+2. Installs host dependencies (Go, Node, PostgreSQL, Caddy, Prometheus, node_exporter, build tools)
 3. Installs Hysteria 2 and MTProxy binaries
 4. Creates system users: `proxy-panel`, `hysteria`, `mtproxy`
 5. Generates secrets and runtime env file
-6. Asks only interactive values that cannot be auto-detected
-7. Builds backend and frontend
-8. Applies DB migrations
-9. Bootstraps initial admin
-10. Installs systemd units + restricted sudoers policy
-11. Renders runtime configs (including Prometheus scrape config)
-12. Starts services
-13. Runs smoke checks
+6. Builds backend and frontend
+7. Applies DB migrations
+8. Bootstraps initial admin
+9. Installs systemd units + restricted sudoers policy
+10. Renders runtime configs (including Prometheus scrape config)
+11. Starts services
+12. Runs smoke checks
 
-## Interactive questions asked by deploy
+## Configuration source for deploy
 
-- Panel public domain/IP
-- Panel HTTPS port (default `8443`)
-- ACME email
-- Hysteria public domain
-- MTProxy public host/IP
-- MTProxy legacy TLS domain (optional, compatibility only)
-- Initial admin email
-- Initial admin password (empty input -> generated)
+Deployment values come from `deploy/ansible/group_vars/all.yml`.
 
-Everything else is generated or defaulted automatically.
+Main variables:
+
+- `panel_public_host`
+- `panel_public_port`
+- `panel_acme_email`
+- `hy2_domain`
+- `hy2_port`
+- `mtproxy_public_host`
+- `mtproxy_port`
+- `mtproxy_tls_domain`
+- `initial_admin_email`
+- `initial_admin_password` (empty => generated)
+
+Everything else is generated or defaulted automatically by installer logic.
 
 ## Generated files and secrets
 
@@ -82,24 +86,13 @@ Check status:
 systemctl status proxy-panel-api proxy-panel-web hysteria-server mtproxy prometheus prometheus-node-exporter caddy
 ```
 
-Restart examples:
-
-```bash
-systemctl restart proxy-panel-api
-systemctl restart proxy-panel-web
-systemctl restart hysteria-server
-systemctl restart mtproxy
-systemctl restart prometheus
-systemctl restart prometheus-node-exporter
-```
-
 ## Smoke check
 
 ```bash
 sudo bash ./deploy/verify.sh
 ```
 
-or:
+Or directly:
 
 ```bash
 sudo bash /opt/proxy-panel/current/scripts/smoke-check.sh /opt/proxy-panel/.env.generated
@@ -110,10 +103,8 @@ sudo bash /opt/proxy-panel/current/scripts/smoke-check.sh /opt/proxy-panel/.env.
 From updated repository checkout:
 
 ```bash
-sudo bash ./deploy/install.sh
+sudo bash ./deploy/ubuntu24-host-install.sh
 ```
-
-The script syncs repo to `/opt/proxy-panel/current`, rebuilds binaries, keeps generated env/secrets, reapplies units/configs, and restarts services safely.
 
 ## Documentation
 
@@ -121,7 +112,7 @@ The script syncs repo to `/opt/proxy-panel/current`, rebuilds binaries, keeps ge
 - [Deploy details](./docs/deploy.md)
 - [Operations](./docs/operations.md)
 
-## Local Docker development
+## Local Docker development (local machine only)
 
 Run the full local stack (`panel-api` + `panel-web` + PostgreSQL) without installing Go/Node/PostgreSQL on your host:
 

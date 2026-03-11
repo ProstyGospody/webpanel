@@ -53,7 +53,7 @@ set -a; source /opt/proxy-panel/.env.generated; set +a
 
 ```bash
 cd /path/to/repo
-sudo bash ./deploy/install.sh
+sudo bash ./deploy/ubuntu24-host-install.sh
 ```
 
 ## Smoke checks
@@ -77,4 +77,5 @@ systemctl restart proxy-panel-api proxy-panel-web hysteria-server mtproxy caddy
 - `/opt/proxy-panel/.env.generated`
 - `/etc/proxy-panel/`
 - `/root/proxy-panel-initial-admin.txt`
+
 
