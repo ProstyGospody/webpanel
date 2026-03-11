@@ -168,7 +168,7 @@ function ShellNavigation({ pathname, collapsed, adminEmail, onNavigate }: ShellN
         </Link>
       </div>
 
-      <nav className="min-h-0 flex-1 overflow-y-auto px-2 py-3" aria-label="Primary navigation">
+      <nav className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable] px-2 py-3" aria-label="Primary navigation">
         <div className="space-y-4">
           {sections.map((section) => (
             <section key={section.title} className="space-y-1">
@@ -479,7 +479,7 @@ export function AppShell({ children }: PropsWithChildren) {
             </div>
           </header>
 
-          <main className="min-h-0 flex-1 overflow-y-scroll [scrollbar-gutter:stable]">
+          <main className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
             <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-6 px-4 py-6 md:px-6 md:py-8">{children}</div>
           </main>
         </div>
@@ -487,5 +487,6 @@ export function AppShell({ children }: PropsWithChildren) {
     </div>
   );
 }
+
 
 
