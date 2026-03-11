@@ -21,3 +21,6 @@ web/out/
 .DS_Store
 Thumbs.db
 
+
+# Local docker env
+.env.docker
