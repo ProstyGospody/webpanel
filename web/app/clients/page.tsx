@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
-import { Plus, Search, UserMinus, UserPlus, Users } from "lucide-react";
+import { Plus, Search, UserMinus, UserPlus, Users, X } from "lucide-react";
 
 import { apiFetch, toJSONBody } from "@/lib/api";
 import { formatDate } from "@/lib/format";
@@ -16,7 +16,7 @@ import { TextField } from "@/components/app/fields";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { InputGroup, InputGroupAction, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type CreateClientErrors = {
@@ -120,6 +120,11 @@ export default function ClientsPage() {
     await loadClients(search);
   }
 
+  async function onClearSearch() {
+    setSearch("");
+    await loadClients();
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader title="Clients" icon={<Users />} description="Shared identities for Hysteria 2 and MTProxy." />
@@ -183,16 +188,23 @@ export default function ClientsPage() {
         <CardHeader className="border-b pb-3">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <CardTitle>Client directory</CardTitle>
-            <form onSubmit={onSearchSubmit} noValidate className="flex w-full max-w-sm items-center gap-2">
-              <div className="relative w-full">
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  className="pl-8"
+            <form onSubmit={onSearchSubmit} noValidate className="flex w-full max-w-md items-center gap-2">
+              <InputGroup>
+                <InputGroupAddon>
+                  <Search />
+                </InputGroupAddon>
+                <InputGroupInput
                   placeholder="Filter by name or email"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
+                  aria-label="Search clients"
                 />
-              </div>
+                {search ? (
+                  <InputGroupAction aria-label="Clear search" onClick={() => void onClearSearch()}>
+                    <X className="size-3.5" />
+                  </InputGroupAction>
+                ) : null}
+              </InputGroup>
               <Button variant="outline" type="submit" className="shrink-0">
                 Search
               </Button>

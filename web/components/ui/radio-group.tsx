@@ -21,14 +21,14 @@ function RadioGroupItem({ className, ...props }: RadioPrimitive.Root.Props) {
     <RadioPrimitive.Root
       data-slot="radio-group-item"
       className={cn(
-        "peer relative size-[18px] shrink-0 rounded-full border border-input bg-background text-primary shadow-xs outline-none transition-[background-color,border-color,box-shadow] hover:border-primary/45 data-[checked]:border-primary [aria-checked=true]:border-primary focus-visible:ring-2 focus-visible:ring-ring/45 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50",
+        "peer aspect-square size-4 shrink-0 rounded-full border border-input text-primary shadow-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 data-[checked]:border-primary",
         className
       )}
       {...props}
     >
       <RadioPrimitive.Indicator
         data-slot="radio-group-indicator"
-        className="grid h-full w-full place-items-center"
+        className="flex items-center justify-center"
       >
         <span className="size-2 rounded-full bg-current" />
       </RadioPrimitive.Indicator>

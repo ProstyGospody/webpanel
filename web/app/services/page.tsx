@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { RefreshCw, RotateCcw, TerminalSquare, Wrench } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Info, RefreshCw, RotateCcw, Search, TerminalSquare, Wrench, X } from "lucide-react";
 
 import { apiFetch, toJSONBody } from "@/lib/api";
 import { formatDate } from "@/lib/format";
@@ -15,6 +15,8 @@ import { OverflowMenu } from "@/components/overflow-menu";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InputGroup, InputGroupAction, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -55,6 +57,21 @@ export default function ServicesPage() {
   const [error, setError] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [runningAction, setRunningAction] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const filteredServices = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) {
+      return services;
+    }
+
+    return services.filter((service) => {
+      return (
+        (service.service_name || "").toLowerCase().includes(q) ||
+        (service.status || "").toLowerCase().includes(q)
+      );
+    });
+  }, [search, services]);
 
   async function loadServices() {
     const response = await apiFetch<{ items: ServiceState[] }>("/api/services");
@@ -129,11 +146,31 @@ export default function ServicesPage() {
       <div className="grid gap-4 xl:grid-cols-2">
         <Card>
           <CardHeader className="border-b pb-3">
-            <CardTitle>Managed services</CardTitle>
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <CardTitle>Managed services</CardTitle>
+              <InputGroup className="w-full max-w-sm">
+                <InputGroupAddon>
+                  <Search />
+                </InputGroupAddon>
+                <InputGroupInput
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search service name or status"
+                  aria-label="Search services"
+                />
+                {search ? (
+                  <InputGroupAction aria-label="Clear search" onClick={() => setSearch("")}>
+                    <X className="size-3.5" />
+                  </InputGroupAction>
+                ) : null}
+              </InputGroup>
+            </div>
           </CardHeader>
           <CardContent className="pt-3">
             {services.length === 0 ? (
               <EmptyState title="No services found" description="No managed services detected." icon={Wrench} />
+            ) : filteredServices.length === 0 ? (
+              <EmptyState title="No matches" description="No services match the current search." icon={Wrench} />
             ) : (
               <Table>
                 <TableHeader>
@@ -145,7 +182,7 @@ export default function ServicesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {services.map((service) => {
+                  {filteredServices.map((service) => {
                     const name = service.service_name || "unknown";
                     return (
                       <TableRow key={name}>
@@ -155,7 +192,19 @@ export default function ServicesPage() {
                           </button>
                         </TableCell>
                         <TableCell>
-                          <StatusBadge tone={statusTone(service.status)}>{service.status}</StatusBadge>
+                          <div className="flex items-center gap-1.5">
+                            <StatusBadge tone={statusTone(service.status)}>{service.status}</StatusBadge>
+                            <Popover>
+                              <PopoverTrigger render={<Button variant="ghost" size="icon-xs" className="shrink-0" />} aria-label={`Status details for ${name}`}>
+                                <Info className="size-3.5" />
+                              </PopoverTrigger>
+                              <PopoverContent align="start" className="w-64 space-y-1.5">
+                                <p className="text-sm font-medium">{name}</p>
+                                <p className="text-xs text-muted-foreground">{service.status}</p>
+                                <p className="text-xs text-muted-foreground">Last check {formatDate(service.last_check_at)}</p>
+                              </PopoverContent>
+                            </Popover>
+                          </div>
                         </TableCell>
                         <TableCell className="text-muted-foreground">{formatDate(service.last_check_at)}</TableCell>
                         <TableCell>
@@ -236,4 +285,3 @@ export default function ServicesPage() {
     </div>
   );
 }
-

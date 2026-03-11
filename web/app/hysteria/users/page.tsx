@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Copy, Pencil, Plus, QrCode, Trash2, Users, Zap } from "lucide-react";
+import { Copy, Pencil, Plus, QrCode, Search, Trash2, Users, X, Zap } from "lucide-react";
 
 import { apiFetch, toJSONBody } from "@/lib/api";
 import { copyToClipboard, formatBytes, formatDate } from "@/lib/format";
@@ -18,6 +18,7 @@ import { OverflowMenu } from "@/components/overflow-menu";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InputGroup, InputGroupAction, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -85,8 +86,23 @@ export default function HysteriaUsersPage() {
   const [uriValue, setURIValue] = useState("");
 
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   const sortedClients = useMemo(() => [...clients].sort((a, b) => a.name.localeCompare(b.name)), [clients]);
+  const filteredAccounts = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) {
+      return accounts;
+    }
+
+    return accounts.filter((item) => {
+      return (
+        (item.client_name || "").toLowerCase().includes(q) ||
+        (item.hy2_identity || "").toLowerCase().includes(q) ||
+        (item.auth_payload || "").toLowerCase().includes(q)
+      );
+    });
+  }, [accounts, search]);
 
   function markCopied(key: string) {
     setCopiedKey(key);
@@ -320,7 +336,25 @@ export default function HysteriaUsersPage() {
 
       <Card>
         <CardHeader className="border-b pb-3">
-          <CardTitle>Users</CardTitle>
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <CardTitle>Users</CardTitle>
+            <InputGroup className="w-full max-w-sm">
+              <InputGroupAddon>
+                <Search />
+              </InputGroupAddon>
+              <InputGroupInput
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search by user, identity or credential"
+                aria-label="Search Hysteria users"
+              />
+              {search ? (
+                <InputGroupAction aria-label="Clear search" onClick={() => setSearch("")}>
+                  <X className="size-3.5" />
+                </InputGroupAction>
+              ) : null}
+            </InputGroup>
+          </div>
         </CardHeader>
         <CardContent className="pt-3">
           {loading ? (
@@ -329,8 +363,10 @@ export default function HysteriaUsersPage() {
               <Skeleton className="h-4 w-full" />
               <Skeleton className="h-4 w-full" />
             </div>
-          ) : accounts.length === 0 ? (
+           ) : accounts.length === 0 ? (
             <EmptyState title="No Hysteria users" description="Create the first user to issue access credentials." icon={Zap} />
+          ) : filteredAccounts.length === 0 ? (
+            <EmptyState title="No matches" description="No users match the current search." icon={Zap} />
           ) : (
             <Table>
               <TableHeader>
@@ -343,7 +379,7 @@ export default function HysteriaUsersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {accounts.map((item) => {
+                {filteredAccounts.map((item) => {
                   const online = (item.online_count || 0) > 0;
                   const busy = busyID === item.id;
 
@@ -492,3 +528,12 @@ export default function HysteriaUsersPage() {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+

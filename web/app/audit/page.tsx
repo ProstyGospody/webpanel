@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { History, Search } from "lucide-react";
+import { History, Search, X } from "lucide-react";
 
 import { apiFetch } from "@/lib/api";
 import { formatDate } from "@/lib/format";
@@ -10,7 +10,7 @@ import { PageHeader } from "@/components/app/page-header";
 import { EmptyState } from "@/components/app/empty-state";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { InputGroup, InputGroupAction, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -62,15 +62,22 @@ export default function AuditPage() {
         <CardHeader className="border-b pb-3">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <CardTitle>Audit feed</CardTitle>
-            <div className="relative w-full max-w-sm">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                className="pl-8"
+            <InputGroup className="w-full max-w-sm">
+              <InputGroupAddon>
+                <Search />
+              </InputGroupAddon>
+              <InputGroupInput
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search action, admin or entity"
+                aria-label="Search audit records"
               />
-            </div>
+              {query ? (
+                <InputGroupAction aria-label="Clear search" onClick={() => setQuery("")}>
+                  <X className="size-3.5" />
+                </InputGroupAction>
+              ) : null}
+            </InputGroup>
           </div>
         </CardHeader>
         <CardContent className="pt-3">

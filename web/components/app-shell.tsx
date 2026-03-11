@@ -479,7 +479,7 @@ export function AppShell({ children }: PropsWithChildren) {
             </div>
           </header>
 
-          <main className="min-h-0 flex-1 overflow-y-auto">
+          <main className="min-h-0 flex-1 overflow-y-scroll [scrollbar-gutter:stable]">
             <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-6 px-4 py-6 md:px-6 md:py-8">{children}</div>
           </main>
         </div>
@@ -487,4 +487,5 @@ export function AppShell({ children }: PropsWithChildren) {
     </div>
   );
 }
+
 

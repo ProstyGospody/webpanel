@@ -87,6 +87,10 @@
     @apply min-h-full;
   }
 
+  html {
+    scrollbar-gutter: stable;
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
@@ -139,3 +143,4 @@
     @apply border-red-500/35 bg-red-500/[0.07];
   }
 }
+

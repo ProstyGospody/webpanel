@@ -187,23 +187,17 @@ function ModeRadioGroup({
     <RadioGroup value={value} onValueChange={(nextValue) => onChange(String(nextValue))} className={cn("grid gap-2", columnsClassName)}>
       {options.map((option, index) => {
         const inputId = `${groupId}-${index}`;
-        const active = option.value === value;
 
         return (
-          <label
-            key={option.value}
-            htmlFor={inputId}
-            className={cn(
-              "flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border px-3.5 py-2.5 transition-colors",
-              active ? "border-primary/45 bg-primary/5" : "border-border hover:bg-muted/25"
-            )}
-          >
-            <RadioGroupItem id={inputId} value={option.value} className={cn("mt-0.5", !option.description && "mt-0")} />
-            <div className="space-y-0.5">
-              <p className="text-sm font-medium leading-5">{option.label}</p>
+          <div key={option.value} className="flex items-start gap-2.5 rounded-md border border-border/70 bg-background px-3 py-2.5">
+            <RadioGroupItem id={inputId} value={option.value} className="mt-0.5" />
+            <div className="grid gap-0.5">
+              <Label htmlFor={inputId} className="cursor-pointer text-sm font-medium leading-none">
+                {option.label}
+              </Label>
               {option.description ? <p className="text-xs text-muted-foreground">{option.description}</p> : null}
             </div>
-          </label>
+          </div>
         );
       })}
     </RadioGroup>
@@ -1063,3 +1057,4 @@ export default function HysteriaSettingsPage() {
     </div>
   );
 }
+

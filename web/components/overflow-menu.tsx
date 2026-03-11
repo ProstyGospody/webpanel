@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import type { LucideIcon } from "lucide-react";
 import { MoreVertical } from "lucide-react";
@@ -10,6 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export type MenuItem = {
   id: string;
@@ -24,14 +25,26 @@ type OverflowMenuProps = {
   ariaLabel?: string;
   items: MenuItem[];
   align?: "start" | "center" | "end";
+  showTooltip?: boolean;
 };
 
-export function OverflowMenu({ ariaLabel = "More actions", items, align = "end" }: OverflowMenuProps) {
+export function OverflowMenu({ ariaLabel = "More actions", items, align = "end", showTooltip = true }: OverflowMenuProps) {
+  const trigger = (
+    <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" />} aria-label={ariaLabel}>
+      <MoreVertical className="size-4" />
+    </DropdownMenuTrigger>
+  );
+
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" />} aria-label={ariaLabel}>
-        <MoreVertical className="size-4" />
-      </DropdownMenuTrigger>
+      {showTooltip ? (
+        <Tooltip>
+          <TooltipTrigger render={trigger} />
+          <TooltipContent>{ariaLabel}</TooltipContent>
+        </Tooltip>
+      ) : (
+        trigger
+      )}
       <DropdownMenuContent align={align} className="min-w-44">
         {items.map((item) => {
           const Icon = item.icon;
@@ -52,4 +65,3 @@ export function OverflowMenu({ ariaLabel = "More actions", items, align = "end" 
     </DropdownMenu>
   );
 }
-

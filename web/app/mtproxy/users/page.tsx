@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Copy, Pencil, Plus, QrCode, Send, Trash2, Users } from "lucide-react";
+import { Copy, Pencil, Plus, QrCode, Search, Send, Trash2, Users, X } from "lucide-react";
 
 import { apiFetch, toJSONBody } from "@/lib/api";
 import { copyToClipboard, formatDate } from "@/lib/format";
@@ -18,6 +18,7 @@ import { OverflowMenu } from "@/components/overflow-menu";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InputGroup, InputGroupAction, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -66,6 +67,7 @@ export default function MTProxyUsersPage() {
   const [error, setError] = useState<string | null>(null);
   const [busyID, setBusyID] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   const [formOpen, setFormOpen] = useState(false);
   const [formBusy, setFormBusy] = useState(false);
@@ -83,6 +85,21 @@ export default function MTProxyUsersPage() {
   const [linkValue, setLinkValue] = useState("");
 
   const sortedClients = useMemo(() => [...clients].sort((a, b) => a.name.localeCompare(b.name)), [clients]);
+  const filteredSecrets = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) {
+      return secrets;
+    }
+
+    return secrets.filter((item) => {
+      return (
+        (item.label || "").toLowerCase().includes(q) ||
+        (item.client_name || "").toLowerCase().includes(q) ||
+        (item.client_id || "").toLowerCase().includes(q) ||
+        (item.secret || "").toLowerCase().includes(q)
+      );
+    });
+  }, [search, secrets]);
 
   function markCopied(key: string) {
     setCopiedKey(key);
@@ -313,7 +330,25 @@ export default function MTProxyUsersPage() {
 
       <Card>
         <CardHeader className="border-b pb-3">
-          <CardTitle>Users</CardTitle>
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <CardTitle>Users</CardTitle>
+            <InputGroup className="w-full max-w-sm">
+              <InputGroupAddon>
+                <Search />
+              </InputGroupAddon>
+              <InputGroupInput
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search by user or secret"
+                aria-label="Search MTProxy users"
+              />
+              {search ? (
+                <InputGroupAction aria-label="Clear search" onClick={() => setSearch("")}>
+                  <X className="size-3.5" />
+                </InputGroupAction>
+              ) : null}
+            </InputGroup>
+          </div>
         </CardHeader>
         <CardContent className="pt-3">
           {loading ? (
@@ -322,8 +357,10 @@ export default function MTProxyUsersPage() {
               <Skeleton className="h-4 w-full" />
               <Skeleton className="h-4 w-full" />
             </div>
-          ) : secrets.length === 0 ? (
+           ) : secrets.length === 0 ? (
             <EmptyState title="No MTProxy users" description="Create the first secret to activate MTProxy access." icon={Send} />
+          ) : filteredSecrets.length === 0 ? (
+            <EmptyState title="No matches" description="No users match the current search." icon={Send} />
           ) : (
             <Table>
               <TableHeader>
@@ -336,7 +373,7 @@ export default function MTProxyUsersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {secrets.map((item) => {
+                {filteredSecrets.map((item) => {
                   const busy = busyID === item.id;
                   return (
                     <TableRow key={item.id}>
@@ -476,3 +513,6 @@ export default function MTProxyUsersPage() {
     </div>
   );
 }
+
+
+
