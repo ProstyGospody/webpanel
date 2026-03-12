@@ -730,7 +730,7 @@ func (r *Repository) InsertMTProxySnapshot(ctx context.Context, snapshot MTProxy
 	const q = `
 INSERT INTO mtproxy_stats_snapshots (connections_total, users_total, raw_stats_json, snapshot_at)
 VALUES ($1, $2, $3::jsonb, $4)`
-	_, err := r.pool.Exec(ctx, q, snapshot.ConnectionsTotal, snapshot.UsersTotal, snapshot.RawStatsJSON, snapshot.SnapshotAt)
+	_, err := r.pool.Exec(ctx, q, snapshot.ConnectionsTotal, snapshot.UsersTotal, normalizeJSONDocument(snapshot.RawStatsJSON), snapshot.SnapshotAt)
 	return err
 }
 
@@ -950,6 +950,24 @@ func IsUniqueViolation(err error) bool {
 		return pgErr.Code == "23505"
 	}
 	return false
+}
+
+func normalizeJSONDocument(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "{}"
+	}
+	if json.Valid([]byte(trimmed)) {
+		return trimmed
+	}
+	encoded, err := json.Marshal(map[string]any{
+		"format": "text/plain",
+		"raw":    trimmed,
+	})
+	if err != nil {
+		return "{}"
+	}
+	return string(encoded)
 }
 
 func nullablePointer(value *string) any {
