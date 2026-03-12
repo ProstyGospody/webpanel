@@ -24,6 +24,7 @@ import { useTheme } from "next-themes";
 
 import { APIError, apiFetch, toJSONBody } from "@/lib/api";
 import type { Admin } from "@/lib/types";
+import { ProxyPanelLogo } from "@/components/proxy-panel-logo";
 import { useToast } from "@/components/toast-provider";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -157,14 +158,13 @@ function ShellNavigation({ pathname, collapsed, adminEmail, onNavigate }: ShellN
             collapsed && "w-full justify-center"
           )}
         >
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-            <ShieldCheck className="size-4" />
-          </div>
-          {!collapsed && (
-            <>
-              <span className="truncate">Proxy Panel</span>
-            </>
-          )}
+          <ProxyPanelLogo
+            showLabel={!collapsed}
+            priority
+            className={cn(collapsed && "justify-center")}
+            imageClassName="size-8 rounded-lg"
+            labelClassName="text-sidebar-foreground"
+          />
         </Link>
       </div>
 

@@ -9,6 +9,11 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 export const metadata: Metadata = {
   title: "Proxy Panel",
   description: "Admin panel for Hysteria 2 and MTProxy",
+  icons: {
+    icon: "/proxy-panel-logo.svg",
+    shortcut: "/proxy-panel-logo.svg",
+    apple: "/proxy-panel-logo.svg",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

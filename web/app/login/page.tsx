@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { LogIn } from "lucide-react";
 
 import { APIError, apiFetch, toJSONBody } from "@/lib/api";
+import { ProxyPanelLogo } from "@/components/proxy-panel-logo";
 import { TextField } from "@/components/app/fields";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -69,9 +70,19 @@ export default function LoginPage() {
   return (
     <div className="grid min-h-screen place-items-center p-4">
       <Card className="w-full max-w-md shadow-sm">
-        <CardHeader className="space-y-2">
-          <CardTitle className="text-2xl">Proxy Panel</CardTitle>
-          <CardDescription>Sign in to continue.</CardDescription>
+        <CardHeader className="space-y-4">
+          <div className="flex justify-center">
+            <ProxyPanelLogo
+              showLabel={false}
+              priority
+              size={64}
+              imageClassName="size-16 rounded-2xl shadow-sm ring-1 ring-border/60"
+            />
+          </div>
+          <div className="space-y-2 text-center">
+            <CardTitle className="text-2xl">Proxy Panel</CardTitle>
+            <CardDescription>Sign in to continue.</CardDescription>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {error && (
