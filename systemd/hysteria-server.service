@@ -5,8 +5,13 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+PermissionsStartOnly=true
 User=hysteria
 Group=hysteria
+SupplementaryGroups=proxy-panel
+WorkingDirectory=/var/lib/hysteria
+StateDirectory=hysteria
+ExecStartPre=/opt/proxy-panel/current/scripts/sync-hysteria-cert.sh /opt/proxy-panel/.env.generated
 ExecStart=/usr/local/bin/hysteria server -c /etc/proxy-panel/hysteria/server.yaml
 Restart=always
 RestartSec=2
@@ -20,4 +25,3 @@ ReadWritePaths=/etc/proxy-panel/hysteria /var/lib/hysteria
 
 [Install]
 WantedBy=multi-user.target
-

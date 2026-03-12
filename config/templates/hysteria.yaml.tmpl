@@ -1,15 +1,13 @@
 listen: :${HY2_PORT}
 
-acme:
-  domains:
-    - ${HY2_DOMAIN}
-  email: ${PANEL_ACME_EMAIL}
-  type: http
+tls:
+  cert: ${HY2_CERT_PATH}
+  key: ${HY2_KEY_PATH}
 
 auth:
   type: http
   http:
-    url: http://127.0.0.1:${PANEL_API_PORT}/internal/hy2/auth?token=${INTERNAL_AUTH_TOKEN}
+    url: http://127.0.0.1:${PANEL_API_PORT}/internal/hy2/auth/${INTERNAL_AUTH_TOKEN}
     insecure: true
 
 trafficStats:

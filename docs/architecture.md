@@ -20,6 +20,8 @@ PostgreSQL is local-only and not exposed externally.
 ## Service interactions
 
 - Admin UI uses `/api/*` exposed by Caddy and routed to `panel-api`
+- Caddy manages ACME certificates for `${PANEL_PUBLIC_HOST}` and `${HY2_DOMAIN}`
+- `scripts/sync-hysteria-cert.sh` copies the Caddy-issued Hysteria certificate into `/etc/proxy-panel/hysteria/`
 - Hysteria external auth calls `POST /internal/hy2/auth` on `panel-api`
 - Hysteria traffic stats API is loopback-only (`127.0.0.1:${HY2_STATS_PORT}`)
 - MTProxy stats endpoint is loopback-only (`127.0.0.1:${MTPROXY_STATS_PORT}`)
@@ -56,6 +58,7 @@ Implemented entities:
 - Strictly local bindings for internal/stats/metrics endpoints
 - Restricted sudoers policy for `proxy-panel` user (specific `systemctl`/`journalctl` commands only)
 - `.env.generated` permissions: `root:proxy-panel` with `0640`
+- Hysteria TLS files are synced as `root:proxy-panel` with `0640`
 
 ## Background jobs
 
@@ -72,4 +75,3 @@ Implemented in-process scheduler (`internal/scheduler`):
 - Runtime uses one active secret at a time.
 - When a secret is enabled via panel API/UI, it becomes runtime-active and other secrets are auto-disabled.
 - `tg://proxy` links are generated from the active runtime secret in Telegram-compatible `dd<secret>` format.
-

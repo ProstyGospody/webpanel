@@ -1,7 +1,9 @@
-﻿{
+{
   email {$PANEL_ACME_EMAIL}
 }
 
+# The installer may append an additional HY2_DOMAIN site block so Caddy can
+# provision the certificate Hysteria consumes from synced files.
 {$PANEL_PUBLIC_HOST}:{$PANEL_PUBLIC_PORT} {
   encode gzip zstd
 
@@ -17,7 +19,6 @@
     reverse_proxy 127.0.0.1:{$PANEL_API_PORT}
   }
 
-  # Compatibility for stale/cached asset URLs that may request /next/* instead of /_next/*
   @legacy_next path /next/*
   handle @legacy_next {
     uri replace /next/ /_next/

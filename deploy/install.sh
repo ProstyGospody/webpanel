@@ -243,7 +243,7 @@ sync_source_tree() {
   action "Syncing repository to ${SRC_DIR}"
   mkdir -p "${SRC_DIR}"
   rsync -a --delete --exclude '.git' "${REPO_ROOT}/" "${SRC_DIR}/"
-  chmod +x "${SRC_DIR}/scripts/run-mtproxy.sh" "${SRC_DIR}/scripts/smoke-check.sh" "${SRC_DIR}/tests/smoke.sh" "${SRC_DIR}/deploy/install.sh" "${SRC_DIR}/deploy/ubuntu24-host-install.sh"
+  chmod +x "${SRC_DIR}/scripts/run-mtproxy.sh" "${SRC_DIR}/scripts/smoke-check.sh" "${SRC_DIR}/scripts/sync-hysteria-cert.sh" "${SRC_DIR}/tests/smoke.sh" "${SRC_DIR}/deploy/install.sh" "${SRC_DIR}/deploy/ubuntu24-host-install.sh"
 }
 
 load_existing_values() {
@@ -415,6 +415,8 @@ collect_configuration() {
   MTPROXY_BINARY_PATH="/usr/local/bin/mtproto-proxy"
   HY2_BINARY_PATH="/usr/local/bin/hysteria"
   HY2_CONFIG_PATH="${HY2_DIR}/server.yaml"
+  HY2_CERT_PATH="${HY2_DIR}/tls.crt"
+  HY2_KEY_PATH="${HY2_DIR}/tls.key"
 
   AUTO_MIGRATE="false"
 }
@@ -482,6 +484,8 @@ AUTH_RATE_LIMIT_BURST=${AUTH_RATE_LIMIT_BURST}
 MTPROXY_SECRETS_PATH=${MTPROXY_SECRETS_PATH}
 MTPROXY_BINARY_PATH=${MTPROXY_BINARY_PATH}
 HY2_BINARY_PATH=${HY2_BINARY_PATH}
+HY2_CERT_PATH=${HY2_CERT_PATH}
+HY2_KEY_PATH=${HY2_KEY_PATH}
 
 AUTO_MIGRATE=${AUTO_MIGRATE}
 EOF
@@ -502,6 +506,7 @@ PANEL_PUBLIC_PORT=${PANEL_PUBLIC_PORT}
 PANEL_API_PORT=${PANEL_API_PORT}
 PANEL_WEB_PORT=${PANEL_WEB_PORT}
 PANEL_ACME_EMAIL=${PANEL_ACME_EMAIL}
+HY2_DOMAIN=${HY2_DOMAIN}
 EOF
   chmod 0640 /etc/caddy/proxy-panel.env
 
@@ -562,15 +567,21 @@ render_runtime_configs() {
   action "Rendering runtime configs"
 
   install -m 0644 "${SRC_DIR}/config/templates/Caddyfile.tmpl" /etc/caddy/Caddyfile
+  if [[ "${HY2_DOMAIN}" != "${PANEL_PUBLIC_HOST}" ]]; then
+    cat >> /etc/caddy/Caddyfile <<EOF
+
+${HY2_DOMAIN}:${PANEL_PUBLIC_PORT} {
+  respond "hysteria-cert-bootstrap" 200
+}
+EOF
+  fi
 
   cat > "${HY2_DIR}/server.yaml" <<EOF
 listen: :${HY2_PORT}
 
-acme:
-  domains:
-    - ${HY2_DOMAIN}
-  email: ${PANEL_ACME_EMAIL}
-  type: http
+tls:
+  cert: ${HY2_CERT_PATH}
+  key: ${HY2_KEY_PATH}
 
 auth:
   type: http
@@ -608,6 +619,11 @@ EOF
 
   chown root:proxy-panel "${MTPROXY_DIR}/runtime.env" "${MTPROXY_SECRETS_PATH}"
   chmod 0660 "${MTPROXY_DIR}/runtime.env" "${MTPROXY_SECRETS_PATH}"
+}
+
+wait_for_hysteria_certificate() {
+  action "Waiting for Caddy to issue Hysteria certificate"
+  bash "${SRC_DIR}/scripts/sync-hysteria-cert.sh" "${ENV_FILE}" --wait
 }
 
 configure_prometheus() {
@@ -693,13 +709,24 @@ bootstrap_admin() {
 
 start_services() {
   action "Starting services"
-  systemctl enable --now caddy
-  systemctl enable --now prometheus
-  systemctl enable --now prometheus-node-exporter
-  systemctl enable --now hysteria-server.service
-  systemctl enable --now mtproxy.service
-  systemctl enable --now proxy-panel-api.service
-  systemctl enable --now proxy-panel-web.service
+  systemctl enable prometheus.service
+  systemctl enable prometheus-node-exporter.service
+  systemctl enable proxy-panel-api.service
+  systemctl enable proxy-panel-web.service
+  systemctl enable mtproxy.service
+  systemctl enable caddy.service
+  systemctl enable hysteria-server.service
+
+  systemctl restart prometheus.service
+  systemctl restart prometheus-node-exporter.service
+  systemctl restart proxy-panel-api.service
+  systemctl restart proxy-panel-web.service
+  systemctl restart mtproxy.service
+  systemctl restart caddy.service
+
+  wait_for_hysteria_certificate
+
+  systemctl restart hysteria-server.service
 }
 
 run_smoke_checks() {
@@ -731,7 +758,7 @@ Useful commands:
   journalctl -u proxy-panel-api -n 100 --no-pager
   bash ${SRC_DIR}/scripts/smoke-check.sh ${ENV_FILE}
   sudo bash ${REPO_ROOT}/deploy/install.sh --reconfigure
-  sudo bash ${REPO_ROOT}/deploy/ubuntu24-host-install.sh
+  sudo bash ${REPO_ROOT}/deploy/install.sh
 EOF
 }
 

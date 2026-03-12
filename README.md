@@ -10,22 +10,25 @@ Control plane stack:
 - `panel-api`: Go
 - `panel-web`: Next.js 15 + TypeScript + Tailwind
 - PostgreSQL
-- Caddy (TLS reverse proxy for panel)
+- Caddy (TLS reverse proxy and certificate issuer)
 - Prometheus + node_exporter (live host metrics)
 - systemd
 
-## One-command deploy (Ubuntu 24.04 host + Ansible)
+## One-command deploy (Ubuntu 24.04 host)
+
+```bash
+sudo bash ./deploy/install.sh
+```
+
+`deploy/install.sh` is the primary interactive installer. During deploy it asks for the public hosts, ports, ACME email, and initial admin credentials.
+
+Compatibility wrapper:
 
 ```bash
 sudo bash ./deploy/ubuntu24-host-install.sh
 ```
 
-First run creates `deploy/ansible/group_vars/all.yml` from `all.yml.example` and exits.
-Fill values and rerun the same command.
-
 ## What deploy does
-
-`deploy/ubuntu24-host-install.sh` installs Ansible and runs `deploy/ansible/site.yml`, which triggers idempotent host installer logic in `deploy/install.sh`.
 
 Installer phases:
 
@@ -38,15 +41,14 @@ Installer phases:
 7. Applies DB migrations
 8. Bootstraps initial admin
 9. Installs systemd units + restricted sudoers policy
-10. Renders runtime configs (including Prometheus scrape config)
-11. Starts services
-12. Runs smoke checks
+10. Renders runtime configs
+11. Starts PostgreSQL, panel services, MTProxy, Prometheus, and Caddy
+12. Waits for Caddy to issue the Hysteria certificate and syncs it into `/etc/proxy-panel/hysteria/`
+13. Starts Hysteria and runs smoke checks
 
-## Configuration source for deploy
+## Deploy prompts
 
-Deployment values come from `deploy/ansible/group_vars/all.yml`.
-
-Main variables:
+The installer asks for these main values on first run:
 
 - `panel_public_host`
 - `panel_public_port`
@@ -57,7 +59,13 @@ Main variables:
 - `mtproxy_port`
 - `mtproxy_tls_domain`
 - `initial_admin_email`
-- `initial_admin_password` (empty => generated)
+- `initial_admin_password` (leave empty to auto-generate)
+
+To ask again with current values as defaults:
+
+```bash
+sudo bash ./deploy/install.sh --reconfigure
+```
 
 Everything else is generated or defaulted automatically by installer logic.
 
@@ -66,6 +74,8 @@ Everything else is generated or defaulted automatically by installer logic.
 - Main generated env: `/opt/proxy-panel/.env.generated`
 - Initial admin credentials file: `/root/proxy-panel-initial-admin.txt`
 - Hysteria config: `/etc/proxy-panel/hysteria/server.yaml`
+- Hysteria synced TLS cert: `/etc/proxy-panel/hysteria/tls.crt`
+- Hysteria synced TLS key: `/etc/proxy-panel/hysteria/tls.key`
 - MTProxy runtime env: `/etc/proxy-panel/mtproxy/runtime.env`
 - MTProxy secrets runtime list: `/etc/proxy-panel/mtproxy/secrets.list`
 - Prometheus config: `/etc/prometheus/prometheus.yml`
@@ -103,7 +113,7 @@ sudo bash /opt/proxy-panel/current/scripts/smoke-check.sh /opt/proxy-panel/.env.
 From updated repository checkout:
 
 ```bash
-sudo bash ./deploy/ubuntu24-host-install.sh
+sudo bash ./deploy/install.sh
 ```
 
 ## Documentation

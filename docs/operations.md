@@ -15,6 +15,7 @@ systemctl restart proxy-panel-api
 systemctl restart proxy-panel-web
 systemctl restart hysteria-server
 systemctl restart mtproxy
+systemctl restart caddy
 ```
 
 Logs:
@@ -24,6 +25,7 @@ journalctl -u proxy-panel-api -n 200 --no-pager
 journalctl -u proxy-panel-web -n 200 --no-pager
 journalctl -u hysteria-server -n 200 --no-pager
 journalctl -u mtproxy -n 200 --no-pager
+journalctl -u caddy -n 200 --no-pager
 ```
 
 ## Runtime files
@@ -32,8 +34,19 @@ journalctl -u mtproxy -n 200 --no-pager
 - API binary: `/opt/proxy-panel/bin/panel-api`
 - Env: `/opt/proxy-panel/.env.generated`
 - Hysteria config: `/etc/proxy-panel/hysteria/server.yaml`
+- Hysteria TLS cert: `/etc/proxy-panel/hysteria/tls.crt`
+- Hysteria TLS key: `/etc/proxy-panel/hysteria/tls.key`
 - MTProxy config: `/etc/proxy-panel/mtproxy/runtime.env`
 - MTProxy secrets list: `/etc/proxy-panel/mtproxy/secrets.list`
+
+## Hysteria certificate resync
+
+If Caddy renewed or reissued the Hysteria certificate, resync it and restart Hysteria:
+
+```bash
+sudo bash /opt/proxy-panel/current/scripts/sync-hysteria-cert.sh /opt/proxy-panel/.env.generated
+sudo systemctl restart hysteria-server
+```
 
 ## DB migrations
 
@@ -53,7 +66,7 @@ set -a; source /opt/proxy-panel/.env.generated; set +a
 
 ```bash
 cd /path/to/repo
-sudo bash ./deploy/ubuntu24-host-install.sh
+sudo bash ./deploy/install.sh
 ```
 
 ## Smoke checks
@@ -77,5 +90,3 @@ systemctl restart proxy-panel-api proxy-panel-web hysteria-server mtproxy caddy
 - `/opt/proxy-panel/.env.generated`
 - `/etc/proxy-panel/`
 - `/root/proxy-panel-initial-admin.txt`
-
-
