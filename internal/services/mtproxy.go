@@ -35,18 +35,15 @@ func NewMTProxyClient(baseURL string, token string) *MTProxyClient {
 
 func (c *MTProxyClient) FetchStats(ctx context.Context) (MTProxyStats, error) {
 	paths := []string{"/stats", "/"}
-	var lastErr error
+	errs := make([]string, 0, len(paths))
 	for _, path := range paths {
 		stats, err := c.fetchFromPath(ctx, path)
 		if err == nil {
 			return stats, nil
 		}
-		lastErr = err
+		errs = append(errs, err.Error())
 	}
-	if lastErr != nil {
-		return MTProxyStats{}, lastErr
-	}
-	return MTProxyStats{}, fmt.Errorf("no mtproxy stats endpoint available")
+	return MTProxyStats{}, fmt.Errorf("mtproxy stats fetch failed: %s", strings.Join(errs, "; "))
 }
 
 func (c *MTProxyClient) fetchFromPath(ctx context.Context, path string) (MTProxyStats, error) {
@@ -67,7 +64,7 @@ func (c *MTProxyClient) fetchFromPath(ctx context.Context, path string) (MTProxy
 
 	if resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return MTProxyStats{}, fmt.Errorf("mtproxy stats status=%d body=%s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return MTProxyStats{}, fmt.Errorf("path=%s status=%d body=%s", path, resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
@@ -75,28 +72,81 @@ func (c *MTProxyClient) fetchFromPath(ctx context.Context, path string) (MTProxy
 		return MTProxyStats{}, err
 	}
 
+	stats, err := parseMTProxyStats(body)
+	if err != nil {
+		return MTProxyStats{}, fmt.Errorf("path=%s parse failed: %w", path, err)
+	}
+	return stats, nil
+}
+
+func parseMTProxyStats(body []byte) (MTProxyStats, error) {
+	raw := strings.TrimSpace(string(body))
+	if raw == "" {
+		return MTProxyStats{}, fmt.Errorf("empty body")
+	}
+
 	var payload map[string]any
-	if err := json.Unmarshal(body, &payload); err != nil {
+	if err := json.Unmarshal(body, &payload); err == nil {
+		return MTProxyStats{
+			ConnectionsTotal: pickOptionalInt64(payload,
+				"connections_total",
+				"total_connections",
+				"curr_connections",
+				"connections",
+			),
+			UsersTotal: pickOptionalInt64(payload,
+				"users_total",
+				"total_users",
+				"users",
+			),
+			RawJSON: raw,
+		}, nil
+	}
+
+	payload, err := parseMTProxyTextStats(raw)
+	if err != nil {
 		return MTProxyStats{}, err
 	}
 
-	connections := pickOptionalInt64(payload,
-		"connections_total",
-		"total_connections",
-		"curr_connections",
-		"connections",
-	)
-	users := pickOptionalInt64(payload,
-		"users_total",
-		"total_users",
-		"users",
-	)
-
 	return MTProxyStats{
-		ConnectionsTotal: connections,
-		UsersTotal:       users,
-		RawJSON:          string(body),
+		ConnectionsTotal: pickOptionalInt64(payload,
+			"connections_total",
+			"total_connections",
+			"curr_connections",
+			"connections",
+		),
+		UsersTotal: pickOptionalInt64(payload,
+			"users_total",
+			"total_users",
+			"users",
+		),
+		RawJSON: raw,
 	}, nil
+}
+
+func parseMTProxyTextStats(raw string) (map[string]any, error) {
+	payload := make(map[string]any)
+	for _, line := range strings.Split(raw, "\n") {
+		fields := strings.Fields(strings.TrimSpace(line))
+		if len(fields) < 2 {
+			continue
+		}
+
+		key := strings.ToLower(fields[0])
+		if strings.HasPrefix(key, ">") || strings.HasPrefix(key, "<") {
+			continue
+		}
+
+		value := fields[len(fields)-1]
+		if parsed, ok := parseInt64(value); ok {
+			payload[key] = parsed
+		}
+	}
+
+	if len(payload) == 0 {
+		return nil, fmt.Errorf("unsupported mtproxy stats payload")
+	}
+	return payload, nil
 }
 
 func pickOptionalInt64(m map[string]any, keys ...string) *int64 {
@@ -132,4 +182,3 @@ func parseInt64(v any) (int64, bool) {
 	}
 	return 0, false
 }
-
