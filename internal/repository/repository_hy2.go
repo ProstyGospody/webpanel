@@ -10,54 +10,61 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	hysteriadomain "proxy-panel/internal/domain/hysteria"
 )
 
-func (r *Repository) CreateHy2Account(ctx context.Context, clientID string, authPayload string, identity string) (Hy2Account, error) {
-	var out Hy2Account
+func (r *Repository) CreateHysteriaUser(ctx context.Context, username string, password string, note *string) (HysteriaUser, error) {
+	var out HysteriaUser
 	err := r.withLock(ctx, func() error {
-		if _, err := r.loadClientNoLock(clientID); err != nil {
-			return err
-		}
-		accounts, err := r.loadHy2AccountsNoLock()
+		normalizedUsername, err := hysteriadomain.NormalizeUsername(username)
 		if err != nil {
 			return err
 		}
-		authPayload = strings.TrimSpace(authPayload)
-		identity = strings.TrimSpace(identity)
-		for _, account := range accounts {
-			if account.AuthPayload == authPayload || account.Hy2Identity == identity {
+		normalizedPassword, err := hysteriadomain.NormalizePassword(password)
+		if err != nil {
+			return err
+		}
+		users, err := r.loadHysteriaUsersNoLock()
+		if err != nil {
+			return err
+		}
+		for _, user := range users {
+			if user.UsernameNormalized == normalizedUsername {
 				return ErrUniqueViolation
 			}
 		}
 		now := time.Now().UTC()
-		account := Hy2Account{ID: uuid.NewString(), ClientID: clientID, AuthPayload: authPayload, Hy2Identity: identity, IsEnabled: true, CreatedAt: now, UpdatedAt: now}
-		if err := r.writeHy2AccountNoLock(account); err != nil {
+		user := HysteriaUser{
+			ID:                 uuid.NewString(),
+			Username:           normalizedUsername,
+			UsernameNormalized: normalizedUsername,
+			Password:           normalizedPassword,
+			Enabled:            true,
+			Note:               hysteriadomain.NormalizeNote(note),
+			CreatedAt:          now,
+			UpdatedAt:          now,
+		}
+		if err := r.writeHysteriaUserNoLock(user); err != nil {
 			return err
 		}
-		out = account
+		out = user
 		return nil
 	})
 	return out, err
 }
 
-func (r *Repository) ListHy2Accounts(ctx context.Context, limit int, offset int) ([]Hy2AccountWithClient, error) {
-	var out []Hy2AccountWithClient
+func (r *Repository) ListHysteriaUsers(ctx context.Context, limit int, offset int) ([]HysteriaUserView, error) {
+	var out []HysteriaUserView
 	err := r.withLock(ctx, func() error {
-		accounts, err := r.loadHy2AccountsNoLock()
+		users, err := r.loadHysteriaUsersNoLock()
 		if err != nil {
 			return err
 		}
-		sort.Slice(accounts, func(i, j int) bool { return accounts[i].CreatedAt.After(accounts[j].CreatedAt) })
-		items := make([]Hy2AccountWithClient, 0, len(accounts))
-		for _, account := range accounts {
-			item, err := r.hy2AccountWithClientNoLock(account)
-			if err != nil {
-				if IsNotFound(err) {
-					continue
-				}
-				return err
-			}
-			items = append(items, item)
+		sort.Slice(users, func(i, j int) bool { return users[i].CreatedAt.After(users[j].CreatedAt) })
+		items := make([]HysteriaUserView, 0, len(users))
+		for _, user := range users {
+			items = append(items, r.hysteriaUserViewNoLock(user))
 		}
 		out = paginate(items, limit, offset)
 		return nil
@@ -65,114 +72,125 @@ func (r *Repository) ListHy2Accounts(ctx context.Context, limit int, offset int)
 	return out, err
 }
 
-func (r *Repository) GetHy2Account(ctx context.Context, id string) (Hy2AccountWithClient, error) {
-	var out Hy2AccountWithClient
+func (r *Repository) ListEnabledHysteriaUsers(ctx context.Context) ([]HysteriaUser, error) {
+	var out []HysteriaUser
 	err := r.withLock(ctx, func() error {
-		account, err := r.loadHy2AccountNoLock(id)
+		users, err := r.loadHysteriaUsersNoLock()
 		if err != nil {
 			return err
 		}
-		item, err := r.hy2AccountWithClientNoLock(account)
-		if err != nil {
-			return err
+		for _, user := range users {
+			if user.Enabled {
+				out = append(out, user)
+			}
 		}
-		out = item
+		sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
 		return nil
 	})
 	return out, err
 }
 
-func (r *Repository) UpdateHy2Account(ctx context.Context, id string, authPayload string, identity string) (Hy2AccountWithClient, error) {
-	var out Hy2AccountWithClient
+func (r *Repository) GetHysteriaUser(ctx context.Context, id string) (HysteriaUserView, error) {
+	var out HysteriaUserView
 	err := r.withLock(ctx, func() error {
-		account, err := r.loadHy2AccountNoLock(id)
+		user, err := r.loadHysteriaUserNoLock(id)
 		if err != nil {
 			return err
 		}
-		accounts, err := r.loadHy2AccountsNoLock()
+		out = r.hysteriaUserViewNoLock(user)
+		return nil
+	})
+	return out, err
+}
+
+func (r *Repository) UpdateHysteriaUser(ctx context.Context, id string, username string, password string, note *string) (HysteriaUserView, error) {
+	var out HysteriaUserView
+	err := r.withLock(ctx, func() error {
+		current, err := r.loadHysteriaUserNoLock(id)
 		if err != nil {
 			return err
 		}
-		authPayload = strings.TrimSpace(authPayload)
-		identity = strings.TrimSpace(identity)
-		for _, item := range accounts {
-			if item.ID == id {
+		normalizedUsername, err := hysteriadomain.NormalizeUsername(username)
+		if err != nil {
+			return err
+		}
+		normalizedPassword, err := hysteriadomain.NormalizePassword(password)
+		if err != nil {
+			return err
+		}
+		users, err := r.loadHysteriaUsersNoLock()
+		if err != nil {
+			return err
+		}
+		for _, user := range users {
+			if user.ID == id {
 				continue
 			}
-			if item.AuthPayload == authPayload || item.Hy2Identity == identity {
+			if user.UsernameNormalized == normalizedUsername {
 				return ErrUniqueViolation
 			}
 		}
-		account.AuthPayload = authPayload
-		account.Hy2Identity = identity
-		account.UpdatedAt = time.Now().UTC()
-		if err := r.writeHy2AccountNoLock(account); err != nil {
+		current.Username = normalizedUsername
+		current.UsernameNormalized = normalizedUsername
+		current.Password = normalizedPassword
+		current.Note = hysteriadomain.NormalizeNote(note)
+		current.UpdatedAt = time.Now().UTC()
+		if err := r.writeHysteriaUserNoLock(current); err != nil {
 			return err
 		}
-		item, err := r.hy2AccountWithClientNoLock(account)
-		if err != nil {
-			return err
-		}
-		out = item
+		out = r.hysteriaUserViewNoLock(current)
 		return nil
 	})
 	return out, err
 }
-
-func (r *Repository) DeleteHy2Account(ctx context.Context, id string) error {
+func (r *Repository) RestoreHysteriaUser(ctx context.Context, user HysteriaUser) error {
 	return r.withLock(ctx, func() error {
-		if _, err := r.loadHy2AccountNoLock(id); err != nil {
-			return err
-		}
-		if err := os.Remove(hy2AccountPath(r.hy2AccountsDir, id)); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return err
-		}
-		if err := os.RemoveAll(filepath.Join(r.hy2SnapshotsDir, id)); err != nil {
-			return err
-		}
-		return nil
-	})
-}
-
-func (r *Repository) GetHy2AccountByAuthPayload(ctx context.Context, authPayload string) (Hy2AccountWithClient, error) {
-	var out Hy2AccountWithClient
-	err := r.withLock(ctx, func() error {
-		accounts, err := r.loadHy2AccountsNoLock()
+		users, err := r.loadHysteriaUsersNoLock()
 		if err != nil {
 			return err
 		}
-		needle := strings.TrimSpace(authPayload)
-		for _, account := range accounts {
-			if account.AuthPayload != needle {
+		for _, candidate := range users {
+			if candidate.ID == user.ID {
 				continue
 			}
-			item, err := r.hy2AccountWithClientNoLock(account)
-			if err != nil {
-				return err
+			if candidate.UsernameNormalized == user.UsernameNormalized {
+				return ErrUniqueViolation
 			}
-			out = item
-			return nil
 		}
-		return ErrNotFound
+		return r.writeHysteriaUserNoLock(user)
 	})
-	return out, err
 }
 
-func (r *Repository) SetHy2AccountEnabled(ctx context.Context, id string, enabled bool) error {
+func (r *Repository) DeleteHysteriaUser(ctx context.Context, id string) error {
 	return r.withLock(ctx, func() error {
-		account, err := r.loadHy2AccountNoLock(id)
+		if _, err := r.loadHysteriaUserNoLock(id); err != nil {
+			return err
+		}
+		if err := os.Remove(hysteriaUserPath(r.hysteriaUsersDir, id)); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		if err := os.RemoveAll(filepath.Join(r.hysteriaSnapshotsDir, id)); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+func (r *Repository) SetHysteriaUserEnabled(ctx context.Context, id string, enabled bool) error {
+	return r.withLock(ctx, func() error {
+		user, err := r.loadHysteriaUserNoLock(id)
 		if err != nil {
 			return err
 		}
-		account.IsEnabled = enabled
-		account.UpdatedAt = time.Now().UTC()
-		return r.writeHy2AccountNoLock(account)
+		user.Enabled = enabled
+		user.UpdatedAt = time.Now().UTC()
+		return r.writeHysteriaUserNoLock(user)
 	})
 }
 
-func (r *Repository) TouchHy2AccountLastSeen(ctx context.Context, id string, seenAt time.Time) error {
+func (r *Repository) TouchHysteriaUserLastSeen(ctx context.Context, id string, seenAt time.Time) error {
 	return r.withLock(ctx, func() error {
-		account, err := r.loadHy2AccountNoLock(id)
+		user, err := r.loadHysteriaUserNoLock(id)
 		if err != nil {
 			if IsNotFound(err) {
 				return nil
@@ -180,15 +198,15 @@ func (r *Repository) TouchHy2AccountLastSeen(ctx context.Context, id string, see
 			return err
 		}
 		ts := seenAt.UTC()
-		account.LastSeenAt = &ts
-		if ts.After(account.UpdatedAt) {
-			account.UpdatedAt = ts
+		user.LastSeenAt = &ts
+		if ts.After(user.UpdatedAt) {
+			user.UpdatedAt = ts
 		}
-		return r.writeHy2AccountNoLock(account)
+		return r.writeHysteriaUserNoLock(user)
 	})
 }
 
-func (r *Repository) InsertHy2Snapshots(ctx context.Context, snapshots []Hy2Snapshot) error {
+func (r *Repository) InsertHysteriaSnapshots(ctx context.Context, snapshots []HysteriaSnapshot) error {
 	if len(snapshots) == 0 {
 		return nil
 	}
@@ -210,7 +228,7 @@ func (r *Repository) InsertHy2Snapshots(ctx context.Context, snapshots []Hy2Snap
 			return err
 		}
 		for _, snapshot := range snapshots {
-			if err := r.writeHy2SnapshotNoLock(snapshot); err != nil {
+			if err := r.writeHysteriaSnapshotNoLock(snapshot); err != nil {
 				return err
 			}
 		}
@@ -218,25 +236,25 @@ func (r *Repository) InsertHy2Snapshots(ctx context.Context, snapshots []Hy2Snap
 	})
 }
 
-func (r *Repository) GetHy2StatsOverview(ctx context.Context) (Hy2Overview, error) {
-	var out Hy2Overview
+func (r *Repository) GetHysteriaStatsOverview(ctx context.Context) (HysteriaOverview, error) {
+	var out HysteriaOverview
 	err := r.withLock(ctx, func() error {
-		accounts, err := r.loadHy2AccountsNoLock()
+		users, err := r.loadHysteriaUsersNoLock()
 		if err != nil {
 			return err
 		}
-		for _, account := range accounts {
-			if account.IsEnabled {
-				out.EnabledAccounts++
+		for _, user := range users {
+			if user.Enabled {
+				out.EnabledUsers++
 			}
-			snapshot, ok, err := r.latestHy2SnapshotNoLock(account.ID)
+			snapshot, ok, err := r.latestHysteriaSnapshotNoLock(user.ID)
 			if err != nil {
 				return err
 			}
 			if ok {
 				out.TotalTxBytes += snapshot.TxBytes
 				out.TotalRxBytes += snapshot.RxBytes
-				out.OnlineCount += int64(snapshot.OnlineCount)
+				out.OnlineCount += int64(snapshot.Online)
 			}
 		}
 		return nil
@@ -244,10 +262,10 @@ func (r *Repository) GetHy2StatsOverview(ctx context.Context) (Hy2Overview, erro
 	return out, err
 }
 
-func (r *Repository) ListHy2Snapshots(ctx context.Context, hy2AccountID string, limit int, offset int) ([]Hy2Snapshot, error) {
-	var out []Hy2Snapshot
+func (r *Repository) ListHysteriaSnapshots(ctx context.Context, userID string, limit int, offset int) ([]HysteriaSnapshot, error) {
+	var out []HysteriaSnapshot
 	err := r.withLock(ctx, func() error {
-		items, err := r.loadHy2SnapshotsNoLock(strings.TrimSpace(hy2AccountID))
+		items, err := r.loadHysteriaSnapshotsNoLock(strings.TrimSpace(userID))
 		if err != nil {
 			return err
 		}
@@ -258,39 +276,47 @@ func (r *Repository) ListHy2Snapshots(ctx context.Context, hy2AccountID string, 
 	return out, err
 }
 
-func (r *Repository) loadHy2AccountsNoLock() ([]Hy2Account, error) { return loadEntities[Hy2Account](r.hy2AccountsDir) }
-func (r *Repository) loadHy2AccountNoLock(id string) (Hy2Account, error) { return loadEntity[Hy2Account](hy2AccountPath(r.hy2AccountsDir, id)) }
-func (r *Repository) writeHy2AccountNoLock(account Hy2Account) error { return writeJSONFile(hy2AccountPath(r.hy2AccountsDir, account.ID), 0o600, account) }
+func (r *Repository) loadHysteriaUsersNoLock() ([]HysteriaUser, error) {
+	return loadEntities[HysteriaUser](r.hysteriaUsersDir)
+}
 
-func (r *Repository) latestHy2SnapshotNoLock(accountID string) (Hy2Snapshot, bool, error) {
-	items, err := r.loadHy2SnapshotsNoLock(accountID)
+func (r *Repository) loadHysteriaUserNoLock(id string) (HysteriaUser, error) {
+	return loadEntity[HysteriaUser](hysteriaUserPath(r.hysteriaUsersDir, id))
+}
+
+func (r *Repository) writeHysteriaUserNoLock(user HysteriaUser) error {
+	return writeJSONFile(hysteriaUserPath(r.hysteriaUsersDir, user.ID), 0o600, user)
+}
+
+func (r *Repository) latestHysteriaSnapshotNoLock(userID string) (HysteriaSnapshot, bool, error) {
+	items, err := r.loadHysteriaSnapshotsNoLock(userID)
 	if err != nil {
-		return Hy2Snapshot{}, false, err
+		return HysteriaSnapshot{}, false, err
 	}
 	if len(items) == 0 {
-		return Hy2Snapshot{}, false, nil
+		return HysteriaSnapshot{}, false, nil
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].SnapshotAt.After(items[j].SnapshotAt) })
 	return items[0], true, nil
 }
 
-func (r *Repository) loadHy2SnapshotsNoLock(accountID string) ([]Hy2Snapshot, error) {
-	if accountID != "" {
-		return loadEntities[Hy2Snapshot](filepath.Join(r.hy2SnapshotsDir, accountID))
+func (r *Repository) loadHysteriaSnapshotsNoLock(userID string) ([]HysteriaSnapshot, error) {
+	if userID != "" {
+		return loadEntities[HysteriaSnapshot](filepath.Join(r.hysteriaSnapshotsDir, userID))
 	}
-	accountDirs, err := os.ReadDir(r.hy2SnapshotsDir)
+	userDirs, err := os.ReadDir(r.hysteriaSnapshotsDir)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, nil
 		}
 		return nil, err
 	}
-	out := make([]Hy2Snapshot, 0)
-	for _, entry := range accountDirs {
+	out := make([]HysteriaSnapshot, 0)
+	for _, entry := range userDirs {
 		if !entry.IsDir() {
 			continue
 		}
-		items, err := loadEntities[Hy2Snapshot](filepath.Join(r.hy2SnapshotsDir, entry.Name()))
+		items, err := loadEntities[HysteriaSnapshot](filepath.Join(r.hysteriaSnapshotsDir, entry.Name()))
 		if err != nil {
 			return nil, err
 		}
@@ -299,26 +325,21 @@ func (r *Repository) loadHy2SnapshotsNoLock(accountID string) ([]Hy2Snapshot, er
 	return out, nil
 }
 
-func (r *Repository) writeHy2SnapshotNoLock(snapshot Hy2Snapshot) error {
-	dir := filepath.Join(r.hy2SnapshotsDir, snapshot.Hy2AccountID)
+func (r *Repository) writeHysteriaSnapshotNoLock(snapshot HysteriaSnapshot) error {
+	dir := filepath.Join(r.hysteriaSnapshotsDir, snapshot.UserID)
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return err
 	}
 	return writeJSONFile(filepath.Join(dir, numericJSONFile(snapshot.ID)), 0o600, snapshot)
 }
 
-func (r *Repository) hy2AccountWithClientNoLock(account Hy2Account) (Hy2AccountWithClient, error) {
-	client, err := r.loadClientNoLock(account.ClientID)
-	if err != nil {
-		return Hy2AccountWithClient{}, err
-	}
-	item := Hy2AccountWithClient{Hy2Account: account, ClientName: client.Name, ClientActive: client.IsActive}
-	if latest, ok, err := r.latestHy2SnapshotNoLock(account.ID); err != nil {
-		return Hy2AccountWithClient{}, err
-	} else if ok {
+func (r *Repository) hysteriaUserViewNoLock(user HysteriaUser) HysteriaUserView {
+	item := HysteriaUserView{User: user}
+	if latest, ok, err := r.latestHysteriaSnapshotNoLock(user.ID); err == nil && ok {
 		item.LastTxBytes = latest.TxBytes
 		item.LastRxBytes = latest.RxBytes
-		item.OnlineCount = latest.OnlineCount
+		item.OnlineCount = latest.Online
 	}
-	return item, nil
+	return item
 }
+

@@ -1,319 +1,386 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 
+	auditdomain "proxy-panel/internal/domain/audit"
+	hysteriadomain "proxy-panel/internal/domain/hysteria"
 	"proxy-panel/internal/http/render"
 	"proxy-panel/internal/repository"
 	"proxy-panel/internal/security"
-	"proxy-panel/internal/services"
 )
 
-type createHy2AccountRequest struct {
-	ClientID    string  `json:"client_id"`
-	AuthPayload *string `json:"auth_payload"`
-	Hy2Identity *string `json:"hy2_identity"`
+type createHysteriaUserRequest struct {
+	Username *string `json:"username"`
+	Password *string `json:"password"`
+	Note     *string `json:"note"`
 }
 
-type updateHy2AccountRequest struct {
-	AuthPayload *string `json:"auth_payload"`
-	Hy2Identity *string `json:"hy2_identity"`
+type updateHysteriaUserRequest struct {
+	Username *string `json:"username"`
+	Password *string `json:"password"`
+	Note     *string `json:"note"`
 }
 
-func (h *Handler) ListHy2Accounts(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) ListHysteriaUsers(w http.ResponseWriter, r *http.Request) {
 	limit, offset := h.parsePagination(r)
-	items, err := h.repo.ListHy2Accounts(r.Context(), limit, offset)
+	items, err := h.repo.ListHysteriaUsers(r.Context(), limit, offset)
 	if err != nil {
-		render.Error(w, http.StatusInternalServerError, "failed to list hysteria accounts")
+		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to list hysteria users", nil)
 		return
 	}
 	render.JSON(w, http.StatusOK, map[string]any{"items": items})
 }
 
-func (h *Handler) CreateHy2Account(w http.ResponseWriter, r *http.Request) {
-	var req createHy2AccountRequest
+func (h *Handler) CreateHysteriaUser(w http.ResponseWriter, r *http.Request) {
+	var req createHysteriaUserRequest
 	if err := render.DecodeJSON(r, &req); err != nil {
-		render.Error(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-	if strings.TrimSpace(req.ClientID) == "" {
-		render.Error(w, http.StatusBadRequest, "client_id is required")
-		return
-	}
-	if _, err := h.repo.GetClient(r.Context(), req.ClientID); err != nil {
-		render.Error(w, http.StatusBadRequest, "client not found")
+		h.renderError(w, http.StatusBadRequest, "validation", "invalid request body", nil)
 		return
 	}
 
-	authPayload := ""
-	if req.AuthPayload != nil {
-		authPayload = strings.TrimSpace(*req.AuthPayload)
+	username := ""
+	if req.Username != nil {
+		username = strings.TrimSpace(*req.Username)
 	}
-	if authPayload == "" {
-		random, err := security.RandomHex(16)
+	password := ""
+	if req.Password != nil {
+		password = strings.TrimSpace(*req.Password)
+	}
+	if password == "" {
+		generated, err := security.RandomHex(16)
 		if err != nil {
-			render.Error(w, http.StatusInternalServerError, "failed to generate credential")
+			h.renderError(w, http.StatusInternalServerError, "runtime", "failed to generate password", nil)
 			return
 		}
-		authPayload = random
+		password = generated
 	}
 
-	identity := ""
-	if req.Hy2Identity != nil {
-		identity = strings.TrimSpace(*req.Hy2Identity)
-	}
-	if identity == "" {
-		identity = generateHy2Identity()
+	validationErrors := hysteriadomain.ValidateUserInput(username, password)
+	if len(validationErrors) > 0 {
+		h.renderError(w, http.StatusBadRequest, "validation", "hysteria user validation failed", validationErrors)
+		return
 	}
 
-	account, err := h.repo.CreateHy2Account(r.Context(), req.ClientID, authPayload, identity)
+	user, err := h.repo.CreateHysteriaUser(r.Context(), username, password, req.Note)
 	if err != nil {
 		if repository.IsUniqueViolation(err) {
-			render.Error(w, http.StatusConflict, "auth payload or identity already exists")
+			h.renderError(w, http.StatusConflict, "validation", "username already exists", nil)
 			return
 		}
-		render.Error(w, http.StatusInternalServerError, "failed to create hysteria account")
+		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to create hysteria user", nil)
 		return
 	}
-	item, err := h.repo.GetHy2Account(r.Context(), account.ID)
+	if _, err := h.hysteriaAccess.Sync(r.Context()); err != nil {
+		details := map[string]any{}
+		if rollbackErr := h.repo.DeleteHysteriaUser(r.Context(), user.ID); rollbackErr != nil {
+			details["rollback_error"] = rollbackErr.Error()
+		}
+		if len(details) == 0 {
+			details = nil
+		}
+		h.renderError(w, http.StatusInternalServerError, "sync", "failed to sync hysteria config; user creation was rolled back", details)
+		return
+	}
+
+	item, err := h.repo.GetHysteriaUser(r.Context(), user.ID)
 	if err != nil {
-		render.Error(w, http.StatusInternalServerError, "failed to load hysteria account")
+		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to load hysteria user", nil)
 		return
 	}
-	uri := h.buildHy2URI(item)
-	uriV2RayNG := h.buildHy2V2RayNGURI(item)
-	h.audit(r, "hy2.account.create", "hy2_account", &item.ID, map[string]any{"client_id": item.ClientID, "hy2_identity": item.Hy2Identity})
-	render.JSON(w, http.StatusCreated, map[string]any{"account": item, "uri": uri, "uri_v2rayng": uriV2RayNG, "singbox_outbound": h.buildHy2SingBoxOutbound(item), "client_params": h.currentHy2ClientParams()})
+	artifacts, _, err := h.hysteriaAccess.BuildUserArtifacts(item)
+	if err != nil {
+		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to generate hysteria artifacts", nil)
+		return
+	}
+
+	h.audit(r, "hysteria.user.create", auditdomain.EntityHysteriaUser, &item.ID, map[string]any{"username": item.Username})
+	render.JSON(w, http.StatusCreated, map[string]any{"user": item, "artifacts": artifacts})
 }
 
-func (h *Handler) GetHy2Account(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetHysteriaUser(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	item, err := h.repo.GetHy2Account(r.Context(), id)
+	item, err := h.repo.GetHysteriaUser(r.Context(), id)
 	if err != nil {
 		if repository.IsNotFound(err) {
-			render.Error(w, http.StatusNotFound, "hysteria account not found")
+			h.renderError(w, http.StatusNotFound, "not_found", "hysteria user not found", nil)
 			return
 		}
-		render.Error(w, http.StatusInternalServerError, "failed to get hysteria account")
+		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to get hysteria user", nil)
 		return
 	}
-	uri := h.buildHy2URI(item)
-	uriV2RayNG := h.buildHy2V2RayNGURI(item)
-	render.JSON(w, http.StatusOK, map[string]any{"account": item, "uri": uri, "uri_v2rayng": uriV2RayNG, "singbox_outbound": h.buildHy2SingBoxOutbound(item), "client_params": h.currentHy2ClientParams()})
+	h.renderHysteriaUserPayload(w, http.StatusOK, item)
 }
 
-func (h *Handler) UpdateHy2Account(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) UpdateHysteriaUser(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	current, err := h.repo.GetHy2Account(r.Context(), id)
+	current, err := h.repo.GetHysteriaUser(r.Context(), id)
 	if err != nil {
 		if repository.IsNotFound(err) {
-			render.Error(w, http.StatusNotFound, "hysteria account not found")
+			h.renderError(w, http.StatusNotFound, "not_found", "hysteria user not found", nil)
 			return
 		}
-		render.Error(w, http.StatusInternalServerError, "failed to get hysteria account")
+		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to load hysteria user", nil)
 		return
 	}
 
-	var req updateHy2AccountRequest
+	var req updateHysteriaUserRequest
 	if err := render.DecodeJSON(r, &req); err != nil {
-		render.Error(w, http.StatusBadRequest, "invalid request body")
+		h.renderError(w, http.StatusBadRequest, "validation", "invalid request body", nil)
 		return
 	}
 
-	authPayload := current.AuthPayload
-	if req.AuthPayload != nil {
-		authPayload = strings.TrimSpace(*req.AuthPayload)
+	username := current.Username
+	if req.Username != nil {
+		username = strings.TrimSpace(*req.Username)
 	}
-	identity := current.Hy2Identity
-	if req.Hy2Identity != nil {
-		identity = strings.TrimSpace(*req.Hy2Identity)
+	password := current.Password
+	if req.Password != nil {
+		password = strings.TrimSpace(*req.Password)
 	}
-
-	if strings.TrimSpace(authPayload) == "" {
-		render.Error(w, http.StatusBadRequest, "auth_payload cannot be empty")
-		return
-	}
-	if strings.TrimSpace(identity) == "" {
-		render.Error(w, http.StatusBadRequest, "hy2_identity cannot be empty")
+	validationErrors := hysteriadomain.ValidateUserInput(username, password)
+	if len(validationErrors) > 0 {
+		h.renderError(w, http.StatusBadRequest, "validation", "hysteria user validation failed", validationErrors)
 		return
 	}
 
-	updated, err := h.repo.UpdateHy2Account(r.Context(), id, authPayload, identity)
+	updated, err := h.repo.UpdateHysteriaUser(r.Context(), id, username, password, coalesceNote(req.Note, current.Note))
 	if err != nil {
 		if repository.IsNotFound(err) {
-			render.Error(w, http.StatusNotFound, "hysteria account not found")
+			h.renderError(w, http.StatusNotFound, "not_found", "hysteria user not found", nil)
 			return
 		}
 		if repository.IsUniqueViolation(err) {
-			render.Error(w, http.StatusConflict, "auth payload or identity already exists")
+			h.renderError(w, http.StatusConflict, "validation", "username already exists", nil)
 			return
 		}
-		render.Error(w, http.StatusInternalServerError, "failed to update hysteria account")
+		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to update hysteria user", nil)
+		return
+	}
+	if _, err := h.hysteriaAccess.Sync(r.Context()); err != nil {
+		details := map[string]any{}
+		if _, rollbackErr := h.repo.UpdateHysteriaUser(r.Context(), id, current.Username, current.Password, current.Note); rollbackErr != nil {
+			details["rollback_error"] = rollbackErr.Error()
+		}
+		if len(details) == 0 {
+			details = nil
+		}
+		h.renderError(w, http.StatusInternalServerError, "sync", "failed to sync hysteria config; user update was rolled back", details)
 		return
 	}
 
-	uri := h.buildHy2URI(updated)
-	uriV2RayNG := h.buildHy2V2RayNGURI(updated)
-	h.audit(r, "hy2.account.update", "hy2_account", &id, map[string]any{"hy2_identity": updated.Hy2Identity})
-	render.JSON(w, http.StatusOK, map[string]any{"account": updated, "uri": uri, "uri_v2rayng": uriV2RayNG, "singbox_outbound": h.buildHy2SingBoxOutbound(updated), "client_params": h.currentHy2ClientParams()})
+	h.audit(r, "hysteria.user.update", auditdomain.EntityHysteriaUser, &id, map[string]any{"username": updated.Username})
+	h.renderHysteriaUserPayload(w, http.StatusOK, updated)
 }
 
-func (h *Handler) DeleteHy2Account(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) DeleteHysteriaUser(w http.ResponseWriter, r *http.Request) {
+	h.deleteHysteriaUser(w, r, "hysteria.user.delete")
+}
+
+func (h *Handler) RevokeHysteriaUser(w http.ResponseWriter, r *http.Request) {
+	h.deleteHysteriaUser(w, r, "hysteria.user.revoke")
+}
+
+func (h *Handler) deleteHysteriaUser(w http.ResponseWriter, r *http.Request, action string) {
 	id := chi.URLParam(r, "id")
-	if err := h.repo.DeleteHy2Account(r.Context(), id); err != nil {
+	current, err := h.repo.GetHysteriaUser(r.Context(), id)
+	if err != nil {
 		if repository.IsNotFound(err) {
-			render.Error(w, http.StatusNotFound, "hysteria account not found")
+			h.renderError(w, http.StatusNotFound, "not_found", "hysteria user not found", nil)
 			return
 		}
-		render.Error(w, http.StatusInternalServerError, "failed to delete hysteria account")
+		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to load hysteria user", nil)
 		return
 	}
-	h.audit(r, "hy2.account.delete", "hy2_account", &id, nil)
+
+	if current.Enabled {
+		if err := h.repo.SetHysteriaUserEnabled(r.Context(), id, false); err != nil {
+			h.renderError(w, http.StatusInternalServerError, "runtime", "failed to revoke hysteria user", nil)
+			return
+		}
+		if _, err := h.hysteriaAccess.Sync(r.Context()); err != nil {
+			_ = h.repo.SetHysteriaUserEnabled(r.Context(), id, true)
+			h.renderError(w, http.StatusInternalServerError, "sync", "failed to sync hysteria config; revoke was rolled back", nil)
+			return
+		}
+	} else {
+		if _, err := h.hysteriaAccess.Sync(r.Context()); err != nil {
+			h.renderError(w, http.StatusInternalServerError, "sync", "failed to synchronize managed hysteria config before delete", nil)
+			return
+		}
+	}
+
+	if err := h.repo.DeleteHysteriaUser(r.Context(), id); err != nil {
+		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to delete hysteria user record", nil)
+		return
+	}
+
+	h.audit(r, action, auditdomain.EntityHysteriaUser, &id, map[string]any{"username": current.Username})
 	render.JSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
-func (h *Handler) EnableHy2Account(w http.ResponseWriter, r *http.Request) {
-	h.setHy2State(w, r, true)
+func (h *Handler) EnableHysteriaUser(w http.ResponseWriter, r *http.Request) {
+	h.setHysteriaUserState(w, r, true)
 }
 
-func (h *Handler) DisableHy2Account(w http.ResponseWriter, r *http.Request) {
-	h.setHy2State(w, r, false)
+func (h *Handler) DisableHysteriaUser(w http.ResponseWriter, r *http.Request) {
+	h.setHysteriaUserState(w, r, false)
 }
 
-func (h *Handler) setHy2State(w http.ResponseWriter, r *http.Request, enabled bool) {
+func (h *Handler) setHysteriaUserState(w http.ResponseWriter, r *http.Request, enabled bool) {
 	id := chi.URLParam(r, "id")
-	if err := h.repo.SetHy2AccountEnabled(r.Context(), id, enabled); err != nil {
+	current, err := h.repo.GetHysteriaUser(r.Context(), id)
+	if err != nil {
 		if repository.IsNotFound(err) {
-			render.Error(w, http.StatusNotFound, "hysteria account not found")
+			h.renderError(w, http.StatusNotFound, "not_found", "hysteria user not found", nil)
 			return
 		}
-		render.Error(w, http.StatusInternalServerError, "failed to update hysteria account status")
+		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to load hysteria user", nil)
 		return
 	}
-	action := "hy2.account.disable"
+	if current.Enabled == enabled {
+		render.JSON(w, http.StatusOK, map[string]any{"ok": true, "enabled": enabled})
+		return
+	}
+	if err := h.repo.SetHysteriaUserEnabled(r.Context(), id, enabled); err != nil {
+		if repository.IsNotFound(err) {
+			h.renderError(w, http.StatusNotFound, "not_found", "hysteria user not found", nil)
+			return
+		}
+		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to update hysteria user status", nil)
+		return
+	}
+	if _, err := h.hysteriaAccess.Sync(r.Context()); err != nil {
+		_ = h.repo.SetHysteriaUserEnabled(r.Context(), id, current.Enabled)
+		h.renderError(w, http.StatusInternalServerError, "sync", "failed to sync hysteria config; state change was rolled back", nil)
+		return
+	}
+	action := "hysteria.user.disable"
 	if enabled {
-		action = "hy2.account.enable"
+		action = "hysteria.user.enable"
 	}
-	h.audit(r, action, "hy2_account", &id, map[string]any{"is_enabled": enabled})
-	render.JSON(w, http.StatusOK, map[string]any{"ok": true, "is_enabled": enabled})
+	h.audit(r, action, auditdomain.EntityHysteriaUser, &id, map[string]any{"enabled": enabled})
+	render.JSON(w, http.StatusOK, map[string]any{"ok": true, "enabled": enabled})
 }
 
-func (h *Handler) Hy2AccountURI(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HysteriaUserArtifacts(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	item, err := h.repo.GetHy2Account(r.Context(), id)
+	item, err := h.repo.GetHysteriaUser(r.Context(), id)
 	if err != nil {
 		if repository.IsNotFound(err) {
-			render.Error(w, http.StatusNotFound, "hysteria account not found")
+			h.renderError(w, http.StatusNotFound, "not_found", "hysteria user not found", nil)
 			return
 		}
-		render.Error(w, http.StatusInternalServerError, "failed to get hysteria account")
+		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to load hysteria user", nil)
 		return
 	}
-	uri := h.buildHy2URI(item)
-	uriV2RayNG := h.buildHy2V2RayNGURI(item)
-	render.JSON(w, http.StatusOK, map[string]any{"uri": uri, "uri_v2rayng": uriV2RayNG, "singbox_outbound": h.buildHy2SingBoxOutbound(item), "client_params": h.currentHy2ClientParams()})
+	if !item.Enabled {
+		h.renderError(w, http.StatusConflict, "validation", "hysteria user is disabled; enable the user to generate active connection artifacts", nil)
+		return
+	}
+	artifacts, _, err := h.hysteriaAccess.BuildUserArtifacts(item)
+	if err != nil {
+		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to generate hysteria artifacts", nil)
+		return
+	}
+	render.JSON(w, http.StatusOK, map[string]any{"user": item, "artifacts": artifacts})
 }
 
-func (h *Handler) Hy2AccountQR(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HysteriaUserQR(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	item, err := h.repo.GetHy2Account(r.Context(), id)
+	item, err := h.repo.GetHysteriaUser(r.Context(), id)
 	if err != nil {
 		if repository.IsNotFound(err) {
-			render.Error(w, http.StatusNotFound, "hysteria account not found")
+			h.renderError(w, http.StatusNotFound, "not_found", "hysteria user not found", nil)
 			return
 		}
-		render.Error(w, http.StatusInternalServerError, "failed to get hysteria account")
+		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to load hysteria user", nil)
 		return
 	}
-
+	if !item.Enabled {
+		h.renderError(w, http.StatusConflict, "validation", "hysteria user is disabled; enable the user to generate an active QR code", nil)
+		return
+	}
+	artifacts, _, err := h.hysteriaAccess.BuildUserArtifacts(item)
+	if err != nil {
+		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to generate hysteria artifacts", nil)
+		return
+	}
 	size := parseQRSize(r.URL.Query().Get("size"), 320)
-	if err := renderQRCodePNG(w, h.buildHy2URI(item), size); err != nil {
-		render.Error(w, http.StatusInternalServerError, "failed to render qr code")
+	if err := renderQRCodePNG(w, artifacts.URI, size); err != nil {
+		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to render qr code", nil)
 	}
 }
-func (h *Handler) KickHy2Account(w http.ResponseWriter, r *http.Request) {
+
+func (h *Handler) KickHysteriaUser(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	item, err := h.repo.GetHy2Account(r.Context(), id)
+	item, err := h.repo.GetHysteriaUser(r.Context(), id)
 	if err != nil {
 		if repository.IsNotFound(err) {
-			render.Error(w, http.StatusNotFound, "hysteria account not found")
+			h.renderError(w, http.StatusNotFound, "not_found", "hysteria user not found", nil)
 			return
 		}
-		render.Error(w, http.StatusInternalServerError, "failed to get hysteria account")
+		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to load hysteria user", nil)
 		return
 	}
-	if err := h.hy2Client.Kick(r.Context(), item.Hy2Identity); err != nil {
-		render.Error(w, http.StatusBadGateway, "failed to kick hysteria session")
+	if h.hy2Client == nil {
+		h.renderError(w, http.StatusServiceUnavailable, "service", "hysteria live control is not configured", nil)
 		return
 	}
-	h.audit(r, "hy2.account.kick", "hy2_account", &id, map[string]any{"hy2_identity": item.Hy2Identity})
+	if err := h.hy2Client.Kick(r.Context(), item.Username); err != nil {
+		h.renderError(w, http.StatusBadGateway, "service", "failed to kick hysteria session", nil)
+		return
+	}
+	h.audit(r, "hysteria.user.kick", auditdomain.EntityHysteriaUser, &id, map[string]any{"username": item.Username})
 	render.JSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
-func (h *Handler) Hy2StatsOverview(w http.ResponseWriter, r *http.Request) {
-	overview, err := h.repo.GetHy2StatsOverview(r.Context())
+func (h *Handler) HysteriaStatsOverview(w http.ResponseWriter, r *http.Request) {
+	overview, err := h.repo.GetHysteriaStatsOverview(r.Context())
 	if err != nil {
-		render.Error(w, http.StatusInternalServerError, "failed to get hysteria stats overview")
+		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to get hysteria stats overview", nil)
 		return
 	}
 	render.JSON(w, http.StatusOK, overview)
 }
 
-func (h *Handler) Hy2StatsHistory(w http.ResponseWriter, r *http.Request) {
-	accountID := strings.TrimSpace(r.URL.Query().Get("account_id"))
+func (h *Handler) HysteriaStatsHistory(w http.ResponseWriter, r *http.Request) {
+	userID := strings.TrimSpace(r.URL.Query().Get("user_id"))
 	limit, offset := h.parsePagination(r)
-	items, err := h.repo.ListHy2Snapshots(r.Context(), accountID, limit, offset)
+	items, err := h.repo.ListHysteriaSnapshots(r.Context(), userID, limit, offset)
 	if err != nil {
-		render.Error(w, http.StatusInternalServerError, "failed to list hysteria stats")
+		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to list hysteria stats", nil)
 		return
 	}
 	render.JSON(w, http.StatusOK, map[string]any{"items": items})
 }
 
-func (h *Handler) InternalHy2Auth(w http.ResponseWriter, r *http.Request) {
-	token := strings.TrimSpace(chi.URLParam(r, "token"))
-	if token == "" {
-		token = parseInternalAuth(r)
+func coalesceNote(next *string, current *string) *string {
+	if next != nil {
+		return next
 	}
-	if token == "" || token != h.cfg.InternalAuthToken {
-		render.JSON(w, http.StatusUnauthorized, map[string]any{"ok": false, "reason": "unauthorized"})
-		return
-	}
+	return current
+}
 
-	var payload map[string]any
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		render.JSON(w, http.StatusBadRequest, map[string]any{"ok": false, "reason": "invalid_json"})
+func (h *Handler) renderHysteriaUserPayload(w http.ResponseWriter, status int, item repository.HysteriaUserView) {
+	response := map[string]any{"user": item}
+	if !item.Enabled {
+		response["artifacts"] = nil
+		response["access_state"] = "disabled"
+		response["access_message"] = "This user is disabled and is not present in the active Hysteria server auth config."
+		render.JSON(w, status, response)
 		return
 	}
-	authPayload := extractHy2AuthPayload(payload)
-	if authPayload == "" {
-		render.JSON(w, http.StatusOK, map[string]any{"ok": false, "reason": "missing_auth_payload"})
-		return
-	}
-
-	account, err := h.repo.GetHy2AccountByAuthPayload(r.Context(), authPayload)
+	artifacts, _, err := h.hysteriaAccess.BuildUserArtifacts(item)
 	if err != nil {
-		render.JSON(w, http.StatusOK, map[string]any{"ok": false, "reason": "unknown_account"})
+		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to generate hysteria artifacts", nil)
 		return
 	}
-	if !account.IsEnabled || !account.ClientActive {
-		render.JSON(w, http.StatusOK, map[string]any{"ok": false, "reason": "account_disabled"})
-		return
-	}
-
-	now := time.Now().UTC()
-	_ = h.repo.TouchHy2AccountLastSeen(r.Context(), account.ID, now)
-	render.JSON(w, http.StatusOK, map[string]any{
-		"ok": true,
-		"id": account.Hy2Identity,
-	})
+	response["artifacts"] = artifacts
+	render.JSON(w, status, response)
 }
 
-func (h *Handler) currentHy2ClientParams() services.Hy2ClientParams {
-	return h.resolveHy2ClientParams()
-}
+

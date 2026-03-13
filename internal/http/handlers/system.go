@@ -34,7 +34,7 @@ type liveServiceStatus struct {
 }
 
 type liveHy2Overview struct {
-	EnabledAccounts int64     `json:"enabled_accounts"`
+	EnabledUsers    int64     `json:"enabled_users"`
 	TotalTxBytes    int64     `json:"total_tx_bytes"`
 	TotalRxBytes    int64     `json:"total_rx_bytes"`
 	OnlineCount     int64     `json:"online_count"`
@@ -44,9 +44,8 @@ type liveHy2Overview struct {
 }
 
 type liveMTProxyOverview struct {
-	EnabledSecrets   int64      `json:"enabled_secrets"`
+	AccessEnabled    bool       `json:"access_enabled"`
 	ConnectionsTotal *int64     `json:"connections_total"`
-	UsersTotal       *int64     `json:"users_total"`
 	CollectedAt      *time.Time `json:"collected_at,omitempty"`
 	Source           string     `json:"source"`
 	IsStale          bool       `json:"is_stale"`
@@ -200,13 +199,13 @@ func (h *Handler) collectPrometheusMetrics(ctx context.Context) (services.System
 }
 
 func (h *Handler) collectHy2Live(ctx context.Context) (liveHy2Overview, string) {
-	base, err := h.repo.GetHy2StatsOverview(ctx)
+	base, err := h.repo.GetHysteriaStatsOverview(ctx)
 	if err != nil {
 		return liveHy2Overview{Source: "unavailable", IsStale: true, CollectedAt: time.Now().UTC()}, "hysteria overview unavailable"
 	}
 
 	resp := liveHy2Overview{
-		EnabledAccounts: base.EnabledAccounts,
+		EnabledUsers:    base.EnabledUsers,
 		TotalTxBytes:    base.TotalTxBytes,
 		TotalRxBytes:    base.TotalRxBytes,
 		OnlineCount:     base.OnlineCount,
@@ -254,9 +253,8 @@ func (h *Handler) collectMTProxyLive(ctx context.Context) (liveMTProxyOverview, 
 	}
 
 	resp := liveMTProxyOverview{
-		EnabledSecrets:   base.EnabledSecrets,
+		AccessEnabled:    base.AccessEnabled,
 		ConnectionsTotal: base.ConnectionsTotal,
-		UsersTotal:       base.UsersTotal,
 		Source:           "snapshot",
 		IsStale:          true,
 	}
@@ -272,7 +270,6 @@ func (h *Handler) collectMTProxyLive(ctx context.Context) (liveMTProxyOverview, 
 
 	now := time.Now().UTC()
 	resp.ConnectionsTotal = stats.ConnectionsTotal
-	resp.UsersTotal = stats.UsersTotal
 	resp.CollectedAt = &now
 	resp.Source = "live"
 	resp.IsStale = false
@@ -343,4 +340,6 @@ func latestTime(values ...time.Time) time.Time {
 	}
 	return latest
 }
+
+
 

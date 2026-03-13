@@ -1,9 +1,13 @@
 export class APIError extends Error {
   status: number;
+  errorType?: string;
+  details?: unknown;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, options?: { errorType?: string; details?: unknown }) {
     super(message);
     this.status = status;
+    this.errorType = options?.errorType;
+    this.details = options?.details;
   }
 }
 
@@ -54,7 +58,10 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
 
   if (!response.ok) {
     const message = payload?.error || payload?.message || `HTTP ${response.status}`;
-    throw new APIError(response.status, message);
+    throw new APIError(response.status, message, {
+      errorType: payload?.error_type,
+      details: payload?.details,
+    });
   }
 
   return payload as T;
@@ -63,4 +70,3 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
 export function toJSONBody<T extends Record<string, unknown>>(data: T): string {
   return JSON.stringify(data);
 }
-

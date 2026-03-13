@@ -35,6 +35,7 @@ type Config struct {
 	MTProxyStatsURL         string
 	MTProxyPollInterval     time.Duration
 	MTProxyActiveSecretPath string
+	MTProxyRuntimeEnvPath   string
 	MTProxyProxySecretPath  string
 	MTProxyProxyConfigPath  string
 	ServicePollInterval     time.Duration
@@ -80,6 +81,7 @@ func Load() (Config, error) {
 		MTProxyStatsURL:         strings.TrimRight(getEnv("MTPROXY_STATS_URL", "http://127.0.0.1:3129"), "/"),
 		MTProxyPollInterval:     getEnvDuration("MTPROXY_POLL_INTERVAL", 10*time.Second),
 		MTProxyActiveSecretPath: getEnv("MTPROXY_ACTIVE_SECRET_PATH", "/etc/proxy-panel/mtproxy/active-secret.txt"),
+		MTProxyRuntimeEnvPath:   getEnv("MTPROXY_RUNTIME_ENV_PATH", "/etc/proxy-panel/mtproxy/runtime.env"),
 		MTProxyProxySecretPath:  getEnv("MTPROXY_PROXY_SECRET_PATH", "/var/lib/mtproxy/proxy-secret"),
 		MTProxyProxyConfigPath:  getEnv("MTPROXY_PROXY_CONFIG_PATH", "/var/lib/mtproxy/proxy-multi.conf"),
 		ServicePollInterval:     getEnvDuration("SERVICE_POLL_INTERVAL", 30*time.Second),
@@ -176,3 +178,4 @@ func getEnvDuration(key string, fallback time.Duration) time.Duration {
 	}
 	return parsed
 }
+

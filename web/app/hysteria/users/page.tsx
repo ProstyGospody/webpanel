@@ -1,18 +1,24 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Copy, Pencil, Plus, QrCode, Search, Trash2, Users, X, Zap } from "lucide-react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { Copy, Download, MoreHorizontal, Pencil, Plus, Power, QrCode, Search, ShieldOff, UserRound, UserRoundX, Users, X, Zap } from "lucide-react";
 
-import { apiFetch, toJSONBody } from "@/lib/api";
+import { APIError, apiFetch, toJSONBody } from "@/lib/api";
 import { copyToClipboard, formatBytes, formatDate } from "@/lib/format";
-import type { Client, Hy2Account } from "@/lib/types";
+import type {
+  HysteriaOverview,
+  HysteriaUser,
+  HysteriaUserArtifacts,
+  HysteriaUserArtifactsPayload,
+  ValidationError,
+} from "@/lib/types";
 import { useToast } from "@/components/toast-provider";
 import { PageHeader } from "@/components/app/page-header";
-import { StatCard } from "@/components/app/stat-card";
 import { SectionNav } from "@/components/app/section-nav";
 import { EmptyState } from "@/components/app/empty-state";
+import { StatCard } from "@/components/app/stat-card";
 import { StatusBadge } from "@/components/app/status-badge";
-import { SelectField, TextField } from "@/components/app/fields";
+import { TextField, TextareaField } from "@/components/app/fields";
 import { Dialog, ConfirmDialog } from "@/components/dialog";
 import { OverflowMenu } from "@/components/overflow-menu";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -22,143 +28,75 @@ import { InputGroup, InputGroupAction, InputGroupAddon, InputGroupInput } from "
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-type Hy2Overview = {
-  enabled_accounts: number;
-  total_tx_bytes: number;
-  total_rx_bytes: number;
-  online_count: number;
+type UserFormState = {
+  username: string;
+  password: string;
+  note: string;
 };
 
-type Hy2AccountViewPayload = {
-  account: Hy2Account;
-  uri: string;
+type UserFormErrors = {
+  username?: string;
+  password?: string;
 };
 
-type AccountFormState = {
-  client_id: string;
-  auth_payload: string;
-  hy2_identity: string;
-};
-
-type FormErrors = {
-  client_id?: string;
+type PreviewState = {
+  user: HysteriaUser;
+  artifacts: HysteriaUserArtifacts;
 };
 
 const POLL_INTERVAL_MS = 10000;
-
 const tabs = [
   { href: "/hysteria/users", label: "Users", icon: Users },
   { href: "/hysteria/settings", label: "Settings", icon: Zap },
 ];
 
-function onlineTone(online: boolean): "success" | "neutral" {
-  return online ? "success" : "neutral";
-}
+const EMPTY_FORM: UserFormState = {
+  username: "",
+  password: "",
+  note: "",
+};
 
 export default function HysteriaUsersPage() {
   const { push } = useToast();
 
-  const [accounts, setAccounts] = useState<Hy2Account[]>([]);
-  const [overview, setOverview] = useState<Hy2Overview | null>(null);
-  const [clients, setClients] = useState<Client[]>([]);
-
+  const [users, setUsers] = useState<HysteriaUser[]>([]);
+  const [overview, setOverview] = useState<HysteriaOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [busyID, setBusyID] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [workingId, setWorkingId] = useState<string | null>(null);
 
   const [formOpen, setFormOpen] = useState(false);
   const [formBusy, setFormBusy] = useState(false);
-  const [editing, setEditing] = useState<Hy2Account | null>(null);
-  const [formState, setFormState] = useState<AccountFormState>({
-    client_id: "",
-    auth_payload: "",
-    hy2_identity: "",
-  });
-  const [formErrors, setFormErrors] = useState<FormErrors>({});
+  const [editing, setEditing] = useState<HysteriaUser | null>(null);
+  const [formState, setFormState] = useState<UserFormState>(EMPTY_FORM);
+  const [formErrors, setFormErrors] = useState<UserFormErrors>({});
 
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleteBusy, setDeleteBusy] = useState(false);
-  const [deleting, setDeleting] = useState<Hy2Account | null>(null);
+  const [preview, setPreview] = useState<PreviewState | null>(null);
+  const [previewBusy, setPreviewBusy] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
 
-  const [qrOpen, setQROpen] = useState(false);
-  const [qrTitle, setQRTitle] = useState("");
-  const [qrAccountID, setQRAccountID] = useState("");
-  const [uriValue, setURIValue] = useState("");
+  const [revokeTarget, setRevokeTarget] = useState<HysteriaUser | null>(null);
+  const [revokeBusy, setRevokeBusy] = useState(false);
 
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-
-  const sortedClients = useMemo(() => [...clients].sort((a, b) => a.name.localeCompare(b.name)), [clients]);
-  const filteredAccounts = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) {
-      return accounts;
+  const filteredUsers = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) {
+      return users;
     }
-
-    return accounts.filter((item) => {
-      return (
-        (item.client_name || "").toLowerCase().includes(q) ||
-        (item.hy2_identity || "").toLowerCase().includes(q) ||
-        (item.auth_payload || "").toLowerCase().includes(q)
-      );
+    return users.filter((user) => {
+      return user.username.toLowerCase().includes(query) || (user.note || "").toLowerCase().includes(query);
     });
-  }, [accounts, search]);
-
-  function markCopied(key: string) {
-    setCopiedKey(key);
-    window.setTimeout(() => {
-      setCopiedKey((current) => (current === key ? null : current));
-    }, 1500);
-  }
-
-  function closeForm() {
-    setFormOpen(false);
-    setEditing(null);
-    setFormErrors({});
-  }
-
-  async function load(showLoader = false) {
-    if (showLoader) {
-      setLoading(true);
-    }
-
-    try {
-      const [accountsResp, overviewResp, clientsResp] = await Promise.all([
-        apiFetch<{ items: Hy2Account[] }>("/api/hy2/accounts?limit=500"),
-        apiFetch<Hy2Overview>("/api/hy2/stats/overview"),
-        apiFetch<{ items: Client[] }>("/api/clients?limit=500"),
-      ]);
-
-      setAccounts(accountsResp.items || []);
-      setOverview(overviewResp);
-      setClients(clientsResp.items || []);
-
-      if (!formState.client_id && clientsResp.items && clientsResp.items.length > 0) {
-        setFormState((prev) => ({ ...prev, client_id: clientsResp.items![0].id }));
-      }
-
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load Hysteria users");
-    } finally {
-      if (showLoader) {
-        setLoading(false);
-      }
-    }
-  }
+  }, [search, users]);
 
   useEffect(() => {
     let cancelled = false;
 
-    load(true).catch(() => {
-      // handled in load
-    });
+    void load(true);
 
     const timer = window.setInterval(() => {
       if (!cancelled) {
-        load(false).catch(() => {
-          // handled in load
-        });
+        void load(false);
       }
     }, POLL_INTERVAL_MS);
 
@@ -168,64 +106,96 @@ export default function HysteriaUsersPage() {
     };
   }, []);
 
+  async function load(showLoader: boolean) {
+    if (showLoader) {
+      setLoading(true);
+    }
+    try {
+      const [usersPayload, overviewPayload] = await Promise.all([
+        apiFetch<{ items: HysteriaUser[] }>("/api/hysteria/users?limit=500"),
+        apiFetch<HysteriaOverview>("/api/hysteria/stats/overview"),
+      ]);
+      setUsers(usersPayload.items || []);
+      setOverview(overviewPayload);
+      setError(null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to load Hysteria users";
+      setError(message);
+    } finally {
+      if (showLoader) {
+        setLoading(false);
+      }
+    }
+  }
+
   function openCreate() {
     setEditing(null);
     setFormErrors({});
-    setFormState((prev) => ({
-      client_id: prev.client_id || sortedClients[0]?.id || "",
-      auth_payload: "",
-      hy2_identity: "",
-    }));
+    setFormState(EMPTY_FORM);
     setFormOpen(true);
   }
 
-  function openEdit(account: Hy2Account) {
-    setEditing(account);
+  function openEdit(user: HysteriaUser) {
+    setEditing(user);
     setFormErrors({});
     setFormState({
-      client_id: account.client_id,
-      auth_payload: account.auth_payload,
-      hy2_identity: account.hy2_identity,
+      username: user.username,
+      password: "",
+      note: user.note || "",
     });
     setFormOpen(true);
   }
 
-  async function submitForm(event: FormEvent) {
-    event.preventDefault();
-
-    if (!formState.client_id) {
-      setFormErrors({ client_id: "Client is required." });
-      return;
-    }
-
+  function closeForm() {
+    setFormOpen(false);
+    setEditing(null);
     setFormErrors({});
+    setFormState(EMPTY_FORM);
+  }
+
+  async function submitForm(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setFormBusy(true);
+    setFormErrors({});
     try {
       if (editing) {
-        await apiFetch(`/api/hy2/accounts/${editing.id}`, {
+        const payload: Record<string, unknown> = {
+          username: formState.username,
+          note: formState.note,
+        };
+        if (formState.password.trim()) {
+          payload.password = formState.password;
+        }
+        await apiFetch<HysteriaUserArtifactsPayload>(`/api/hysteria/users/${editing.id}`, {
           method: "PATCH",
-          body: toJSONBody({
-            auth_payload: formState.auth_payload,
-            hy2_identity: formState.hy2_identity,
-          }),
+          body: toJSONBody(payload),
         });
-        push("User updated", "success");
+        push("Hysteria user updated", "success");
       } else {
-        await apiFetch("/api/hy2/accounts", {
+        const payload: Record<string, unknown> = {
+          username: formState.username,
+          note: formState.note,
+        };
+        if (formState.password.trim()) {
+          payload.password = formState.password;
+        }
+        const created = await apiFetch<HysteriaUserArtifactsPayload>("/api/hysteria/users", {
           method: "POST",
-          body: toJSONBody({
-            client_id: formState.client_id,
-            auth_payload: formState.auth_payload || null,
-            hy2_identity: formState.hy2_identity || null,
-          }),
+          body: toJSONBody(payload),
         });
-        push("User created", "success");
+        if (!created.artifacts) {
+          throw new Error(created.access_message || "Hysteria access artifacts are unavailable for this user");
+        }
+        setPreview({ user: created.user, artifacts: created.artifacts });
+        push("Hysteria user created", "success");
       }
-
       closeForm();
       await load(false);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to save user";
+      if (err instanceof APIError) {
+        setFormErrors(extractUserFormErrors(err.details));
+      }
+      const message = err instanceof Error ? err.message : "Failed to save Hysteria user";
       setError(message);
       push(message, "error");
     } finally {
@@ -233,83 +203,123 @@ export default function HysteriaUsersPage() {
     }
   }
 
-  function askDelete(account: Hy2Account) {
-    setDeleting(account);
-    setDeleteOpen(true);
+  async function openPreview(user: HysteriaUser) {
+    setPreviewBusy(true);
+    setPreviewError(null);
+    try {
+      const payload = await apiFetch<HysteriaUserArtifactsPayload>(`/api/hysteria/users/${user.id}/artifacts`);
+      if (!payload.artifacts) {
+        throw new Error(payload.access_message || "Hysteria access artifacts are unavailable for this user");
+      }
+      setPreview({ user: payload.user, artifacts: payload.artifacts });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to load Hysteria access";
+      setPreviewError(message);
+      push(message, "error");
+    } finally {
+      setPreviewBusy(false);
+    }
   }
 
-  async function removeUser() {
-    if (!deleting) {
-      return;
-    }
-    setDeleteBusy(true);
+  async function copyURI(user: HysteriaUser) {
+    setWorkingId(user.id);
     try {
-      await apiFetch(`/api/hy2/accounts/${deleting.id}`, {
-        method: "DELETE",
+      const payload = await apiFetch<HysteriaUserArtifactsPayload>(`/api/hysteria/users/${user.id}/artifacts`);
+      if (!payload.artifacts) {
+        throw new Error(payload.access_message || "Hysteria access artifacts are unavailable for this user");
+      }
+      await copyToClipboard(payload.artifacts.uri);
+      push("Connection URI copied", "success");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to copy Hysteria URI";
+      setError(message);
+      push(message, "error");
+    } finally {
+      setWorkingId(null);
+    }
+  }
+
+  async function downloadConfig(user: HysteriaUser) {
+    setWorkingId(user.id);
+    try {
+      const payload = await apiFetch<HysteriaUserArtifactsPayload>(`/api/hysteria/users/${user.id}/artifacts`);
+      if (!payload.artifacts) {
+        throw new Error(payload.access_message || "Hysteria access artifacts are unavailable for this user");
+      }
+      downloadTextFile(`${payload.user.username}-hysteria2.yaml`, payload.artifacts.client_config);
+      push("Client config downloaded", "success");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to download client config";
+      setError(message);
+      push(message, "error");
+    } finally {
+      setWorkingId(null);
+    }
+  }
+
+  async function setEnabled(user: HysteriaUser, enabled: boolean) {
+    setWorkingId(user.id);
+    try {
+      await apiFetch<{ ok: boolean }>(`/api/hysteria/users/${user.id}/${enabled ? "enable" : "disable"}`, {
+        method: "POST",
         body: toJSONBody({}),
       });
-      push("User deleted", "success");
-      setDeleteOpen(false);
-      setDeleting(null);
+      await load(false);
+      push(enabled ? "User enabled" : "User disabled", "success");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to update user state";
+      setError(message);
+      push(message, "error");
+    } finally {
+      setWorkingId(null);
+    }
+  }
+
+  async function kickUser(user: HysteriaUser) {
+    setWorkingId(user.id);
+    try {
+      await apiFetch<{ ok: boolean }>(`/api/hysteria/users/${user.id}/kick`, {
+        method: "POST",
+        body: toJSONBody({}),
+      });
+      push("Live Hysteria session kicked", "success");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to kick Hysteria session";
+      setError(message);
+      push(message, "error");
+    } finally {
+      setWorkingId(null);
+    }
+  }
+
+  async function revokeUser() {
+    if (!revokeTarget) {
+      return;
+    }
+    setRevokeBusy(true);
+    try {
+      await apiFetch<{ ok: boolean }>(`/api/hysteria/users/${revokeTarget.id}/revoke`, {
+        method: "POST",
+        body: toJSONBody({}),
+      });
+      push("User access revoked", "success");
+      setRevokeTarget(null);
       await load(false);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to delete user";
+      const message = err instanceof Error ? err.message : "Failed to revoke user";
       setError(message);
       push(message, "error");
     } finally {
-      setDeleteBusy(false);
-    }
-  }
-
-  async function openQR(account: Hy2Account) {
-    setBusyID(account.id);
-    try {
-      const payload = await apiFetch<Hy2AccountViewPayload>(`/api/hy2/accounts/${account.id}`);
-      setQRTitle(account.client_name || account.hy2_identity);
-      setURIValue(payload.uri);
-      setQRAccountID(account.id);
-      setQROpen(true);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to load URI";
-      setError(message);
-      push(message, "error");
-    } finally {
-      setBusyID((current) => (current === account.id ? null : current));
-    }
-  }
-
-  async function copyURI(account: Hy2Account) {
-    setBusyID(account.id);
-    try {
-      const payload = await apiFetch<Hy2AccountViewPayload>(`/api/hy2/accounts/${account.id}`);
-      await copyToClipboard(payload.uri);
-      markCopied(`uri-${account.id}`);
-      push("Link copied", "success");
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to copy URI";
-      setError(message);
-      push(message, "error");
-    } finally {
-      setBusyID((current) => (current === account.id ? null : current));
-    }
-  }
-
-  async function copyValue(value: string, key: string) {
-    try {
-      await copyToClipboard(value);
-      markCopied(key);
-      push("Copied", "success");
-    } catch {
-      push("Copy failed", "error");
+      setRevokeBusy(false);
     }
   }
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Hysteria"
+        title="Hysteria Users"
         icon={<Zap />}
-        description="Manage Hysteria users and connection credentials."
+        description="Manage real Hysteria 2 access identities. Generated URI, QR, and client config are derived from the same managed config that the panel writes to disk."
         actions={
           <Button onClick={openCreate}>
             <Plus className="size-4" />
@@ -328,16 +338,16 @@ export default function HysteriaUsersPage() {
       ) : null}
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Enabled" value={String(overview?.enabled_accounts ?? 0)} loading={loading} />
-        <StatCard label="Online" value={String(overview?.online_count ?? 0)} loading={loading} />
-        <StatCard label="Upload" value={formatBytes(overview?.total_tx_bytes ?? 0)} loading={loading} />
-        <StatCard label="Download" value={formatBytes(overview?.total_rx_bytes ?? 0)} loading={loading} />
+        <StatCard label="Users" value={String(users.length)} loading={loading} icon={<Users />} />
+        <StatCard label="Enabled" value={String(overview?.enabled_users ?? 0)} loading={loading} icon={<Power />} />
+        <StatCard label="Online" value={String(overview?.online_count ?? 0)} loading={loading} icon={<UserRound />} />
+        <StatCard label="Traffic" value={formatBytes((overview?.total_tx_bytes ?? 0) + (overview?.total_rx_bytes ?? 0))} loading={loading} icon={<ShieldOff />} />
       </section>
 
       <Card>
         <CardHeader className="border-b pb-3">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <CardTitle>Users</CardTitle>
+            <CardTitle>Access identities</CardTitle>
             <InputGroup className="w-full max-w-sm">
               <InputGroupAddon>
                 <Search />
@@ -345,7 +355,7 @@ export default function HysteriaUsersPage() {
               <InputGroupInput
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search by user, identity or credential"
+                placeholder="Search username or note"
                 aria-label="Search Hysteria users"
               />
               {search ? (
@@ -359,13 +369,13 @@ export default function HysteriaUsersPage() {
         <CardContent className="pt-3">
           {loading ? (
             <div className="space-y-2">
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-12 w-full rounded-lg" />
+              <Skeleton className="h-12 w-full rounded-lg" />
+              <Skeleton className="h-12 w-full rounded-lg" />
             </div>
-           ) : accounts.length === 0 ? (
-            <EmptyState title="No Hysteria users" description="Create the first user to issue access credentials." icon={Zap} />
-          ) : filteredAccounts.length === 0 ? (
+          ) : users.length === 0 ? (
+            <EmptyState title="No Hysteria users" description="Create the first user to issue connection artifacts." icon={Zap} />
+          ) : filteredUsers.length === 0 ? (
             <EmptyState title="No matches" description="No users match the current search." icon={Zap} />
           ) : (
             <Table>
@@ -379,60 +389,86 @@ export default function HysteriaUsersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredAccounts.map((item) => {
-                  const online = (item.online_count || 0) > 0;
-                  const busy = busyID === item.id;
-
+                {filteredUsers.map((user) => {
+                  const busy = workingId === user.id;
                   return (
-                    <TableRow key={item.id}>
+                    <TableRow key={user.id}>
                       <TableCell>
-                        <div className="font-medium">{item.client_name || item.hy2_identity}</div>
-                        <div className="mt-1 max-w-[360px] truncate text-xs text-muted-foreground">ID: {item.hy2_identity}</div>
+                        <div className="font-medium">{user.username}</div>
+                        <div className="mt-1 max-w-[360px] truncate text-xs text-muted-foreground">{user.note || "No note"}</div>
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1.5">
-                          <StatusBadge tone={item.is_enabled ? "success" : "danger"}>{item.is_enabled ? "Enabled" : "Disabled"}</StatusBadge>
-                          <StatusBadge tone={onlineTone(online)}>{online ? "Online" : "Offline"}</StatusBadge>
+                          <StatusBadge tone={user.enabled ? "success" : "danger"}>{user.enabled ? "Enabled" : "Disabled"}</StatusBadge>
+                          <StatusBadge tone={user.online_count > 0 ? "info" : "neutral"}>{user.online_count > 0 ? `${user.online_count} online` : "Offline"}</StatusBadge>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="space-y-1 text-xs text-muted-foreground">
-                          <p>Upload {formatBytes(item.last_tx_bytes || 0)}</p>
-                          <p>Download {formatBytes(item.last_rx_bytes || 0)}</p>
+                          <p>Upload {formatBytes(user.last_tx_bytes)}</p>
+                          <p>Download {formatBytes(user.last_rx_bytes)}</p>
                         </div>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{formatDate(item.last_seen_at)}</TableCell>
+                      <TableCell className="text-muted-foreground">{formatDate(user.last_seen_at)}</TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-2">
-                          <Button variant="outline" size="sm" onClick={() => void openQR(item)} disabled={busy}>
+                          <Button variant="outline" size="sm" disabled={busy || !user.enabled} onClick={() => void openPreview(user)}>
                             <QrCode className="size-4" />
-                            Show QR
+                            Access
                           </Button>
                           <OverflowMenu
+                            ariaLabel="User actions"
                             items={[
                               {
                                 id: "edit",
                                 label: "Edit",
                                 icon: Pencil,
                                 disabled: busy,
-                                onSelect: () => openEdit(item),
+                                onSelect: () => openEdit(user),
                               },
                               {
-                                id: "copy",
-                                label: copiedKey === `uri-${item.id}` ? "Link copied" : "Copy link",
+                                id: "copy-uri",
+                                label: "Copy URI",
                                 icon: Copy,
-                                disabled: busy,
+                                disabled: busy || !user.enabled,
                                 onSelect: () => {
-                                  void copyURI(item);
+                                  void copyURI(user);
                                 },
                               },
                               {
-                                id: "delete",
-                                label: "Delete",
-                                icon: Trash2,
+                                id: "download-config",
+                                label: "Download config",
+                                icon: Download,
+                                disabled: busy || !user.enabled,
+                                onSelect: () => {
+                                  void downloadConfig(user);
+                                },
+                              },
+                              {
+                                id: user.enabled ? "disable" : "enable",
+                                label: user.enabled ? "Disable" : "Enable",
+                                icon: Power,
+                                disabled: busy,
+                                onSelect: () => {
+                                  void setEnabled(user, !user.enabled);
+                                },
+                              },
+                              {
+                                id: "kick",
+                                label: "Kick session",
+                                icon: MoreHorizontal,
+                                disabled: busy || user.online_count === 0,
+                                onSelect: () => {
+                                  void kickUser(user);
+                                },
+                              },
+                              {
+                                id: "revoke",
+                                label: "Revoke",
+                                icon: UserRoundX,
                                 destructive: true,
                                 disabled: busy,
-                                onSelect: () => askDelete(item),
+                                onSelect: () => setRevokeTarget(user),
                               },
                             ]}
                           />
@@ -449,88 +485,138 @@ export default function HysteriaUsersPage() {
 
       <Dialog
         open={formOpen}
-        size="lg"
-        title={editing ? "Edit Hysteria user" : "Create Hysteria user"}
         onClose={closeForm}
+        title={editing ? "Edit Hysteria user" : "Create Hysteria user"}
+        description={editing ? "Update username, password, or note. Leave password empty to keep the current one." : "Create a per-user Hysteria access identity."}
         actions={
           <>
-            <Button variant="ghost" type="button" onClick={closeForm} disabled={formBusy}>
+            <Button type="button" variant="ghost" onClick={closeForm} disabled={formBusy}>
               Cancel
             </Button>
-            <Button type="submit" form="hy2-user-form" disabled={formBusy}>
+            <Button type="submit" form="hysteria-user-form" disabled={formBusy}>
               {formBusy ? "Saving..." : editing ? "Save" : "Create"}
             </Button>
           </>
         }
       >
-        <form id="hy2-user-form" className="grid gap-4 md:grid-cols-2 md:gap-x-5" onSubmit={submitForm} noValidate>
-          <SelectField
-            label="Client"
-            value={formState.client_id}
-            error={formErrors.client_id}
-            onValueChange={(value) => {
-              setFormState((prev) => ({ ...prev, client_id: value }));
-              if (formErrors.client_id) {
-                setFormErrors((prev) => ({ ...prev, client_id: undefined }));
-              }
-            }}
-            disabled={Boolean(editing)}
-            options={sortedClients.map((client) => ({ value: client.id, label: client.name }))}
-          />
-
+        <form id="hysteria-user-form" className="grid gap-4" onSubmit={submitForm} noValidate>
           <TextField
-            label="Auth payload"
-            value={formState.auth_payload}
-            onChange={(event) => setFormState((prev) => ({ ...prev, auth_payload: event.target.value }))}
-            placeholder="Auto-generated if empty"
+            label="Username"
+            value={formState.username}
+            error={formErrors.username}
+            description="Lowercase only. Use a-z, 0-9, dot, dash, or underscore."
+            onChange={(event) => setFormState((current) => ({ ...current, username: event.target.value }))}
+            placeholder="demo-user"
+            disabled={formBusy}
           />
-
           <TextField
-            className="md:col-span-2"
-            label="Identity"
-            value={formState.hy2_identity}
-            onChange={(event) => setFormState((prev) => ({ ...prev, hy2_identity: event.target.value }))}
-            placeholder="Auto-generated if empty"
+            label={editing ? "New password" : "Password"}
+            value={formState.password}
+            error={formErrors.password}
+            description={editing ? "Optional. Leave empty to keep the current password." : "Optional. Leave empty to auto-generate a secure password."}
+            onChange={(event) => setFormState((current) => ({ ...current, password: event.target.value }))}
+            placeholder="supersecret88"
+            disabled={formBusy}
+          />
+          <TextareaField
+            label="Note"
+            value={formState.note}
+            onChange={(event) => setFormState((current) => ({ ...current, note: event.target.value }))}
+            placeholder="Optional label or ownership note"
+            disabled={formBusy}
           />
         </form>
       </Dialog>
 
       <ConfirmDialog
-        open={deleteOpen}
-        title="Delete user"
-        description={`Delete ${deleting?.client_name || deleting?.hy2_identity || "this user"}? This action cannot be undone.`}
-        confirmLabel="Delete"
-        onClose={() => setDeleteOpen(false)}
-        onConfirm={removeUser}
-        busy={deleteBusy}
+        open={Boolean(revokeTarget)}
+        title="Revoke Hysteria user"
+        description={`Revoke ${revokeTarget?.username || "this user"}? Access will be removed from the managed Hysteria config and the user record will be deleted.`}
+        confirmLabel="Revoke"
+        onClose={() => setRevokeTarget(null)}
+        onConfirm={revokeUser}
+        busy={revokeBusy}
       />
 
-      <Dialog open={qrOpen} title={qrTitle || "Connection QR"} onClose={() => setQROpen(false)} size="sm">
-        <div className="flex justify-center">
-          {qrAccountID && uriValue ? (
-            <button
-              type="button"
-              onClick={() => void copyValue(uriValue, "uri")}
-              className="cursor-copy rounded-xl border bg-background p-2 transition-colors hover:bg-muted/40"
-              aria-label="Copy connection link"
-            >
+      <Dialog
+        open={Boolean(preview)}
+        onClose={() => {
+          setPreview(null);
+          setPreviewError(null);
+        }}
+        title={preview ? `${preview.user.username} access` : "Hysteria access"}
+        description="These artifacts are generated from the same managed config snapshot that the panel writes to the Hysteria server configuration."
+        size="lg"
+        actions={
+          preview ? (
+            <>
+              <Button type="button" variant="outline" onClick={() => void copyToClipboard(preview.artifacts.uri).then(() => push("Connection URI copied", "success")).catch(() => push("Copy failed", "error"))}>
+                <Copy className="size-4" />
+                Copy URI
+              </Button>
+              <Button type="button" onClick={() => downloadTextFile(`${preview.user.username}-hysteria2.yaml`, preview.artifacts.client_config)}>
+                <Download className="size-4" />
+                Download config
+              </Button>
+            </>
+          ) : null
+        }
+      >
+        {previewBusy ? (
+          <div className="space-y-3">
+            <Skeleton className="h-64 w-full rounded-xl" />
+            <Skeleton className="h-28 w-full rounded-xl" />
+          </div>
+        ) : previewError ? (
+          <Alert variant="destructive">
+            <AlertTitle>Unable to load access artifacts</AlertTitle>
+            <AlertDescription>{previewError}</AlertDescription>
+          </Alert>
+        ) : preview ? (
+          <div className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
+            <div className="flex items-center justify-center rounded-2xl border bg-muted/10 p-4">
               <img
-                src={`/api/hy2/accounts/${qrAccountID}/qr?size=360`}
-                alt="Hysteria connection QR"
-                className="h-64 w-64 rounded-lg bg-white p-2 object-contain"
+                src={`/api/hysteria/users/${preview.user.id}/qr?size=360`}
+                alt="Hysteria access QR"
+                className="h-72 w-72 rounded-xl bg-white p-3 object-contain"
               />
-            </button>
-          ) : (
-            <Skeleton className="h-64 w-64 rounded-lg" />
-          )}
-        </div>
+            </div>
+            <div className="space-y-4">
+              <TextareaField label="Connection URI" value={preview.artifacts.uri} readOnly className="font-mono text-xs" />
+              <TextareaField label="Client config" value={preview.artifacts.client_config} readOnly className="min-h-[220px] font-mono text-xs" />
+            </div>
+          </div>
+        ) : null}
       </Dialog>
     </div>
   );
 }
 
+function extractUserFormErrors(details: unknown): UserFormErrors {
+  const errors: UserFormErrors = {};
+  if (!Array.isArray(details)) {
+    return errors;
+  }
+  for (const item of details as ValidationError[]) {
+    if (item.field === "username") {
+      errors.username = item.message;
+    }
+    if (item.field === "password") {
+      errors.password = item.message;
+    }
+  }
+  return errors;
+}
 
-
+function downloadTextFile(filename: string, content: string) {
+  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+  const href = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = href;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(href);
+}
 
 
 

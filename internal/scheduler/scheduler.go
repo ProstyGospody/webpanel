@@ -41,7 +41,7 @@ func NewJobs(
 }
 
 func (j *Jobs) Start(ctx context.Context) {
-	go j.runTicker(ctx, "hy2-poll", j.cfg.Hy2PollInterval, j.pollHy2)
+	go j.runTicker(ctx, "hysteria-poll", j.cfg.Hy2PollInterval, j.pollHysteria)
 	go j.runTicker(ctx, "mtproxy-poll", j.cfg.MTProxyPollInterval, j.pollMTProxy)
 	go j.runTicker(ctx, "services-poll", j.cfg.ServicePollInterval, j.pollServices)
 	go j.runTicker(ctx, "mtproxy-sync", 1*time.Minute, j.syncMTProxyRuntime)
@@ -68,7 +68,7 @@ func (j *Jobs) runTicker(ctx context.Context, name string, interval time.Duratio
 	}
 }
 
-func (j *Jobs) pollHy2(ctx context.Context) error {
+func (j *Jobs) pollHysteria(ctx context.Context) error {
 	traffic, err := j.hy2Client.FetchTraffic(ctx)
 	if err != nil {
 		return err
@@ -77,34 +77,29 @@ func (j *Jobs) pollHy2(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-
-	accounts, err := j.repo.ListHy2Accounts(ctx, 10000, 0)
+	users, err := j.repo.ListHysteriaUsers(ctx, 10000, 0)
 	if err != nil {
 		return err
 	}
-
 	now := time.Now().UTC()
-	snapshots := make([]repository.Hy2Snapshot, 0, len(accounts))
-	for _, account := range accounts {
-		stat := traffic[account.Hy2Identity]
-		onlineCount := online[account.Hy2Identity]
-		snapshots = append(snapshots, repository.Hy2Snapshot{
-			Hy2AccountID: account.ID,
-			TxBytes:      stat.TxBytes,
-			RxBytes:      stat.RxBytes,
-			OnlineCount:  onlineCount,
-			SnapshotAt:   now,
+	snapshots := make([]repository.HysteriaSnapshot, 0, len(users))
+	for _, user := range users {
+		stat := traffic[user.Username]
+		onlineCount := online[user.Username]
+		snapshots = append(snapshots, repository.HysteriaSnapshot{
+			UserID:     user.ID,
+			TxBytes:    stat.TxBytes,
+			RxBytes:    stat.RxBytes,
+			Online:     onlineCount,
+			SnapshotAt: now,
 		})
 		if onlineCount > 0 {
-			if err := j.repo.TouchHy2AccountLastSeen(ctx, account.ID, now); err != nil {
-				j.logger.Debug("failed to update hy2 last seen", "account_id", account.ID, "error", err)
+			if err := j.repo.TouchHysteriaUserLastSeen(ctx, user.ID, now); err != nil {
+				j.logger.Debug("failed to update hysteria last seen", "user_id", user.ID, "error", err)
 			}
 		}
 	}
-	if err := j.repo.InsertHy2Snapshots(ctx, snapshots); err != nil {
-		return err
-	}
-	return nil
+	return j.repo.InsertHysteriaSnapshots(ctx, snapshots)
 }
 
 func (j *Jobs) pollMTProxy(ctx context.Context) error {
@@ -112,7 +107,6 @@ func (j *Jobs) pollMTProxy(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-
 	return j.repo.InsertMTProxySnapshot(ctx, repository.MTProxySnapshot{
 		ConnectionsTotal: stats.ConnectionsTotal,
 		UsersTotal:       stats.UsersTotal,
@@ -154,4 +148,3 @@ func (j *Jobs) pollServices(ctx context.Context) error {
 func (j *Jobs) syncMTProxyRuntime(ctx context.Context) error {
 	return j.runtimeManager.Sync(ctx, false)
 }
-

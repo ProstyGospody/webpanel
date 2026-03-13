@@ -5,20 +5,21 @@ import { usePathname, useRouter } from "next/navigation";
 import { Fragment, type ComponentType, type PropsWithChildren, useEffect, useMemo, useState } from "react";
 import {
   ChevronRight,
-  Send,
   LayoutDashboard,
+  Link2,
   Loader2,
   LogOut,
   Menu,
   Moon,
   PanelLeftClose,
   PanelLeftOpen,
+  Send,
   ShieldCheck,
   Sun,
   User,
   Users,
-  Zap,
   Wrench,
+  Zap,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 
@@ -67,10 +68,7 @@ const SIDEBAR_STORAGE_KEY = "pp_sidebar_collapsed";
 const sections: NavigationSection[] = [
   {
     title: "Overview",
-    items: [
-      { href: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
-      { href: "/clients", label: "Clients", icon: Users },
-    ],
+    items: [{ href: "/", label: "Dashboard", icon: LayoutDashboard, exact: true }],
   },
   {
     title: "Hysteria",
@@ -82,8 +80,8 @@ const sections: NavigationSection[] = [
   {
     title: "MTProxy",
     items: [
-      { href: "/mtproxy/users", label: "Users", icon: Users },
       { href: "/mtproxy/settings", label: "Settings", icon: Send },
+      { href: "/mtproxy/access", label: "Access", icon: Link2 },
     ],
   },
   {
@@ -99,9 +97,8 @@ function normalizePathname(pathname: string): string {
   if (pathname === "/hysteria") {
     return "/hysteria/users";
   }
-
   if (pathname === "/mtproxy") {
-    return "/mtproxy/users";
+    return "/mtproxy/access";
   }
 
   return pathname;
@@ -111,7 +108,6 @@ function isActivePath(pathname: string, item: NavigationItem): boolean {
   if (item.exact) {
     return pathname === item.href;
   }
-
   return pathname === item.href || pathname.startsWith(`${item.href}/`);
 }
 
@@ -119,23 +115,16 @@ function useBreadcrumb(pathname: string) {
   const map = useMemo(
     () => ({
       "/": ["Dashboard"],
-      "/clients": ["Clients"],
-      "/clients/[id]": ["Clients", "Details"],
       "/hysteria/users": ["Hysteria", "Users"],
       "/hysteria/settings": ["Hysteria", "Settings"],
-      "/mtproxy/users": ["MTProxy", "Users"],
       "/mtproxy/settings": ["MTProxy", "Settings"],
+      "/mtproxy/access": ["MTProxy", "Access"],
       "/services": ["Services"],
       "/audit": ["Audit"],
       "/settings": ["Settings"],
     }),
     []
   );
-
-  if (pathname.startsWith("/clients/") && pathname !== "/clients") {
-    return map["/clients/[id]"];
-  }
-
   return map[pathname as keyof typeof map] || ["Panel"];
 }
 
@@ -172,20 +161,25 @@ function ShellNavigation({ pathname, collapsed, adminEmail, onNavigate }: ShellN
         <div className="space-y-4">
           {sections.map((section) => (
             <section key={section.title} className="space-y-1">
-              {!collapsed && <p className="px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-sidebar-foreground/55">{section.title}</p>}
+              {!collapsed ? <p className="px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-sidebar-foreground/55">{section.title}</p> : null}
               <ul className="space-y-1">
                 {section.items.map((item) => {
                   const active = isActivePath(pathname, item);
                   const Icon = item.icon;
-
                   const link = (
                     <Link
                       href={item.href}
                       onClick={onNavigate}
-                      className={cn("inline-flex w-full items-center rounded-lg text-sm font-medium transition-colors", collapsed ? "h-8 justify-center px-0" : "h-8 justify-start gap-2 px-2.5", active ? "bg-sidebar-accent text-sidebar-foreground shadow-sm ring-1 ring-sidebar-border" : "text-sidebar-foreground/85 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground")}
+                      className={cn(
+                        "inline-flex w-full items-center rounded-lg text-sm font-medium transition-colors",
+                        collapsed ? "h-8 justify-center px-0" : "h-8 justify-start gap-2 px-2.5",
+                        active
+                          ? "bg-sidebar-accent text-sidebar-foreground shadow-sm ring-1 ring-sidebar-border"
+                          : "text-sidebar-foreground/85 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground"
+                      )}
                     >
                       <Icon className="size-4 shrink-0" />
-                      {!collapsed && <span className="truncate">{item.label}</span>}
+                      {!collapsed ? <span className="truncate">{item.label}</span> : null}
                     </Link>
                   );
 
@@ -240,7 +234,6 @@ export function AppShell({ children }: PropsWithChildren) {
   const rawPathname = usePathname();
   const pathname = normalizePathname(rawPathname);
   const isMobile = useIsMobile();
-
   const breadcrumbs = useBreadcrumb(pathname);
   const { push } = useToast();
   const { resolvedTheme, setTheme } = useTheme();
@@ -256,7 +249,6 @@ export function AppShell({ children }: PropsWithChildren) {
     if (typeof window === "undefined") {
       return;
     }
-
     const saved = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
     setDesktopCollapsed(saved === "1");
   }, []);
@@ -265,7 +257,6 @@ export function AppShell({ children }: PropsWithChildren) {
     if (typeof window === "undefined") {
       return;
     }
-
     window.localStorage.setItem(SIDEBAR_STORAGE_KEY, desktopCollapsed ? "1" : "0");
   }, [desktopCollapsed]);
 
@@ -284,7 +275,6 @@ export function AppShell({ children }: PropsWithChildren) {
         }
       }
     };
-
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [isMobile]);
@@ -309,12 +299,10 @@ export function AppShell({ children }: PropsWithChildren) {
         if (cancelled) {
           return;
         }
-
         if (error instanceof APIError && error.status === 401) {
           router.replace("/login");
           return;
         }
-
         setLoading(false);
       });
 
@@ -345,7 +333,6 @@ export function AppShell({ children }: PropsWithChildren) {
       setMobileOpen((open) => !open);
       return;
     }
-
     setDesktopCollapsed((collapsed) => !collapsed);
   }
 
@@ -385,12 +372,7 @@ export function AppShell({ children }: PropsWithChildren) {
               <SheetDescription>Primary application navigation.</SheetDescription>
             </SheetHeader>
             <div className="flex h-full flex-col">
-              <ShellNavigation
-                pathname={pathname}
-                collapsed={false}
-                adminEmail={adminEmail}
-                onNavigate={() => setMobileOpen(false)}
-              />
+              <ShellNavigation pathname={pathname} collapsed={false} adminEmail={adminEmail} onNavigate={() => setMobileOpen(false)} />
             </div>
           </SheetContent>
         </Sheet>
@@ -406,30 +388,23 @@ export function AppShell({ children }: PropsWithChildren) {
                 onClick={toggleSidebar}
                 aria-label={isMobile ? "Open navigation" : desktopCollapsed ? "Expand sidebar" : "Collapse sidebar"}
               >
-                {isMobile ? (
-                  <Menu className="size-4" />
-                ) : desktopCollapsed ? (
-                  <PanelLeftOpen className="size-4" />
-                ) : (
-                  <PanelLeftClose className="size-4" />
-                )}
+                {isMobile ? <Menu className="size-4" /> : desktopCollapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
               </Button>
               <Separator orientation="vertical" className="h-5" />
               <Breadcrumb>
                 <BreadcrumbList>
                   {breadcrumbs.map((item, index) => {
                     const last = index === breadcrumbs.length - 1;
-
                     return (
                       <Fragment key={`${item}-${index}`}>
                         <BreadcrumbItem>
                           <BreadcrumbPage>{item}</BreadcrumbPage>
                         </BreadcrumbItem>
-                        {!last && (
+                        {!last ? (
                           <BreadcrumbSeparator>
                             <ChevronRight className="size-3.5" />
                           </BreadcrumbSeparator>
-                        )}
+                        ) : null}
                       </Fragment>
                     );
                   })}

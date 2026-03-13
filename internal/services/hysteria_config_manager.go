@@ -74,6 +74,7 @@ type Hy2ServerQUIC struct {
 type Hy2ServerAuth struct {
 	Type     string             `json:"type,omitempty"`
 	Password string             `json:"password,omitempty"`
+	UserPass map[string]string  `json:"userpass,omitempty"`
 	HTTP     *Hy2ServerAuthHTTP `json:"http,omitempty"`
 }
 
@@ -480,7 +481,7 @@ func defaultSettings(fallbackHost string, fallbackPort int) Hy2Settings {
 		TLSEnabled:  true,
 		TLSMode:     "acme",
 		ACME:        &Hy2ServerACME{Domains: domains, Email: ""},
-		Auth:        Hy2ServerAuth{Type: "password"},
+		Auth:        Hy2ServerAuth{Type: "userpass", UserPass: map[string]string{}},
 		QUICEnabled: false,
 	}
 }
@@ -591,6 +592,7 @@ func parseServerAuth(m map[string]any) Hy2ServerAuth {
 	auth := Hy2ServerAuth{
 		Type:     strings.ToLower(strings.TrimSpace(toString(m["type"]))),
 		Password: strings.TrimSpace(toString(m["password"])),
+		UserPass: trimStringStringMap(toStringStringMap(m["userpass"])),
 	}
 	if mm, ok := toStringAnyMap(m["http"]); ok {
 		auth.HTTP = &Hy2ServerAuthHTTP{URL: strings.TrimSpace(toString(mm["url"])), Insecure: toBool(mm["insecure"])}
@@ -694,6 +696,7 @@ func normalizeSettings(input Hy2Settings) Hy2Settings {
 
 	settings.Auth.Type = strings.ToLower(strings.TrimSpace(settings.Auth.Type))
 	settings.Auth.Password = strings.TrimSpace(settings.Auth.Password)
+	settings.Auth.UserPass = trimStringStringMap(settings.Auth.UserPass)
 	if settings.Auth.HTTP != nil {
 		settings.Auth.HTTP.URL = strings.TrimSpace(settings.Auth.HTTP.URL)
 		if settings.Auth.HTTP.URL == "" && !settings.Auth.HTTP.Insecure {
@@ -701,7 +704,28 @@ func normalizeSettings(input Hy2Settings) Hy2Settings {
 		}
 	}
 	if settings.Auth.Type == "" {
-		settings.Auth.Type = "password"
+		settings.Auth.Type = "userpass"
+	}
+	switch settings.Auth.Type {
+	case "userpass":
+		settings.Auth.Password = ""
+		settings.Auth.HTTP = nil
+		if settings.Auth.UserPass == nil {
+			settings.Auth.UserPass = map[string]string{}
+		}
+	case "password":
+		settings.Auth.UserPass = nil
+		settings.Auth.HTTP = nil
+	case "http":
+		settings.Auth.Password = ""
+		settings.Auth.UserPass = nil
+	default:
+		settings.Auth.Type = "userpass"
+		settings.Auth.Password = ""
+		settings.Auth.HTTP = nil
+		if settings.Auth.UserPass == nil {
+			settings.Auth.UserPass = map[string]string{}
+		}
 	}
 
 	if settings.Obfs != nil {
@@ -842,6 +866,10 @@ func validateSettings(input Hy2Settings) Hy2SettingsValidation {
 	}
 
 	switch settings.Auth.Type {
+	case "userpass":
+		if len(settings.Auth.UserPass) == 0 {
+			v.Warnings = append(v.Warnings, "auth.userpass is empty; access is controlled by managed Hysteria users")
+		}
 	case "password":
 		if settings.Auth.Password == "" {
 			v.Errors = append(v.Errors, "auth.password is required when auth.type=password")
@@ -851,7 +879,7 @@ func validateSettings(input Hy2Settings) Hy2SettingsValidation {
 			v.Errors = append(v.Errors, "auth.http.url must be a valid absolute URL")
 		}
 	default:
-		v.Errors = append(v.Errors, "auth.type must be password or http")
+		v.Errors = append(v.Errors, "auth.type must be userpass, password, or http")
 	}
 
 	if settings.Obfs != nil {
@@ -1039,6 +1067,12 @@ func buildServerAuthMap(cfg Hy2ServerAuth) map[string]any {
 	}
 	out := map[string]any{"type": auth.Type}
 	switch auth.Type {
+	case "userpass":
+		userPass := map[string]any{}
+		for username, password := range auth.UserPass {
+			userPass[strings.TrimSpace(username)] = strings.TrimSpace(password)
+		}
+		out["userpass"] = userPass
 	case "password":
 		out["password"] = auth.Password
 	case "http":
@@ -1892,6 +1926,7 @@ func buildServerSchema() *schemaNode {
 			Fields: map[string]*schemaNode{
 				"type":     emptySchema,
 				"password": emptySchema,
+				"userpass": {AnyMap: true},
 				"http": {
 					Fields: map[string]*schemaNode{
 						"url":      emptySchema,
@@ -1933,6 +1968,7 @@ func buildServerSchema() *schemaNode {
 		},
 	}}
 }
+
 
 
 

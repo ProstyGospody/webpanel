@@ -4,21 +4,22 @@ import (
 	"net/http"
 	"strings"
 
+	auditdomain "proxy-panel/internal/domain/audit"
 	"proxy-panel/internal/http/render"
 )
 
-type hy2ConfigRequest struct {
+type hysteriaConfigRequest struct {
 	Content string `json:"content"`
 }
 
-func (h *Handler) GetHy2Config(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetHysteriaConfig(w http.ResponseWriter, r *http.Request) {
 	if h.hy2ConfigManager == nil {
-		render.Error(w, http.StatusInternalServerError, "hysteria config manager is not configured")
+		h.renderError(w, http.StatusInternalServerError, "runtime", "hysteria config manager is not configured", nil)
 		return
 	}
 	content, err := h.hy2ConfigManager.Read()
 	if err != nil {
-		render.Error(w, http.StatusInternalServerError, "failed to read hysteria config")
+		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to read hysteria config", nil)
 		return
 	}
 	validation := h.hy2ConfigManager.Validate(content)
@@ -32,81 +33,94 @@ func (h *Handler) GetHy2Config(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *Handler) ValidateHy2Config(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) ValidateHysteriaConfig(w http.ResponseWriter, r *http.Request) {
 	if h.hy2ConfigManager == nil {
-		render.Error(w, http.StatusInternalServerError, "hysteria config manager is not configured")
+		h.renderError(w, http.StatusInternalServerError, "runtime", "hysteria config manager is not configured", nil)
 		return
 	}
-	var req hy2ConfigRequest
+	var req hysteriaConfigRequest
 	if err := render.DecodeJSON(r, &req); err != nil {
-		render.Error(w, http.StatusBadRequest, "invalid request body")
+		h.renderError(w, http.StatusBadRequest, "validation", "invalid request body", nil)
 		return
 	}
-	validation := h.hy2ConfigManager.Validate(req.Content)
-	settings := h.hy2ConfigManager.ExtractSettings(req.Content, h.cfg.Hy2Domain, h.cfg.Hy2Port)
+	content, err := h.hysteriaAccess.InjectManagedAuth(r.Context(), req.Content)
+	if err != nil {
+		h.renderError(w, http.StatusBadRequest, "validation", "failed to apply managed hysteria auth", nil)
+		return
+	}
+	validation := h.hy2ConfigManager.Validate(content)
+	settings := h.hy2ConfigManager.ExtractSettings(content, h.cfg.Hy2Domain, h.cfg.Hy2Port)
 	render.JSON(w, http.StatusOK, map[string]any{
+		"content":        content,
 		"validation":     validation,
 		"settings":       settings,
 		"raw_only_paths": validation.RawOnlyPaths,
 	})
 }
 
-func (h *Handler) SaveHy2Config(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) SaveHysteriaConfig(w http.ResponseWriter, r *http.Request) {
 	if h.hy2ConfigManager == nil {
-		render.Error(w, http.StatusInternalServerError, "hysteria config manager is not configured")
+		h.renderError(w, http.StatusInternalServerError, "runtime", "hysteria config manager is not configured", nil)
 		return
 	}
-	var req hy2ConfigRequest
+	var req hysteriaConfigRequest
 	if err := render.DecodeJSON(r, &req); err != nil {
-		render.Error(w, http.StatusBadRequest, "invalid request body")
+		h.renderError(w, http.StatusBadRequest, "validation", "invalid request body", nil)
 		return
 	}
-	validation := h.hy2ConfigManager.Validate(req.Content)
-	if !validation.Valid {
-		render.JSON(w, http.StatusBadRequest, map[string]any{"error": "config validation failed", "validation": validation})
-		return
-	}
-
-	backupPath, err := h.hy2ConfigManager.Save(req.Content)
+	content, err := h.hysteriaAccess.InjectManagedAuth(r.Context(), req.Content)
 	if err != nil {
-		render.Error(w, http.StatusInternalServerError, "failed to save hysteria config")
+		h.renderError(w, http.StatusBadRequest, "validation", "failed to apply managed hysteria auth", nil)
 		return
 	}
-	h.audit(r, "hy2.config.save", "hy2_config", nil, map[string]any{"path": h.cfg.Hy2ConfigPath, "backup": backupPath})
+	validation := h.hy2ConfigManager.Validate(content)
+	if !validation.Valid {
+		h.renderError(w, http.StatusBadRequest, "validation", "config validation failed", validation)
+		return
+	}
+	backupPath, err := h.hy2ConfigManager.Save(content)
+	if err != nil {
+		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to save hysteria config", nil)
+		return
+	}
+	h.audit(r, "hysteria.config.save", auditdomain.EntityHysteriaConfig, nil, map[string]any{"path": h.cfg.Hy2ConfigPath, "backup": backupPath})
 	render.JSON(w, http.StatusOK, map[string]any{
 		"ok":          true,
 		"path":        h.cfg.Hy2ConfigPath,
 		"backup_path": backupPath,
 		"validation":  validation,
+		"content":     content,
 	})
 }
 
-func (h *Handler) ApplyHy2Config(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) ApplyHysteriaConfig(w http.ResponseWriter, r *http.Request) {
 	if h.hy2ConfigManager == nil {
-		render.Error(w, http.StatusInternalServerError, "hysteria config manager is not configured")
+		h.renderError(w, http.StatusInternalServerError, "runtime", "hysteria config manager is not configured", nil)
+		return
+	}
+	if _, err := h.hysteriaAccess.Sync(r.Context()); err != nil {
+		h.renderError(w, http.StatusBadRequest, "sync", "failed to synchronize hysteria config", nil)
 		return
 	}
 	content, err := h.hy2ConfigManager.Read()
 	if err != nil {
-		render.Error(w, http.StatusInternalServerError, "failed to read hysteria config")
+		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to read hysteria config", nil)
 		return
 	}
 	validation := h.hy2ConfigManager.Validate(content)
 	if !validation.Valid {
-		render.JSON(w, http.StatusBadRequest, map[string]any{"error": "current hysteria config is invalid", "validation": validation})
+		h.renderError(w, http.StatusBadRequest, "validation", "current hysteria config is invalid", validation)
 		return
 	}
-
 	if err := h.serviceManager.Restart(r.Context(), "hysteria-server"); err != nil {
-		render.Error(w, http.StatusBadRequest, "failed to restart hysteria-server: "+strings.TrimSpace(err.Error()))
+		h.renderError(w, http.StatusBadRequest, "service", "failed to restart hysteria-server: "+strings.TrimSpace(err.Error()), nil)
 		return
 	}
 	status, statusErr := h.serviceManager.Status(r.Context(), "hysteria-server")
 	if statusErr == nil {
 		_ = h.repo.UpsertServiceState(r.Context(), "hysteria-server", status.StatusText, nil, h.serviceManager.ToJSON(status))
 	}
-	h.audit(r, "hy2.config.apply", "service", nil, map[string]any{"service": "hysteria-server"})
-
+	h.audit(r, "hysteria.config.apply", auditdomain.EntityService, nil, map[string]any{"service": "hysteria-server"})
 	if statusErr != nil {
 		render.JSON(w, http.StatusOK, map[string]any{"ok": true, "validation": validation})
 		return
