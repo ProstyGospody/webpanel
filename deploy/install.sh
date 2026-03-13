@@ -115,7 +115,7 @@ install_system_packages() {
     prometheus \
     prometheus-node-exporter \
     caddy \
-    sudo \
+    sudo
 }
 
 install_go() {
