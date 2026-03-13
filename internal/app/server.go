@@ -7,8 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-
 	"proxy-panel/internal/config"
 	httpserver "proxy-panel/internal/http"
 	"proxy-panel/internal/http/handlers"
@@ -21,7 +19,6 @@ import (
 type Server struct {
 	cfg            config.Config
 	logger         *slog.Logger
-	pool           *pgxpool.Pool
 	repo           *repository.Repository
 	httpServer     *http.Server
 	jobs           *scheduler.Jobs
@@ -29,12 +26,12 @@ type Server struct {
 	cancelJobs     context.CancelFunc
 }
 
-func NewServer(cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, repo *repository.Repository) *Server {
+func NewServer(cfg config.Config, logger *slog.Logger, repo *repository.Repository) *Server {
 	rateLimiter := middleware.NewLoginRateLimiter(cfg.RateLimitWindow, cfg.RateLimitBurst)
 	hy2Client := services.NewHysteriaClient(cfg.Hy2StatsURL, cfg.Hy2StatsSecret)
-	mtProxyClient := services.NewMTProxyClient(cfg.MTProxyStatsURL, cfg.MTProxyStatsToken)
+	mtProxyClient := services.NewMTProxyClient(cfg.MTProxyStatsURL, "")
 	serviceManager := services.NewServiceManager(cfg.SystemctlPath, cfg.SudoPath, cfg.JournalctlPath, cfg.ManagedServices)
-	runtimeManager := services.NewMTProxyRuntimeManager(repo, cfg.MTProxySecretsPath, "mtproxy", serviceManager)
+	runtimeManager := services.NewMTProxyRuntimeManager(repo, cfg.MTProxyActiveSecretPath, "mtproxy", serviceManager)
 	hy2ConfigManager := services.NewHysteriaConfigManager(cfg.Hy2ConfigPath)
 	systemMetrics := services.NewSystemMetricsCollector()
 
@@ -43,19 +40,7 @@ func NewServer(cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, repo 
 		prometheusClient = services.NewPrometheusClient(cfg.PrometheusURL, cfg.PrometheusQueryTTL)
 	}
 
-	h := handlers.New(
-		cfg,
-		logger,
-		repo,
-		rateLimiter,
-		hy2Client,
-		mtProxyClient,
-		serviceManager,
-		runtimeManager,
-		hy2ConfigManager,
-		prometheusClient,
-		systemMetrics,
-	)
+	h := handlers.New(cfg, logger, repo, rateLimiter, hy2Client, mtProxyClient, serviceManager, runtimeManager, hy2ConfigManager, prometheusClient, systemMetrics)
 	router := httpserver.NewRouter(cfg, logger, repo, h)
 
 	httpSrv := &http.Server{
@@ -69,15 +54,7 @@ func NewServer(cfg config.Config, logger *slog.Logger, pool *pgxpool.Pool, repo 
 
 	jobs := scheduler.NewJobs(logger, cfg, repo, hy2Client, mtProxyClient, serviceManager, runtimeManager)
 
-	return &Server{
-		cfg:            cfg,
-		logger:         logger,
-		pool:           pool,
-		repo:           repo,
-		httpServer:     httpSrv,
-		jobs:           jobs,
-		runtimeManager: runtimeManager,
-	}
+	return &Server{cfg: cfg, logger: logger, repo: repo, httpServer: httpSrv, jobs: jobs, runtimeManager: runtimeManager}
 }
 
 func (s *Server) Run(ctx context.Context) error {
@@ -97,7 +74,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		s.cancelJobs()
 	}
 	err := s.httpServer.Shutdown(ctx)
-	s.pool.Close()
+	_ = s.repo.Close()
 	return err
 }
 

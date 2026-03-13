@@ -330,7 +330,8 @@ func (h *Handler) GetMTProxySettings(w http.ResponseWriter, r *http.Request) {
 		"port":              h.cfg.MTProxyPort,
 		"tls_domain":        h.cfg.MTProxyTLSDomain,
 		"stats_url":         h.cfg.MTProxyStatsURL,
-		"stats_token_config": strings.TrimSpace(h.cfg.MTProxyStatsToken) != "",
+		"stats_token_config": false,
 		"runtime_secret_id": runtimeID,
 	})
 }
+

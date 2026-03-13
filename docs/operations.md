@@ -1,14 +1,12 @@
 # Operations
 
-## Service management
-
-Status:
+## Service status
 
 ```bash
 systemctl status proxy-panel-api proxy-panel-web hysteria-server mtproxy caddy
 ```
 
-Restart:
+## Restart services
 
 ```bash
 systemctl restart proxy-panel-api
@@ -18,75 +16,41 @@ systemctl restart mtproxy
 systemctl restart caddy
 ```
 
-Logs:
+## Logs
 
 ```bash
 journalctl -u proxy-panel-api -n 200 --no-pager
 journalctl -u proxy-panel-web -n 200 --no-pager
 journalctl -u hysteria-server -n 200 --no-pager
 journalctl -u mtproxy -n 200 --no-pager
-journalctl -u caddy -n 200 --no-pager
 ```
 
-## Runtime files
+## Important paths
 
-- App source: `/opt/proxy-panel/current`
-- API binary: `/opt/proxy-panel/bin/panel-api`
-- Env: `/opt/proxy-panel/.env.generated`
+- File-backed state: `/var/lib/proxy-panel/state/`
+- Snapshots/backups: `/var/lib/proxy-panel/snapshots/`, `/var/lib/proxy-panel/backups/`
+- Audit records: `/var/log/proxy-panel/audit/`
+- MTProxy active secret: `/etc/proxy-panel/mtproxy/active-secret.txt`
+- MTProxy assets: `/var/lib/mtproxy/proxy-secret`, `/var/lib/mtproxy/proxy-multi.conf`
 - Hysteria config: `/etc/proxy-panel/hysteria/server.yaml`
-- Hysteria TLS cert: `/etc/proxy-panel/hysteria/tls.crt`
-- Hysteria TLS key: `/etc/proxy-panel/hysteria/tls.key`
-- MTProxy config: `/etc/proxy-panel/mtproxy/runtime.env`
-- MTProxy secrets list: `/etc/proxy-panel/mtproxy/secrets.list`
+- Generated env: `/opt/proxy-panel/.env.generated`
+
+## Refresh MTProxy assets
+
+```bash
+sudo bash /opt/proxy-panel/current/scripts/update-mtproxy-assets.sh /opt/proxy-panel/.env.generated
+sudo systemctl restart mtproxy
+```
 
 ## Hysteria certificate resync
-
-If Caddy renewed or reissued the Hysteria certificate, resync it and restart Hysteria:
 
 ```bash
 sudo bash /opt/proxy-panel/current/scripts/sync-hysteria-cert.sh /opt/proxy-panel/.env.generated
 sudo systemctl restart hysteria-server
 ```
 
-## DB migrations
+## Full smoke check
 
 ```bash
-set -a; source /opt/proxy-panel/.env.generated; set +a
-/opt/proxy-panel/bin/panel-api migrate
+sudo bash /opt/proxy-panel/current/scripts/smoke-check.sh /opt/proxy-panel/.env.generated
 ```
-
-## Admin bootstrap/reset
-
-```bash
-set -a; source /opt/proxy-panel/.env.generated; set +a
-/opt/proxy-panel/bin/panel-api bootstrap-admin --email "admin@example.com" --password "new_password"
-```
-
-## Re-deploy after update
-
-```bash
-cd /path/to/repo
-sudo bash ./deploy/install.sh
-```
-
-## Smoke checks
-
-```bash
-sudo bash ./deploy/verify.sh
-```
-
-## Rollback (basic)
-
-1. Restore previous `/opt/proxy-panel/current` snapshot from backup.
-2. Restart services:
-
-```bash
-systemctl restart proxy-panel-api proxy-panel-web hysteria-server mtproxy caddy
-```
-
-## Backup recommendations
-
-- PostgreSQL database dump (`pg_dump`)
-- `/opt/proxy-panel/.env.generated`
-- `/etc/proxy-panel/`
-- `/root/proxy-panel-initial-admin.txt`

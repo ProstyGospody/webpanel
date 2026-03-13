@@ -25,7 +25,6 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 APP_ROOT="/opt/proxy-panel"
 SRC_DIR="${APP_ROOT}/current"
 BIN_DIR="${APP_ROOT}/bin"
-STATE_DIR="${APP_ROOT}/state"
 ENV_FILE="${APP_ROOT}/.env.generated"
 CREDENTIALS_FILE="/root/proxy-panel-initial-admin.txt"
 
@@ -102,7 +101,6 @@ install_system_packages() {
   apt-get install -y \
     ca-certificates \
     curl \
-    wget \
     git \
     jq \
     rsync \
@@ -114,17 +112,18 @@ install_system_packages() {
     pkg-config \
     libssl-dev \
     zlib1g-dev \
-    postgresql \
-    postgresql-contrib \
     prometheus \
     prometheus-node-exporter \
     caddy \
-    sudo
+    sudo \
+    nodejs \
+    npm
 }
 
 install_go() {
   local min_go="1.24.0"
   local go_version="${GO_VERSION:-1.24.3}"
+  local go_url="https://dl.google.com/go/go${go_version}.linux-amd64.tar.gz"
 
   if command -v go >/dev/null 2>&1; then
     local current_go
@@ -136,7 +135,7 @@ install_go() {
   fi
 
   action "Installing Go ${go_version}"
-  curl -fsSL "https://go.dev/dl/go${go_version}.linux-amd64.tar.gz" -o /tmp/go.tgz
+  curl -fsSL "${go_url}" -o /tmp/go.tgz
   rm -rf /usr/local/go
   tar -C /usr/local -xzf /tmp/go.tgz
   ln -sf /usr/local/go/bin/go /usr/local/bin/go
@@ -144,51 +143,46 @@ install_go() {
 }
 
 install_node() {
-  local required_major=20
-  local install_needed=1
-
-  if command -v node >/dev/null 2>&1; then
-    local current_major
-    current_major="$(node -v | sed 's/^v//' | cut -d. -f1)"
-    if [[ "${current_major}" -ge "${required_major}" ]]; then
-      install_needed=0
-      action "Node.js $(node -v) already installed"
-    fi
+  local required_major=18
+  if ! command -v node >/dev/null 2>&1; then
+    fatal "node was not installed by apt on Ubuntu 24.04"
   fi
-
-  if [[ "${install_needed}" -eq 1 ]]; then
-    action "Installing Node.js 22"
-    curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-    apt-get install -y nodejs
+  local current_major
+  current_major="$(node -v | sed 's/^v//' | cut -d. -f1)"
+  if [[ "${current_major}" -lt "${required_major}" ]]; then
+    fatal "Node.js >= ${required_major} is required, found $(node -v)"
   fi
+  action "Node.js $(node -v) already installed"
 }
 
 install_hysteria() {
-  if command -v hysteria >/dev/null 2>&1; then
+  local version="${HYSTERIA_VERSION:-2.6.5}"
+  local url="https://github.com/apernet/hysteria/releases/download/app%2Fv${version}/hysteria-linux-amd64"
+
+  if [[ -x /usr/local/bin/hysteria ]]; then
     action "Hysteria already installed"
     return
   fi
 
-  action "Installing Hysteria 2"
-  curl -fsSL https://get.hy2.sh/ | bash
+  action "Installing Hysteria ${version}"
+  curl -fsSL "${url}" -o /tmp/hysteria-linux-amd64
+  install -m 0755 /tmp/hysteria-linux-amd64 /usr/local/bin/hysteria
   command -v hysteria >/dev/null 2>&1 || fatal "Hysteria installation failed"
 }
 
 install_mtproxy() {
-  if [[ -x /usr/local/bin/mtproto-proxy ]]; then
-    action "MTProxy binary already installed"
-    return
-  fi
-
-  action "Installing MTProxy from official source"
+  local ref="${MTPROXY_GIT_REF:-master}"
   local src_dir="/usr/local/src/MTProxy"
+
   if [[ ! -d "${src_dir}" ]]; then
+    action "Cloning MTProxy source (${ref})"
     git clone https://github.com/TelegramMessenger/MTProxy.git "${src_dir}"
   else
+    action "Updating MTProxy source (${ref})"
     git -C "${src_dir}" fetch --all --tags
-    git -C "${src_dir}" pull --ff-only
   fi
 
+  git -C "${src_dir}" checkout --force "${ref}"
   make -C "${src_dir}"
   install -m 0755 "${src_dir}/objs/bin/mtproto-proxy" /usr/local/bin/mtproto-proxy
 }
@@ -226,24 +220,30 @@ apply_env_overrides() {
 prepare_directories() {
   action "Preparing directories"
 
-  mkdir -p "${APP_ROOT}" "${BIN_DIR}" "${STATE_DIR}" "${ETC_ROOT}" "${HY2_DIR}" "${MTPROXY_DIR}"
-  mkdir -p /var/lib/proxy-panel /var/log/proxy-panel /var/lib/hysteria /var/lib/mtproxy
+  mkdir -p "${APP_ROOT}" "${BIN_DIR}" "${ETC_ROOT}" "${HY2_DIR}" "${MTPROXY_DIR}"
+  mkdir -p /var/lib/proxy-panel /var/lib/proxy-panel/backups /var/log/proxy-panel/audit /var/lib/hysteria /var/lib/mtproxy /run/proxy-panel /run/proxy-panel/locks /run/proxy-panel/tmp
 
-  chown -R proxy-panel:proxy-panel /var/lib/proxy-panel /var/log/proxy-panel
+  chown -R proxy-panel:proxy-panel /var/lib/proxy-panel /var/log/proxy-panel /run/proxy-panel
   chown -R hysteria:hysteria /var/lib/hysteria
   chown -R mtproxy:mtproxy /var/lib/mtproxy
 
-  chown root:proxy-panel "${HY2_DIR}"
-  chmod 770 "${HY2_DIR}"
-  chown root:proxy-panel "${MTPROXY_DIR}"
-  chmod 770 "${MTPROXY_DIR}"
+  chmod 0750 /run/proxy-panel /run/proxy-panel/locks /run/proxy-panel/tmp
+
+  chown root:proxy-panel "${HY2_DIR}" "${MTPROXY_DIR}"
+  chmod 2770 "${HY2_DIR}" "${MTPROXY_DIR}"
 }
 
 sync_source_tree() {
   action "Syncing repository to ${SRC_DIR}"
   mkdir -p "${SRC_DIR}"
   rsync -a --delete --exclude '.git' "${REPO_ROOT}/" "${SRC_DIR}/"
-  chmod +x "${SRC_DIR}/scripts/run-mtproxy.sh" "${SRC_DIR}/scripts/smoke-check.sh" "${SRC_DIR}/scripts/sync-hysteria-cert.sh" "${SRC_DIR}/tests/smoke.sh" "${SRC_DIR}/deploy/install.sh" "${SRC_DIR}/deploy/ubuntu24-host-install.sh"
+  chmod +x \
+    "${SRC_DIR}/scripts/run-mtproxy.sh" \
+    "${SRC_DIR}/scripts/update-mtproxy-assets.sh" \
+    "${SRC_DIR}/scripts/smoke-check.sh" \
+    "${SRC_DIR}/scripts/sync-hysteria-cert.sh" \
+    "${SRC_DIR}/deploy/install.sh" \
+    "${SRC_DIR}/deploy/ubuntu24-host-install.sh"
 }
 
 load_existing_values() {
@@ -366,27 +366,21 @@ collect_configuration() {
   prompt_value INITIAL_ADMIN_EMAIL "Initial admin email" "${INITIAL_ADMIN_EMAIL:-admin@${PANEL_PUBLIC_HOST}}"
   prompt_password INITIAL_ADMIN_PASSWORD "Initial admin password"
 
-  DB_NAME="${DB_NAME:-proxy_panel}"
-  DB_USER="${DB_USER:-proxy_panel}"
-
-  generate_if_empty DB_PASSWORD 24
   generate_if_empty INTERNAL_AUTH_TOKEN 32
   generate_if_empty HY2_STATS_SECRET 32
-  generate_if_empty MTPROXY_STATS_TOKEN 32
   generate_if_empty SESSION_SECRET 32
-  generate_if_empty MTPROXY_FALLBACK_SECRET 16
+  generate_if_empty BOOTSTRAP_MTPROXY_SECRET 16
 
   APP_ENV="${APP_ENV:-production}"
-  PANEL_API_PORT="${PANEL_API_PORT:-18080}"
-  PANEL_WEB_PORT="${PANEL_WEB_PORT:-13000}"
   PANEL_API_LISTEN_ADDR="127.0.0.1:${PANEL_API_PORT}"
-
+  PANEL_API_INTERNAL_URL="http://127.0.0.1:${PANEL_API_PORT}"
   PANEL_PUBLIC_URL="https://${PANEL_PUBLIC_HOST}:${PANEL_PUBLIC_PORT}"
-  DATABASE_URL="postgres://${DB_USER}:${DB_PASSWORD}@127.0.0.1:5432/${DB_NAME}?sslmode=disable"
-  MIGRATIONS_DIR="${SRC_DIR}/migrations"
-
   HY2_STATS_URL="http://127.0.0.1:${HY2_STATS_PORT}"
   MTPROXY_STATS_URL="http://127.0.0.1:${MTPROXY_STATS_PORT}"
+
+  PANEL_STORAGE_ROOT="${PANEL_STORAGE_ROOT:-/var/lib/proxy-panel}"
+  PANEL_AUDIT_DIR="${PANEL_AUDIT_DIR:-/var/log/proxy-panel/audit}"
+  PANEL_RUNTIME_DIR="${PANEL_RUNTIME_DIR:-/run/proxy-panel}"
 
   PROMETHEUS_ENABLED="${PROMETHEUS_ENABLED:-true}"
   PROMETHEUS_URL="${PROMETHEUS_URL:-http://127.0.0.1:9090}"
@@ -411,14 +405,14 @@ collect_configuration() {
   AUTH_RATE_LIMIT_WINDOW="15m"
   AUTH_RATE_LIMIT_BURST="10"
 
-  MTPROXY_SECRETS_PATH="${MTPROXY_DIR}/secrets.list"
   MTPROXY_BINARY_PATH="/usr/local/bin/mtproto-proxy"
   HY2_BINARY_PATH="/usr/local/bin/hysteria"
   HY2_CONFIG_PATH="${HY2_DIR}/server.yaml"
   HY2_CERT_PATH="${HY2_DIR}/tls.crt"
   HY2_KEY_PATH="${HY2_DIR}/tls.key"
-
-  AUTO_MIGRATE="false"
+  MTPROXY_ACTIVE_SECRET_PATH="${MTPROXY_DIR}/active-secret.txt"
+  MTPROXY_PROXY_SECRET_PATH="/var/lib/mtproxy/proxy-secret"
+  MTPROXY_PROXY_CONFIG_PATH="/var/lib/mtproxy/proxy-multi.conf"
 }
 
 write_env_files() {
@@ -432,13 +426,11 @@ PANEL_WEB_PORT=${PANEL_WEB_PORT}
 PANEL_PUBLIC_HOST=${PANEL_PUBLIC_HOST}
 PANEL_PUBLIC_PORT=${PANEL_PUBLIC_PORT}
 PANEL_PUBLIC_URL=${PANEL_PUBLIC_URL}
+PANEL_API_INTERNAL_URL=${PANEL_API_INTERNAL_URL}
 PANEL_ACME_EMAIL=${PANEL_ACME_EMAIL}
-
-DATABASE_URL=${DATABASE_URL}
-DB_NAME=${DB_NAME}
-DB_USER=${DB_USER}
-DB_PASSWORD=${DB_PASSWORD}
-MIGRATIONS_DIR=${MIGRATIONS_DIR}
+PANEL_STORAGE_ROOT=${PANEL_STORAGE_ROOT}
+PANEL_AUDIT_DIR=${PANEL_AUDIT_DIR}
+PANEL_RUNTIME_DIR=${PANEL_RUNTIME_DIR}
 
 SESSION_COOKIE_NAME=${SESSION_COOKIE_NAME}
 CSRF_COOKIE_NAME=${CSRF_COOKIE_NAME}
@@ -453,7 +445,8 @@ INTERNAL_AUTH_TOKEN=${INTERNAL_AUTH_TOKEN}
 HY2_DOMAIN=${HY2_DOMAIN}
 HY2_PORT=${HY2_PORT}
 HY2_CONFIG_PATH=${HY2_CONFIG_PATH}
-HY2_STATS_PORT=${HY2_STATS_PORT}
+HY2_CERT_PATH=${HY2_CERT_PATH}
+HY2_KEY_PATH=${HY2_KEY_PATH}
 HY2_STATS_URL=${HY2_STATS_URL}
 HY2_STATS_SECRET=${HY2_STATS_SECRET}
 HY2_POLL_INTERVAL=${HY2_POLL_INTERVAL}
@@ -463,13 +456,14 @@ MTPROXY_TLS_DOMAIN=${MTPROXY_TLS_DOMAIN}
 MTPROXY_PORT=${MTPROXY_PORT}
 MTPROXY_STATS_PORT=${MTPROXY_STATS_PORT}
 MTPROXY_STATS_URL=${MTPROXY_STATS_URL}
-MTPROXY_STATS_TOKEN=${MTPROXY_STATS_TOKEN}
 MTPROXY_POLL_INTERVAL=${MTPROXY_POLL_INTERVAL}
+MTPROXY_ACTIVE_SECRET_PATH=${MTPROXY_ACTIVE_SECRET_PATH}
+MTPROXY_PROXY_SECRET_PATH=${MTPROXY_PROXY_SECRET_PATH}
+MTPROXY_PROXY_CONFIG_PATH=${MTPROXY_PROXY_CONFIG_PATH}
 
 PROMETHEUS_ENABLED=${PROMETHEUS_ENABLED}
 PROMETHEUS_URL=${PROMETHEUS_URL}
 PROMETHEUS_QUERY_TIMEOUT=${PROMETHEUS_QUERY_TIMEOUT}
-MTPROXY_FALLBACK_SECRET=${MTPROXY_FALLBACK_SECRET}
 
 SERVICE_POLL_INTERVAL=${SERVICE_POLL_INTERVAL}
 MANAGED_SERVICES=${MANAGED_SERVICES}
@@ -481,13 +475,8 @@ SERVICE_LOG_LINES_MAX=${SERVICE_LOG_LINES_MAX}
 AUTH_RATE_LIMIT_WINDOW=${AUTH_RATE_LIMIT_WINDOW}
 AUTH_RATE_LIMIT_BURST=${AUTH_RATE_LIMIT_BURST}
 
-MTPROXY_SECRETS_PATH=${MTPROXY_SECRETS_PATH}
 MTPROXY_BINARY_PATH=${MTPROXY_BINARY_PATH}
 HY2_BINARY_PATH=${HY2_BINARY_PATH}
-HY2_CERT_PATH=${HY2_CERT_PATH}
-HY2_KEY_PATH=${HY2_KEY_PATH}
-
-AUTO_MIGRATE=${AUTO_MIGRATE}
 EOF
 
   chown root:proxy-panel "${ENV_FILE}"
@@ -497,6 +486,7 @@ EOF
 INITIAL_ADMIN_EMAIL=${INITIAL_ADMIN_EMAIL}
 INITIAL_ADMIN_PASSWORD=${INITIAL_ADMIN_PASSWORD}
 PANEL_PUBLIC_URL=${PANEL_PUBLIC_URL}
+INITIAL_MTPROXY_SECRET=${BOOTSTRAP_MTPROXY_SECRET}
 EOF
   chmod 0600 "${CREDENTIALS_FILE}"
 
@@ -515,52 +505,6 @@ EOF
 [Service]
 EnvironmentFile=/etc/caddy/proxy-panel.env
 EOF
-}
-
-configure_postgres() {
-  action "Configuring PostgreSQL"
-  systemctl enable --now postgresql
-
-  runuser -u postgres -- psql -v ON_ERROR_STOP=1 <<SQL
-DO
-\$\$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${DB_USER}') THEN
-        CREATE ROLE ${DB_USER} LOGIN PASSWORD '${DB_PASSWORD}';
-    ELSE
-        ALTER ROLE ${DB_USER} WITH LOGIN PASSWORD '${DB_PASSWORD}';
-    END IF;
-END
-\$\$;
-
-SELECT 'CREATE DATABASE ${DB_NAME} OWNER ${DB_USER}'
-WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = '${DB_NAME}')
-\gexec
-
-GRANT ALL PRIVILEGES ON DATABASE ${DB_NAME} TO ${DB_USER};
-SQL
-}
-
-build_backend() {
-  action "Building Go backend"
-  export PATH="/usr/local/go/bin:${PATH}"
-  pushd "${SRC_DIR}" >/dev/null
-  GOFLAGS="-mod=mod" go mod tidy
-  GOFLAGS="-mod=mod" go mod download
-  GOFLAGS="-mod=mod" go build -ldflags "-s -w" -o "${BIN_DIR}/panel-api" ./cmd/panel-api
-  popd >/dev/null
-  chown root:proxy-panel "${BIN_DIR}/panel-api"
-  chmod 0750 "${BIN_DIR}/panel-api"
-}
-
-build_frontend() {
-  action "Building Next.js frontend"
-  pushd "${SRC_DIR}/web" >/dev/null
-  npm ci --no-audit --no-fund
-  npm run build
-  popd >/dev/null
-
-  chown -R proxy-panel:proxy-panel "${SRC_DIR}/web"
 }
 
 render_runtime_configs() {
@@ -607,18 +551,40 @@ MTPROXY_PORT=${MTPROXY_PORT}
 MTPROXY_STATS_PORT=${MTPROXY_STATS_PORT}
 MTPROXY_PUBLIC_HOST=${MTPROXY_PUBLIC_HOST}
 MTPROXY_BINARY_PATH=${MTPROXY_BINARY_PATH}
-MTPROXY_SECRETS_FILE=${MTPROXY_SECRETS_PATH}
-MTPROXY_FALLBACK_SECRET=${MTPROXY_FALLBACK_SECRET}
-MTPROXY_WORKDIR=/var/lib/mtproxy
+MTPROXY_ACTIVE_SECRET_FILE=${MTPROXY_ACTIVE_SECRET_PATH}
+MTPROXY_PROXY_SECRET_PATH=${MTPROXY_PROXY_SECRET_PATH}
+MTPROXY_PROXY_CONFIG_PATH=${MTPROXY_PROXY_CONFIG_PATH}
 MTPROXY_ENABLE_HTTP_STATS=true
 EOF
+  chown root:proxy-panel "${MTPROXY_DIR}/runtime.env"
+  chmod 0660 "${MTPROXY_DIR}/runtime.env"
+}
 
-  if [[ ! -f "${MTPROXY_SECRETS_PATH}" || ! -s "${MTPROXY_SECRETS_PATH}" ]]; then
-    echo "${MTPROXY_FALLBACK_SECRET}" > "${MTPROXY_SECRETS_PATH}"
-  fi
+install_mtproxy_assets() {
+  action "Refreshing MTProxy Telegram assets"
+  bash "${SRC_DIR}/scripts/update-mtproxy-assets.sh" "${ENV_FILE}"
+  chown mtproxy:mtproxy "${MTPROXY_PROXY_SECRET_PATH}" "${MTPROXY_PROXY_CONFIG_PATH}"
+  chmod 0640 "${MTPROXY_PROXY_SECRET_PATH}" "${MTPROXY_PROXY_CONFIG_PATH}"
+}
 
-  chown root:proxy-panel "${MTPROXY_DIR}/runtime.env" "${MTPROXY_SECRETS_PATH}"
-  chmod 0660 "${MTPROXY_DIR}/runtime.env" "${MTPROXY_SECRETS_PATH}"
+build_backend() {
+  action "Building Go backend"
+  export PATH="/usr/local/go/bin:${PATH}"
+  pushd "${SRC_DIR}" >/dev/null
+  GOFLAGS="-mod=mod" go mod download
+  GOFLAGS="-mod=mod" go build -ldflags "-s -w" -o "${BIN_DIR}/panel-api" ./cmd/panel-api
+  popd >/dev/null
+  chown root:proxy-panel "${BIN_DIR}/panel-api"
+  chmod 0750 "${BIN_DIR}/panel-api"
+}
+
+build_frontend() {
+  action "Building Next.js frontend"
+  pushd "${SRC_DIR}/web" >/dev/null
+  npm ci --no-audit --no-fund
+  npm run build
+  popd >/dev/null
+  chown -R proxy-panel:proxy-panel "${SRC_DIR}/web"
 }
 
 wait_for_hysteria_certificate() {
@@ -687,24 +653,22 @@ install_systemd_units() {
   systemctl daemon-reload
 }
 
-run_migrations() {
-  action "Running database migrations"
-  set -a
-  # shellcheck disable=SC1090
-  source "${ENV_FILE}"
-  set +a
-  "${BIN_DIR}/panel-api" migrate
-}
-
 bootstrap_admin() {
   action "Bootstrapping admin account"
   set -a
   # shellcheck disable=SC1090
   source "${ENV_FILE}"
   set +a
+  runuser -u proxy-panel -- "${BIN_DIR}/panel-api" bootstrap-admin --email "${INITIAL_ADMIN_EMAIL}" --password "${INITIAL_ADMIN_PASSWORD}"
+}
 
-  "${BIN_DIR}/panel-api" bootstrap-admin --email "${INITIAL_ADMIN_EMAIL}" --password "${INITIAL_ADMIN_PASSWORD}"
-  touch "${STATE_DIR}/admin_bootstrapped"
+bootstrap_mtproxy() {
+  action "Bootstrapping MTProxy secret"
+  set -a
+  # shellcheck disable=SC1090
+  source "${ENV_FILE}"
+  set +a
+  runuser -u proxy-panel -- "${BIN_DIR}/panel-api" bootstrap-mtproxy --secret "${BOOTSTRAP_MTPROXY_SECRET}"
 }
 
 start_services() {
@@ -725,7 +689,6 @@ start_services() {
   systemctl restart caddy.service
 
   wait_for_hysteria_certificate
-
   systemctl restart hysteria-server.service
 }
 
@@ -743,6 +706,9 @@ Panel URL: ${PANEL_PUBLIC_URL}
 Initial admin email: ${INITIAL_ADMIN_EMAIL}
 Initial admin password file: ${CREDENTIALS_FILE}
 Generated env file: ${ENV_FILE}
+Storage root: ${PANEL_STORAGE_ROOT}
+Audit dir: ${PANEL_AUDIT_DIR}
+Active MTProxy secret path: ${MTPROXY_ACTIVE_SECRET_PATH}
 
 Systemd services:
   - proxy-panel-api.service
@@ -757,8 +723,8 @@ Useful commands:
   systemctl status proxy-panel-api proxy-panel-web hysteria-server mtproxy prometheus prometheus-node-exporter caddy
   journalctl -u proxy-panel-api -n 100 --no-pager
   bash ${SRC_DIR}/scripts/smoke-check.sh ${ENV_FILE}
+  bash ${SRC_DIR}/scripts/update-mtproxy-assets.sh ${ENV_FILE}
   sudo bash ${REPO_ROOT}/deploy/install.sh --reconfigure
-  sudo bash ${REPO_ROOT}/deploy/install.sh
 EOF
 }
 
@@ -782,20 +748,18 @@ main() {
   collect_configuration
   write_env_files
 
-  configure_postgres
   build_backend
   build_frontend
-
   render_runtime_configs
+  install_mtproxy_assets
   configure_prometheus
   install_sudoers_policy
   install_systemd_units
 
-  run_migrations
   bootstrap_admin
+  bootstrap_mtproxy
   start_services
   run_smoke_checks
-
   print_summary
 }
 

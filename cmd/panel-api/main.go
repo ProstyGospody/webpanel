@@ -41,13 +41,6 @@ func run() int {
 			return 1
 		}
 		return 0
-	case "migrate":
-		if err := app.RunMigrations(ctx, cfg); err != nil {
-			logger.Error("migration failed", "error", err)
-			return 1
-		}
-		logger.Info("migrations applied")
-		return 0
 	case "bootstrap-admin":
 		fs := flag.NewFlagSet("bootstrap-admin", flag.ContinueOnError)
 		email := fs.String("email", "", "initial admin email")
@@ -66,26 +59,36 @@ func run() int {
 		}
 		logger.Info("admin account prepared", "email", *email)
 		return 0
+	case "bootstrap-mtproxy":
+		fs := flag.NewFlagSet("bootstrap-mtproxy", flag.ContinueOnError)
+		secret := fs.String("secret", "", "initial mtproxy secret")
+		if err := fs.Parse(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to parse flags: %v\n", err)
+			return 1
+		}
+		if strings.TrimSpace(*secret) == "" {
+			fmt.Fprintln(os.Stderr, "secret is required")
+			return 1
+		}
+		if err := app.BootstrapMTProxySecret(ctx, cfg, *secret); err != nil {
+			logger.Error("bootstrap-mtproxy failed", "error", err)
+			return 1
+		}
+		logger.Info("mtproxy bootstrap secret prepared")
+		return 0
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", command)
-		fmt.Fprintln(os.Stderr, "available commands: serve, migrate, bootstrap-admin")
+		fmt.Fprintln(os.Stderr, "available commands: serve, bootstrap-admin, bootstrap-mtproxy")
 		return 1
 	}
 }
 
 func runServe(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
-	autoMigrate := strings.EqualFold(strings.TrimSpace(os.Getenv("AUTO_MIGRATE")), "true")
-	if autoMigrate {
-		if err := app.RunMigrations(ctx, cfg); err != nil {
-			return fmt.Errorf("auto migrate failed: %w", err)
-		}
-	}
-
-	repo, pool, err := app.OpenRepository(ctx, cfg)
+	repo, err := app.OpenRepository(ctx, cfg)
 	if err != nil {
 		return err
 	}
-	server := app.NewServer(cfg, logger, pool, repo)
+	server := app.NewServer(cfg, logger, repo)
 
 	sigCtx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -118,4 +121,3 @@ func newLogger(env string) *slog.Logger {
 	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level})
 	return slog.New(handler)
 }
-

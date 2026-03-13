@@ -9,7 +9,7 @@ Control plane stack:
 
 - `panel-api`: Go
 - `panel-web`: Next.js 15 + TypeScript + Tailwind
-- PostgreSQL
+- Local filesystem storage under `/var/lib/proxy-panel`
 - Caddy (TLS reverse proxy and certificate issuer)
 - Prometheus + node_exporter (live host metrics)
 - systemd
@@ -19,8 +19,6 @@ Control plane stack:
 ```bash
 sudo bash ./deploy/install.sh
 ```
-
-`deploy/install.sh` is the primary interactive installer. During deploy it asks for the public hosts, ports, ACME email, and initial admin credentials.
 
 Compatibility wrapper:
 
@@ -33,52 +31,32 @@ sudo bash ./deploy/ubuntu24-host-install.sh
 Installer phases:
 
 1. Ubuntu 24.04 + root checks
-2. Installs host dependencies (Go, Node, PostgreSQL, Caddy, Prometheus, node_exporter, build tools)
-3. Installs Hysteria 2 and MTProxy binaries
+2. Installs host dependencies (Go, Node.js/npm, build tools, Caddy, Prometheus, node_exporter)
+3. Installs Hysteria and builds MTProxy
 4. Creates system users: `proxy-panel`, `hysteria`, `mtproxy`
-5. Generates secrets and runtime env file
+5. Generates secrets and runtime env files
 6. Builds backend and frontend
-7. Applies DB migrations
-8. Bootstraps initial admin
-9. Installs systemd units + restricted sudoers policy
-10. Renders runtime configs
-11. Starts PostgreSQL, panel services, MTProxy, Prometheus, and Caddy
+7. Renders Hysteria and MTProxy runtime configuration
+8. Downloads MTProxy Telegram assets into local disk paths
+9. Bootstraps the initial admin and first MTProxy runtime secret into the file-backed store
+10. Installs systemd units + restricted sudoers policy
+11. Starts panel services, MTProxy, Prometheus, and Caddy
 12. Waits for Caddy to issue the Hysteria certificate and syncs it into `/etc/proxy-panel/hysteria/`
 13. Starts Hysteria and runs smoke checks
 
-## Deploy prompts
-
-The installer asks for these main values on first run:
-
-- `panel_public_host`
-- `panel_public_port`
-- `panel_acme_email`
-- `hy2_domain`
-- `hy2_port`
-- `mtproxy_public_host`
-- `mtproxy_port`
-- `mtproxy_tls_domain`
-- `initial_admin_email`
-- `initial_admin_password` (leave empty to auto-generate)
-
-To ask again with current values as defaults:
-
-```bash
-sudo bash ./deploy/install.sh --reconfigure
-```
-
-Everything else is generated or defaulted automatically by installer logic.
-
-## Generated files and secrets
+## Generated files and directories
 
 - Main generated env: `/opt/proxy-panel/.env.generated`
 - Initial admin credentials file: `/root/proxy-panel-initial-admin.txt`
+- File-backed control-plane state: `/var/lib/proxy-panel/state/`
+- Historical snapshots: `/var/lib/proxy-panel/snapshots/`
+- Backups: `/var/lib/proxy-panel/backups/`
+- Audit records: `/var/log/proxy-panel/audit/`
+- Runtime locks/temp: `/run/proxy-panel/`
 - Hysteria config: `/etc/proxy-panel/hysteria/server.yaml`
-- Hysteria synced TLS cert: `/etc/proxy-panel/hysteria/tls.crt`
-- Hysteria synced TLS key: `/etc/proxy-panel/hysteria/tls.key`
-- MTProxy runtime env: `/etc/proxy-panel/mtproxy/runtime.env`
-- MTProxy secrets runtime list: `/etc/proxy-panel/mtproxy/secrets.list`
-- Prometheus config: `/etc/prometheus/prometheus.yml`
+- Hysteria synced TLS cert/key: `/etc/proxy-panel/hysteria/tls.crt`, `/etc/proxy-panel/hysteria/tls.key`
+- MTProxy active secret file: `/etc/proxy-panel/mtproxy/active-secret.txt`
+- MTProxy Telegram assets: `/var/lib/mtproxy/proxy-secret`, `/var/lib/mtproxy/proxy-multi.conf`
 
 ## Service names
 
@@ -108,12 +86,13 @@ Or directly:
 sudo bash /opt/proxy-panel/current/scripts/smoke-check.sh /opt/proxy-panel/.env.generated
 ```
 
-## Update flow
+## MTProxy assets
 
-From updated repository checkout:
+MTProxy no longer fetches `getProxySecret`/`getProxyConfig` on service start. Asset refresh is an explicit maintenance step:
 
 ```bash
-sudo bash ./deploy/install.sh
+sudo bash /opt/proxy-panel/current/scripts/update-mtproxy-assets.sh /opt/proxy-panel/.env.generated
+sudo systemctl restart mtproxy
 ```
 
 ## Documentation
@@ -122,9 +101,9 @@ sudo bash ./deploy/install.sh
 - [Deploy details](./docs/deploy.md)
 - [Operations](./docs/operations.md)
 
-## Local Docker development (local machine only)
+## Local Docker development
 
-Run the full local stack (`panel-api` + `panel-web` + PostgreSQL) without installing Go/Node/PostgreSQL on your host:
+Run the control plane only (`panel-api` + `panel-web`) with file-backed state inside `docker/dev-data/`:
 
 ```bash
 docker compose up --build
@@ -139,11 +118,4 @@ Default dev admin (from `.env.docker`):
 - email: `admin@example.com`
 - password: `admin12345`
 
-Useful commands:
 
-```bash
-docker compose down
-docker compose down -v   # reset DB volume
-```
-
-You can change any dev settings in `.env.docker`.

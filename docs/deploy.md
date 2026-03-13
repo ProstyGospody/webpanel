@@ -18,8 +18,6 @@
 sudo bash ./deploy/install.sh
 ```
 
-The installer is interactive and asks for the public hosts, ports, ACME email, and bootstrap admin credentials during deploy.
-
 Compatibility wrapper:
 
 ```bash
@@ -28,34 +26,27 @@ sudo bash ./deploy/ubuntu24-host-install.sh
 
 ## Reconfigure
 
-Ask the same questions again with current values prefilled:
-
 ```bash
 sudo bash ./deploy/install.sh --reconfigure
 ```
 
-## Configuration flow
+## Install phases
 
-Main prompts:
-
-- `panel_public_host`
-- `panel_public_port` (default: `8443`)
-- `panel_acme_email`
-- `hy2_domain`
-- `hy2_port` (default: `443`)
-- `mtproxy_public_host`
-- `mtproxy_port` (default: `443`)
-- `mtproxy_tls_domain`
-- `initial_admin_email`
-- `initial_admin_password` (blank => generated)
-
-Everything else is generated automatically by installer logic.
-
-## TLS flow
-
-- Caddy issues ACME certificates for the panel domain and the Hysteria domain.
-- After Caddy has issued the Hysteria certificate, `scripts/sync-hysteria-cert.sh` copies the resulting `cert/key` into `/etc/proxy-panel/hysteria/`.
-- Hysteria runs in plain `tls cert/key` mode and no longer performs ACME on its own.
+1. Ubuntu 24.04 + root checks
+2. Package installation (system packages from Ubuntu repositories)
+3. Go install from pinned tarball + Hysteria install from pinned release asset
+4. MTProxy build from source
+5. User/group and directory setup
+6. Source sync to `/opt/proxy-panel/current`
+7. Interactive configuration + env generation
+8. Backend/frontend build
+9. Runtime config rendering
+10. MTProxy asset refresh to local disk
+11. File-store bootstrap (admin + initial MTProxy secret)
+12. Sudoers + systemd install
+13. Start panel services, MTProxy, Prometheus, and Caddy
+14. Wait for and sync the Hysteria certificate from Caddy
+15. Start Hysteria + smoke checks
 
 ## Generated runtime env
 
@@ -73,22 +64,13 @@ Credentials output:
 sudo bash ./deploy/verify.sh
 ```
 
-This checks service status, API health/readiness, and admin login flow.
+This checks service status, API health/readiness, MTProxy listener/stats, and admin login flow.
 
-## Install phases
+## MTProxy asset refresh
 
-1. Ubuntu 24.04 + root checks
-2. Package installation (host/system packages)
-3. Go/Node install
-4. Hysteria + MTProxy install
-5. User/group and directory setup
-6. Source sync to `/opt/proxy-panel/current`
-7. Interactive configuration + env generation
-8. PostgreSQL setup
-9. Backend/frontend build
-10. Runtime config rendering
-11. Sudoers + systemd install
-12. DB migrations + admin bootstrap
-13. Start panel services, MTProxy, Prometheus, and Caddy
-14. Wait for and sync the Hysteria certificate from Caddy
-15. Start Hysteria + smoke checks
+```bash
+sudo bash /opt/proxy-panel/current/scripts/update-mtproxy-assets.sh /opt/proxy-panel/.env.generated
+sudo systemctl restart mtproxy
+```
+
+

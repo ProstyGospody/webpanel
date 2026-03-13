@@ -5,7 +5,7 @@ import "time"
 type Admin struct {
 	ID           string    `json:"id"`
 	Email        string    `json:"email"`
-	PasswordHash string    `json:"-"`
+	PasswordHash string    `json:"password_hash"`
 	IsActive     bool      `json:"is_active"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
@@ -14,7 +14,7 @@ type Admin struct {
 type Session struct {
 	ID               string    `json:"id"`
 	AdminID          string    `json:"admin_id"`
-	SessionTokenHash string    `json:"-"`
+	SessionTokenHash string    `json:"session_token_hash"`
 	ExpiresAt        time.Time `json:"expires_at"`
 	CreatedAt        time.Time `json:"created_at"`
 	LastSeenAt       time.Time `json:"last_seen_at"`

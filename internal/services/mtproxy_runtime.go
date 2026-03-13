@@ -4,12 +4,14 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 
+	"proxy-panel/internal/fsutil"
 	"proxy-panel/internal/repository"
 )
 
@@ -23,12 +25,7 @@ type MTProxyRuntimeManager struct {
 }
 
 func NewMTProxyRuntimeManager(repo *repository.Repository, filePath string, serviceName string, serviceMgr *ServiceManager) *MTProxyRuntimeManager {
-	return &MTProxyRuntimeManager{
-		repo:        repo,
-		filePath:    filePath,
-		serviceName: serviceName,
-		serviceMgr:  serviceMgr,
-	}
+	return &MTProxyRuntimeManager{repo: repo, filePath: filePath, serviceName: serviceName, serviceMgr: serviceMgr}
 }
 
 func (m *MTProxyRuntimeManager) Sync(ctx context.Context, forceRestart bool) error {
@@ -44,13 +41,23 @@ func (m *MTProxyRuntimeManager) Sync(ctx context.Context, forceRestart bool) err
 	if len(secrets) > 0 {
 		primarySecret = strings.TrimSpace(secrets[0].Secret)
 	}
-	content := ""
-	if primarySecret != "" {
-		content = primarySecret + "\n"
+	if primarySecret == "" {
+		if !forceRestart {
+			return nil
+		}
+		if err := os.Remove(m.filePath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("remove runtime secret file: %w", err)
+		}
+		m.lastChecksum = ""
+		if m.serviceMgr != nil && m.serviceName != "" {
+			return m.serviceMgr.Restart(ctx, m.serviceName)
+		}
+		return nil
 	}
 
-	checksum := sha256.Sum256([]byte(content))
-	hash := hex.EncodeToString(checksum[:])
+	content := primarySecret + "\n"
+	sum := sha256.Sum256([]byte(content))
+	hash := hex.EncodeToString(sum[:])
 	changed := hash != m.lastChecksum
 	if !changed && !forceRestart {
 		return nil
@@ -59,16 +66,12 @@ func (m *MTProxyRuntimeManager) Sync(ctx context.Context, forceRestart bool) err
 	if err := os.MkdirAll(filepath.Dir(m.filePath), 0o750); err != nil {
 		return fmt.Errorf("create runtime directory: %w", err)
 	}
-	tmpPath := m.filePath + ".tmp"
-	if err := os.WriteFile(tmpPath, []byte(content), 0o640); err != nil {
-		return fmt.Errorf("write runtime tmp file: %w", err)
-	}
-	if err := os.Rename(tmpPath, m.filePath); err != nil {
-		return fmt.Errorf("replace runtime file: %w", err)
+	if err := fsutil.WriteFileAtomic(m.filePath, []byte(content), 0o640); err != nil {
+		return fmt.Errorf("write runtime secret file: %w", err)
 	}
 
 	m.lastChecksum = hash
-	if changed || forceRestart {
+	if m.serviceMgr != nil && m.serviceName != "" && (changed || forceRestart) {
 		if err := m.serviceMgr.Restart(ctx, m.serviceName); err != nil {
 			return err
 		}

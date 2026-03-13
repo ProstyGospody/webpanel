@@ -7,6 +7,8 @@ Wants=network-online.target
 Type=simple
 User=mtproxy
 Group=mtproxy
+SupplementaryGroups=proxy-panel
+StateDirectory=mtproxy
 EnvironmentFile=/opt/proxy-panel/.env.generated
 EnvironmentFile=-/etc/proxy-panel/mtproxy/runtime.env
 WorkingDirectory=/var/lib/mtproxy
@@ -23,4 +25,3 @@ ReadWritePaths=/var/lib/mtproxy /etc/proxy-panel/mtproxy
 
 [Install]
 WantedBy=multi-user.target
-

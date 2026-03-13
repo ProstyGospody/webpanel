@@ -9,92 +9,102 @@ import (
 )
 
 type Config struct {
-	Env                 string
-	ListenAddr          string
-	PublicPanelURL      string
-	PanelPublicHost     string
-	PanelPublicPort     int
-	DatabaseURL         string
-	MigrationsDir       string
-	SessionCookieName   string
-	CSRFCookieName      string
-	CSRFHeaderName      string
-	SessionTTL          time.Duration
-	SecureCookies       bool
-	InternalAuthToken   string
-	Hy2Domain           string
-	Hy2Port             int
-	Hy2ConfigPath       string
-	Hy2StatsURL         string
-	Hy2StatsSecret      string
-	Hy2PollInterval     time.Duration
-	MTProxyPublicHost   string
-	MTProxyPort         int
-	MTProxyTLSDomain    string
-	MTProxyStatsURL     string
-	MTProxyStatsToken   string
-	MTProxyPollInterval time.Duration
-	ServicePollInterval time.Duration
-	ManagedServices     []string
-	SystemctlPath       string
-	SudoPath            string
-	JournalctlPath      string
-	LogLinesMax         int
-	RateLimitWindow     time.Duration
-	RateLimitBurst      int
-	MTProxySecretsPath  string
-	MTProxyBinaryPath   string
-	Hy2BinaryPath       string
-	PrometheusEnabled   bool
-	PrometheusURL       string
-	PrometheusQueryTTL  time.Duration
+	Env                     string
+	ListenAddr              string
+	PublicPanelURL          string
+	PanelPublicHost         string
+	PanelPublicPort         int
+	StorageRoot             string
+	AuditDir                string
+	RuntimeDir              string
+	SessionCookieName       string
+	CSRFCookieName          string
+	CSRFHeaderName          string
+	SessionTTL              time.Duration
+	SecureCookies           bool
+	InternalAuthToken       string
+	Hy2Domain               string
+	Hy2Port                 int
+	Hy2ConfigPath           string
+	Hy2StatsURL             string
+	Hy2StatsSecret          string
+	Hy2PollInterval         time.Duration
+	MTProxyPublicHost       string
+	MTProxyPort             int
+	MTProxyTLSDomain        string
+	MTProxyStatsURL         string
+	MTProxyPollInterval     time.Duration
+	MTProxyActiveSecretPath string
+	MTProxyProxySecretPath  string
+	MTProxyProxyConfigPath  string
+	ServicePollInterval     time.Duration
+	ManagedServices         []string
+	SystemctlPath           string
+	SudoPath                string
+	JournalctlPath          string
+	LogLinesMax             int
+	RateLimitWindow         time.Duration
+	RateLimitBurst          int
+	MTProxyBinaryPath       string
+	Hy2BinaryPath           string
+	PrometheusEnabled       bool
+	PrometheusURL           string
+	PrometheusQueryTTL      time.Duration
 }
 
 func Load() (Config, error) {
 	cfg := Config{
-		Env:                 getEnv("APP_ENV", "production"),
-		ListenAddr:          getEnv("PANEL_API_LISTEN_ADDR", "127.0.0.1:18080"),
-		PublicPanelURL:      strings.TrimRight(getEnv("PANEL_PUBLIC_URL", ""), "/"),
-		PanelPublicHost:     getEnv("PANEL_PUBLIC_HOST", "127.0.0.1"),
-		PanelPublicPort:     getEnvInt("PANEL_PUBLIC_PORT", 8443),
-		DatabaseURL:         getEnv("DATABASE_URL", ""),
-		MigrationsDir:       getEnv("MIGRATIONS_DIR", "./migrations"),
-		SessionCookieName:   getEnv("SESSION_COOKIE_NAME", "pp_session"),
-		CSRFCookieName:      getEnv("CSRF_COOKIE_NAME", "pp_csrf"),
-		CSRFHeaderName:      getEnv("CSRF_HEADER_NAME", "X-CSRF-Token"),
-		SessionTTL:          getEnvDuration("SESSION_TTL", 24*time.Hour),
-		SecureCookies:       getEnvBool("SECURE_COOKIES", true),
-		InternalAuthToken:   getEnv("INTERNAL_AUTH_TOKEN", ""),
-		Hy2Domain:           getEnv("HY2_DOMAIN", ""),
-		Hy2Port:             getEnvInt("HY2_PORT", 443),
-		Hy2ConfigPath:       getEnv("HY2_CONFIG_PATH", "/etc/proxy-panel/hysteria/server.yaml"),
-		Hy2StatsURL:         strings.TrimRight(getEnv("HY2_STATS_URL", "http://127.0.0.1:8999"), "/"),
-		Hy2StatsSecret:      getEnv("HY2_STATS_SECRET", ""),
-		Hy2PollInterval:     getEnvDuration("HY2_POLL_INTERVAL", 10*time.Second),
-		MTProxyPublicHost:   getEnv("MTPROXY_PUBLIC_HOST", ""),
-		MTProxyPort:         getEnvInt("MTPROXY_PORT", 443),
-		MTProxyTLSDomain:    getEnv("MTPROXY_TLS_DOMAIN", ""),
-		MTProxyStatsURL:     strings.TrimRight(getEnv("MTPROXY_STATS_URL", "http://127.0.0.1:3129"), "/"),
-		MTProxyStatsToken:   getEnv("MTPROXY_STATS_TOKEN", ""),
-		MTProxyPollInterval: getEnvDuration("MTPROXY_POLL_INTERVAL", 10*time.Second),
-		ServicePollInterval: getEnvDuration("SERVICE_POLL_INTERVAL", 30*time.Second),
-		ManagedServices:     parseCSV(getEnv("MANAGED_SERVICES", "proxy-panel-api,proxy-panel-web,hysteria-server,mtproxy")),
-		SystemctlPath:       getEnv("SYSTEMCTL_PATH", "/usr/bin/systemctl"),
-		SudoPath:            getEnv("SUDO_PATH", "/usr/bin/sudo"),
-		JournalctlPath:      getEnv("JOURNALCTL_PATH", "/usr/bin/journalctl"),
-		LogLinesMax:         getEnvInt("SERVICE_LOG_LINES_MAX", 200),
-		RateLimitWindow:     getEnvDuration("AUTH_RATE_LIMIT_WINDOW", 15*time.Minute),
-		RateLimitBurst:      getEnvInt("AUTH_RATE_LIMIT_BURST", 10),
-		MTProxySecretsPath:  getEnv("MTPROXY_SECRETS_PATH", "/etc/proxy-panel/mtproxy/secrets.list"),
-		MTProxyBinaryPath:   getEnv("MTPROXY_BINARY_PATH", "/usr/local/bin/mtproto-proxy"),
-		Hy2BinaryPath:       getEnv("HY2_BINARY_PATH", "/usr/local/bin/hysteria"),
-		PrometheusEnabled:   getEnvBool("PROMETHEUS_ENABLED", false),
-		PrometheusURL:       strings.TrimRight(getEnv("PROMETHEUS_URL", "http://127.0.0.1:9090"), "/"),
-		PrometheusQueryTTL:  getEnvDuration("PROMETHEUS_QUERY_TIMEOUT", 2*time.Second),
+		Env:                     getEnv("APP_ENV", "production"),
+		ListenAddr:              getEnv("PANEL_API_LISTEN_ADDR", "127.0.0.1:18080"),
+		PublicPanelURL:          strings.TrimRight(getEnv("PANEL_PUBLIC_URL", ""), "/"),
+		PanelPublicHost:         getEnv("PANEL_PUBLIC_HOST", "127.0.0.1"),
+		PanelPublicPort:         getEnvInt("PANEL_PUBLIC_PORT", 8443),
+		StorageRoot:             getEnv("PANEL_STORAGE_ROOT", "/var/lib/proxy-panel"),
+		AuditDir:                getEnv("PANEL_AUDIT_DIR", "/var/log/proxy-panel/audit"),
+		RuntimeDir:              getEnv("PANEL_RUNTIME_DIR", "/run/proxy-panel"),
+		SessionCookieName:       getEnv("SESSION_COOKIE_NAME", "pp_session"),
+		CSRFCookieName:          getEnv("CSRF_COOKIE_NAME", "pp_csrf"),
+		CSRFHeaderName:          getEnv("CSRF_HEADER_NAME", "X-CSRF-Token"),
+		SessionTTL:              getEnvDuration("SESSION_TTL", 24*time.Hour),
+		SecureCookies:           getEnvBool("SECURE_COOKIES", true),
+		InternalAuthToken:       getEnv("INTERNAL_AUTH_TOKEN", ""),
+		Hy2Domain:               getEnv("HY2_DOMAIN", ""),
+		Hy2Port:                 getEnvInt("HY2_PORT", 443),
+		Hy2ConfigPath:           getEnv("HY2_CONFIG_PATH", "/etc/proxy-panel/hysteria/server.yaml"),
+		Hy2StatsURL:             strings.TrimRight(getEnv("HY2_STATS_URL", "http://127.0.0.1:8999"), "/"),
+		Hy2StatsSecret:          getEnv("HY2_STATS_SECRET", ""),
+		Hy2PollInterval:         getEnvDuration("HY2_POLL_INTERVAL", 10*time.Second),
+		MTProxyPublicHost:       getEnv("MTPROXY_PUBLIC_HOST", ""),
+		MTProxyPort:             getEnvInt("MTPROXY_PORT", 443),
+		MTProxyTLSDomain:        getEnv("MTPROXY_TLS_DOMAIN", ""),
+		MTProxyStatsURL:         strings.TrimRight(getEnv("MTPROXY_STATS_URL", "http://127.0.0.1:3129"), "/"),
+		MTProxyPollInterval:     getEnvDuration("MTPROXY_POLL_INTERVAL", 10*time.Second),
+		MTProxyActiveSecretPath: getEnv("MTPROXY_ACTIVE_SECRET_PATH", "/etc/proxy-panel/mtproxy/active-secret.txt"),
+		MTProxyProxySecretPath:  getEnv("MTPROXY_PROXY_SECRET_PATH", "/var/lib/mtproxy/proxy-secret"),
+		MTProxyProxyConfigPath:  getEnv("MTPROXY_PROXY_CONFIG_PATH", "/var/lib/mtproxy/proxy-multi.conf"),
+		ServicePollInterval:     getEnvDuration("SERVICE_POLL_INTERVAL", 30*time.Second),
+		ManagedServices:         parseCSV(getEnv("MANAGED_SERVICES", "proxy-panel-api,proxy-panel-web,hysteria-server,mtproxy")),
+		SystemctlPath:           getEnv("SYSTEMCTL_PATH", "/usr/bin/systemctl"),
+		SudoPath:                getEnv("SUDO_PATH", "/usr/bin/sudo"),
+		JournalctlPath:          getEnv("JOURNALCTL_PATH", "/usr/bin/journalctl"),
+		LogLinesMax:             getEnvInt("SERVICE_LOG_LINES_MAX", 200),
+		RateLimitWindow:         getEnvDuration("AUTH_RATE_LIMIT_WINDOW", 15*time.Minute),
+		RateLimitBurst:          getEnvInt("AUTH_RATE_LIMIT_BURST", 10),
+		MTProxyBinaryPath:       getEnv("MTPROXY_BINARY_PATH", "/usr/local/bin/mtproto-proxy"),
+		Hy2BinaryPath:           getEnv("HY2_BINARY_PATH", "/usr/local/bin/hysteria"),
+		PrometheusEnabled:       getEnvBool("PROMETHEUS_ENABLED", false),
+		PrometheusURL:           strings.TrimRight(getEnv("PROMETHEUS_URL", "http://127.0.0.1:9090"), "/"),
+		PrometheusQueryTTL:      getEnvDuration("PROMETHEUS_QUERY_TIMEOUT", 2*time.Second),
 	}
 
-	if cfg.DatabaseURL == "" {
-		return Config{}, fmt.Errorf("DATABASE_URL is required")
+	if strings.TrimSpace(cfg.StorageRoot) == "" {
+		return Config{}, fmt.Errorf("PANEL_STORAGE_ROOT is required")
+	}
+	if strings.TrimSpace(cfg.AuditDir) == "" {
+		return Config{}, fmt.Errorf("PANEL_AUDIT_DIR is required")
+	}
+	if strings.TrimSpace(cfg.RuntimeDir) == "" {
+		return Config{}, fmt.Errorf("PANEL_RUNTIME_DIR is required")
 	}
 	if cfg.InternalAuthToken == "" {
 		return Config{}, fmt.Errorf("INTERNAL_AUTH_TOKEN is required")
@@ -104,8 +114,7 @@ func Load() (Config, error) {
 	}
 
 	if cfg.PublicPanelURL == "" {
-		scheme := "https"
-		cfg.PublicPanelURL = fmt.Sprintf("%s://%s:%d", scheme, cfg.PanelPublicHost, cfg.PanelPublicPort)
+		cfg.PublicPanelURL = fmt.Sprintf("https://%s:%d", cfg.PanelPublicHost, cfg.PanelPublicPort)
 	}
 
 	return cfg, nil

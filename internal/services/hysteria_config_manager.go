@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"proxy-panel/internal/fsutil"
+
 	"gopkg.in/yaml.v3"
 )
 
@@ -228,12 +230,8 @@ func (m *HysteriaConfigManager) Save(content string) (string, error) {
 	}
 
 	normalized := strings.TrimRight(content, "\n") + "\n"
-	tmpPath := m.Path + ".tmp"
-	if err := os.WriteFile(tmpPath, []byte(normalized), mode); err != nil {
-		return "", fmt.Errorf("write config temp file: %w", err)
-	}
-	if err := os.Rename(tmpPath, m.Path); err != nil {
-		return "", fmt.Errorf("replace config file: %w", err)
+	if err := fsutil.WriteFileAtomic(m.Path, []byte(normalized), mode); err != nil {
+		return "", fmt.Errorf("write config file: %w", err)
 	}
 	return backupPath, nil
 }
@@ -1935,5 +1933,7 @@ func buildServerSchema() *schemaNode {
 		},
 	}}
 }
+
+
 
 
