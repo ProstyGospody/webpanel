@@ -102,6 +102,9 @@ validate_configuration() {
   if [[ "${PANEL_PUBLIC_PORT}" == "${PANEL_API_PORT}" ]]; then
     fatal "PANEL_PUBLIC_PORT must not equal internal PANEL_API_PORT (${PANEL_API_PORT})"
   fi
+  if [[ "${PANEL_PUBLIC_PORT}" == "${MTPROXY_PORT}" ]]; then
+    fatal "PANEL_PUBLIC_PORT must not equal MTPROXY_PORT (${MTPROXY_PORT}); Caddy and MTProxy cannot both bind the same TCP port"
+  fi
 }
 
 require_root() {
@@ -583,7 +586,13 @@ EOF
   fi
 
 
-  if ! caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/tmp/proxy-panel-caddy-validate.log 2>&1; then
+  if ! PANEL_PUBLIC_HOST="${PANEL_PUBLIC_HOST}" \
+    PANEL_PUBLIC_PORT="${PANEL_PUBLIC_PORT}" \
+    PANEL_API_PORT="${PANEL_API_PORT}" \
+    PANEL_WEB_PORT="${PANEL_WEB_PORT}" \
+    PANEL_ACME_EMAIL="${PANEL_ACME_EMAIL}" \
+    HY2_DOMAIN="${HY2_DOMAIN}" \
+    caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/tmp/proxy-panel-caddy-validate.log 2>&1; then
     cat /tmp/proxy-panel-caddy-validate.log >&2 || true
     fatal "Caddy configuration validation failed; check PANEL_PUBLIC_HOST, PANEL_PUBLIC_PORT and HY2_DOMAIN"
   fi
