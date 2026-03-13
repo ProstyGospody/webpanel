@@ -19,6 +19,22 @@ SMOKE_ADMIN_PASSWORD="${SMOKE_ADMIN_PASSWORD:-${INITIAL_ADMIN_PASSWORD:-}}"
 CURL_CONNECT_TIMEOUT="${CURL_CONNECT_TIMEOUT:-3}"
 CURL_MAX_TIME="${CURL_MAX_TIME:-10}"
 
+wait_http_ok() {
+  local url="$1"
+  local label="$2"
+  local attempts="${3:-20}"
+  local delay="${4:-1}"
+  local i
+  for ((i = 1; i <= attempts; i++)); do
+    if curl -fsS --connect-timeout "${CURL_CONNECT_TIMEOUT}" --max-time "${CURL_MAX_TIME}" "$url" >/dev/null; then
+      return 0
+    fi
+    sleep "$delay"
+  done
+  echo "[error] ${label} did not become ready at ${url}" >&2
+  return 1
+}
+
 services=(proxy-panel-api proxy-panel-web hysteria-server mtproxy caddy)
 if [[ "${PROMETHEUS_ENABLED}" == "true" ]]; then
   services+=(prometheus prometheus-node-exporter)
@@ -54,6 +70,7 @@ echo "[ok] mtproxy listener and local stats check passed"
 
 if [[ "${PROMETHEUS_ENABLED}" == "true" ]]; then
   echo "[step] checking prometheus and node_exporter"
+  wait_http_ok "${PROMETHEUS_URL}/-/ready" "prometheus readiness" 30 1
   curl -fsS --connect-timeout "${CURL_CONNECT_TIMEOUT}" --max-time "${CURL_MAX_TIME}" "${PROMETHEUS_URL}/api/v1/query?query=up" >/dev/null
   curl -fsS --connect-timeout "${CURL_CONNECT_TIMEOUT}" --max-time "${CURL_MAX_TIME}" "http://127.0.0.1:9100/metrics" >/dev/null
   echo "[ok] prometheus and node_exporter checks passed"
