@@ -116,8 +116,6 @@ install_system_packages() {
     prometheus-node-exporter \
     caddy \
     sudo \
-    nodejs \
-    npm
 }
 
 install_go() {
@@ -144,15 +142,35 @@ install_go() {
 
 install_node() {
   local required_major=18
-  if ! command -v node >/dev/null 2>&1; then
-    fatal "node was not installed by apt on Ubuntu 24.04"
+
+  if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
+    local current_major
+    current_major="$(node -v | sed 's/^v//' | cut -d. -f1)"
+    if [[ "${current_major}" -lt "${required_major}" ]]; then
+      fatal "Node.js >= ${required_major} is required, found $(node -v)"
+    fi
+    action "Node.js $(node -v) and npm $(npm -v) already installed"
+    return
   fi
+
+  if command -v node >/dev/null 2>&1 && ! command -v npm >/dev/null 2>&1; then
+    fatal "node is already installed but npm is missing; remove the conflicting third-party Node.js package or install npm before rerunning"
+  fi
+
+  action "Installing Node.js and npm from Ubuntu 24.04 repositories"
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get install -y nodejs npm
+
+  command -v node >/dev/null 2>&1 || fatal "node installation failed"
+  command -v npm >/dev/null 2>&1 || fatal "npm installation failed"
+
   local current_major
   current_major="$(node -v | sed 's/^v//' | cut -d. -f1)"
   if [[ "${current_major}" -lt "${required_major}" ]]; then
-    fatal "Node.js >= ${required_major} is required, found $(node -v)"
+    fatal "Node.js >= ${required_major} is required after install, found $(node -v)"
   fi
-  action "Node.js $(node -v) already installed"
+
+  action "Installed Node.js $(node -v) and npm $(npm -v)"
 }
 
 install_hysteria() {
