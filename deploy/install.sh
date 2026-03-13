@@ -60,6 +60,50 @@ fatal() {
   exit 1
 }
 
+is_ipv4() {
+  local value="$1"
+  [[ "$value" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]
+}
+
+is_ipv6() {
+  local value="$1"
+  [[ "$value" == *:* ]]
+}
+
+is_ip_address() {
+  local value="$1"
+  is_ipv4 "$value" || is_ipv6 "$value"
+}
+
+is_valid_dns_name() {
+  local value="$1"
+  [[ "$value" =~ ^[A-Za-z0-9.-]+$ ]] && [[ "$value" == *.* ]]
+}
+
+validate_configuration() {
+  [[ -n "${PANEL_PUBLIC_HOST}" ]] || fatal "PANEL_PUBLIC_HOST is required"
+  [[ -n "${HY2_DOMAIN}" ]] || fatal "HY2_DOMAIN is required"
+
+  if [[ "${PANEL_PUBLIC_HOST}" == *://* || "${PANEL_PUBLIC_HOST}" == */* ]]; then
+    fatal "PANEL_PUBLIC_HOST must be a bare host name or IP, not a URL"
+  fi
+  if [[ "${HY2_DOMAIN}" == *://* || "${HY2_DOMAIN}" == */* ]]; then
+    fatal "HY2_DOMAIN must be a bare DNS name, not a URL"
+  fi
+  if is_ip_address "${HY2_DOMAIN}"; then
+    fatal "HY2_DOMAIN must be a DNS name; Caddy/ACME cannot provision the Hysteria certificate for a raw IP"
+  fi
+  if ! is_valid_dns_name "${HY2_DOMAIN}"; then
+    fatal "HY2_DOMAIN must be a valid DNS name"
+  fi
+  if [[ "${PANEL_PUBLIC_PORT}" == "${PANEL_WEB_PORT}" ]]; then
+    fatal "PANEL_PUBLIC_PORT must not equal internal PANEL_WEB_PORT (${PANEL_WEB_PORT})"
+  fi
+  if [[ "${PANEL_PUBLIC_PORT}" == "${PANEL_API_PORT}" ]]; then
+    fatal "PANEL_PUBLIC_PORT must not equal internal PANEL_API_PORT (${PANEL_API_PORT})"
+  fi
+}
+
 require_root() {
   if [[ "$(id -u)" -ne 0 ]]; then
     fatal "Run as root: sudo bash ./deploy/install.sh"
@@ -538,6 +582,12 @@ ${HY2_DOMAIN}:${PANEL_PUBLIC_PORT} {
 EOF
   fi
 
+
+  if ! caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/tmp/proxy-panel-caddy-validate.log 2>&1; then
+    cat /tmp/proxy-panel-caddy-validate.log >&2 || true
+    fatal "Caddy configuration validation failed; check PANEL_PUBLIC_HOST, PANEL_PUBLIC_PORT and HY2_DOMAIN"
+  fi
+
   cat > "${HY2_DIR}/server.yaml" <<EOF
 listen: :${HY2_PORT}
 
@@ -764,6 +814,7 @@ main() {
   load_existing_values
   apply_env_overrides
   collect_configuration
+  validate_configuration
   write_env_files
 
   build_backend
