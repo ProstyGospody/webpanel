@@ -1,9 +1,0 @@
-listen: :443
-
-tls:
-  cert: /tmp/dev-cert.pem
-  key: /tmp/dev-key.pem
-
-auth:
-  type: password
-  password: dev-secret

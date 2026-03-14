@@ -21,9 +21,5 @@ web/out/
 .DS_Store
 Thumbs.db
 
-
-# Local docker env
-.env.docker
-
 # Local Ansible deploy vars
 deploy/ansible/group_vars/all.yml
