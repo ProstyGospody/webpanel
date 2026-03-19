@@ -6,7 +6,7 @@ import { ReactNode, useEffect, useMemo, useState } from "react";
 
 import { APIError, apiFetch } from "@/lib/api";
 
-type SessionState = "loading" | "ready" | "unauthorized";
+type SessionState = "loading" | "ready";
 
 export function AuthGuard({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -29,9 +29,6 @@ export function AuthGuard({ children }: { children: ReactNode }) {
           setState("ready");
         }
       } catch (err) {
-        if (!disposed) {
-          setState("unauthorized");
-        }
         if (err instanceof APIError && err.status === 401) {
           router.replace("/login");
           return;
@@ -41,7 +38,6 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     }
 
     void verify();
-
     return () => {
       disposed = true;
     };

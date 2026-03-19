@@ -1,16 +1,6 @@
 "use client";
 
-import {
-  Alert,
-  Box,
-  Button,
-  Card,
-  CardContent,
-  CircularProgress,
-  Stack,
-  TextField,
-  Typography,
-} from "@mui/material";
+import { Alert, Box, Button, Card, CardContent, CircularProgress, Stack, TextField, Typography } from "@mui/material";
 import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
@@ -27,22 +17,15 @@ export default function LoginPage() {
 
   useEffect(() => {
     let disposed = false;
-
     async function bootstrap() {
       try {
         await apiFetch<{ id: string }>("/api/auth/me", { method: "GET" });
-        if (!disposed) {
-          router.replace("/");
-        }
+        if (!disposed) router.replace("/");
       } catch {
-        if (!disposed) {
-          setChecking(false);
-        }
+        if (!disposed) setChecking(false);
       }
     }
-
     void bootstrap();
-
     return () => {
       disposed = true;
     };
@@ -52,7 +35,6 @@ export default function LoginPage() {
     event.preventDefault();
     setError("");
     setBusy(true);
-
     try {
       await apiFetch<{ csrf_token: string }>("/api/auth/login", {
         method: "POST",
@@ -60,8 +42,7 @@ export default function LoginPage() {
       });
       router.replace("/");
     } catch (err) {
-      const message = err instanceof APIError ? err.message : "Login failed";
-      setError(message);
+      setError(err instanceof APIError ? err.message : "Login failed");
     } finally {
       setBusy(false);
     }
@@ -77,38 +58,17 @@ export default function LoginPage() {
   }
 
   return (
-    <Box
-      sx={{
-        minHeight: "100vh",
-        display: "grid",
-        placeItems: "center",
-        px: 2,
-      }}
-    >
+    <Box sx={{ minHeight: "100vh", display: "grid", placeItems: "center", px: 2 }}>
       <Card sx={{ width: "100%", maxWidth: 430 }}>
         <CardContent sx={{ p: 4 }}>
           <Stack spacing={3}>
             <Stack direction="row" spacing={1.5} alignItems="center">
-              <Box
-                sx={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 2,
-                  bgcolor: "primary.main",
-                  display: "grid",
-                  placeItems: "center",
-                  color: "primary.contrastText",
-                }}
-              >
+              <Box sx={{ width: 42, height: 42, borderRadius: 2, bgcolor: "primary.main", display: "grid", placeItems: "center", color: "primary.contrastText" }}>
                 <BoltRoundedIcon />
               </Box>
               <Box>
-                <Typography variant="h5" sx={{ fontWeight: 800 }}>
-                  Hysteria 2 Panel
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Sign in to manage clients and runtime config.
-                </Typography>
+                <Typography variant="h5" sx={{ fontWeight: 800 }}>Hysteria 2 Panel</Typography>
+                <Typography variant="body2" color="text.secondary">Sign in to manage clients and runtime config.</Typography>
               </Box>
             </Stack>
 
@@ -116,11 +76,9 @@ export default function LoginPage() {
 
             <Box component="form" onSubmit={submit}>
               <Stack spacing={2}>
-                <TextField label="Admin email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required fullWidth />
-                <TextField label="Password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required fullWidth />
-                <Button type="submit" variant="contained" size="large" disabled={busy}>
-                  {busy ? "Signing in..." : "Sign in"}
-                </Button>
+                <TextField label="Admin email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required fullWidth />
+                <TextField label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required fullWidth />
+                <Button type="submit" variant="contained" size="large" disabled={busy}>{busy ? "Signing in..." : "Sign in"}</Button>
               </Stack>
             </Box>
           </Stack>

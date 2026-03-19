@@ -6,29 +6,12 @@ import { ReactNode, useMemo } from "react";
 const baseTheme = createTheme({
   palette: {
     mode: "dark",
-    primary: {
-      main: "#2bd4ff",
-      light: "#80e4ff",
-      dark: "#0aa4cc",
-    },
-    secondary: {
-      main: "#ffb347",
-      light: "#ffd497",
-      dark: "#c97a17",
-    },
-    background: {
-      default: "#081022",
-      paper: "#111b30",
-    },
-    success: {
-      main: "#34d399",
-    },
-    warning: {
-      main: "#fbbf24",
-    },
-    error: {
-      main: "#f87171",
-    },
+    primary: { main: "#2bd4ff", light: "#80e4ff", dark: "#0aa4cc" },
+    secondary: { main: "#ffb347", light: "#ffd497", dark: "#c97a17" },
+    background: { default: "#081022", paper: "#111b30" },
+    success: { main: "#34d399" },
+    warning: { main: "#fbbf24" },
+    error: { main: "#f87171" },
   },
   typography: {
     fontFamily: "var(--font-panel), \"Segoe UI\", sans-serif",
@@ -39,9 +22,7 @@ const baseTheme = createTheme({
     h5: { fontSize: "1rem", fontWeight: 700 },
     button: { textTransform: "none", fontWeight: 700 },
   },
-  shape: {
-    borderRadius: 14,
-  },
+  shape: { borderRadius: 14 },
   components: {
     MuiCard: {
       styleOverrides: {
@@ -53,32 +34,14 @@ const baseTheme = createTheme({
         },
       },
     },
-    MuiPaper: {
-      styleOverrides: {
-        root: {
-          borderRadius: 14,
-        },
-      },
-    },
-    MuiButton: {
-      styleOverrides: {
-        root: {
-          borderRadius: 12,
-          paddingInline: 16,
-        },
-      },
-    },
-    MuiTextField: {
-      defaultProps: {
-        size: "small",
-      },
-    },
+    MuiPaper: { styleOverrides: { root: { borderRadius: 14 } } },
+    MuiButton: { styleOverrides: { root: { borderRadius: 12, paddingInline: 16 } } },
+    MuiTextField: { defaultProps: { size: "small" } },
   },
 });
 
 export function AppThemeProvider({ children }: { children: ReactNode }) {
   const theme = useMemo(() => baseTheme, []);
-
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />

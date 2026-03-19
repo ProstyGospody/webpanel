@@ -1,7 +1,4 @@
-export type ValidationError = {
-  field: string;
-  message: string;
-};
+export type ValidationError = { field: string; message: string };
 
 export type HysteriaUser = {
   id: string;
@@ -60,33 +57,14 @@ export type Hy2Settings = {
   listen: string;
   tlsEnabled: boolean;
   tlsMode: string;
-  tls?: {
-    cert?: string;
-    key?: string;
-  };
-  acme?: {
-    domains?: string[];
-    email?: string;
-  };
-  obfs?: {
-    type?: string;
-    salamander?: {
-      password?: string;
-    };
-  };
+  tls?: { cert?: string; key?: string };
+  acme?: { domains?: string[]; email?: string };
+  obfs?: { type?: string; salamander?: { password?: string } };
   masquerade?: {
     type?: string;
-    proxy?: {
-      url?: string;
-      rewriteHost?: boolean;
-      insecure?: boolean;
-    };
-    file?: {
-      dir?: string;
-    };
-    string?: {
-      content?: string;
-    };
+    proxy?: { url?: string; rewriteHost?: boolean; insecure?: boolean };
+    file?: { dir?: string };
+    string?: { content?: string };
   };
 };
 
@@ -94,11 +72,7 @@ export type HysteriaSettingsResponse = {
   path: string;
   raw_yaml: string;
   settings: Hy2Settings;
-  settings_validation: {
-    valid: boolean;
-    errors: string[];
-    warnings: string[];
-  };
+  settings_validation: { valid: boolean; errors: string[]; warnings: string[] };
   config_validation: Hy2ConfigValidation;
   raw_only_paths?: string[];
   access_mode: string;

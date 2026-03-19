@@ -31,14 +31,9 @@ import { usePathname, useRouter } from "next/navigation";
 
 import { apiFetch } from "@/lib/api";
 
-type NavItem = {
-  href: string;
-  label: string;
-  icon: ReactNode;
-};
+type NavItem = { href: string; label: string; icon: ReactNode };
 
 const drawerWidth = 280;
-
 const navItems: NavItem[] = [
   { href: "/", label: "Overview", icon: <DashboardRoundedIcon /> },
   { href: "/users", label: "Clients", icon: <GroupRoundedIcon /> },
@@ -48,11 +43,8 @@ const navItems: NavItem[] = [
 ];
 
 function resolveTitle(pathname: string): string {
-  if (pathname === "/") {
-    return "Hysteria 2 Operations";
-  }
-  const item = navItems.find((entry) => entry.href === pathname);
-  return item ? item.label : "Hysteria 2 Panel";
+  if (pathname === "/") return "Hysteria 2 Operations";
+  return navItems.find((x) => x.href === pathname)?.label || "Hysteria 2 Panel";
 }
 
 export function PanelShell({ children }: { children: ReactNode }) {
@@ -61,15 +53,12 @@ export function PanelShell({ children }: { children: ReactNode }) {
   const theme = useTheme();
   const desktop = useMediaQuery(theme.breakpoints.up("lg"));
   const [mobileOpen, setMobileOpen] = useState(false);
-
   const activeTitle = useMemo(() => resolveTitle(pathname), [pathname]);
 
   async function logout() {
     try {
-      await apiFetch<{ ok: boolean }>("/api/auth/logout", { method: "POST" });
-    } catch {
-      // no-op: redirect anyway
-    }
+      await apiFetch<{ ok: boolean }>("/api/auth/logout", { method: "POST", body: JSON.stringify({}) });
+    } catch {}
     router.replace("/login");
   }
 
@@ -81,12 +70,8 @@ export function PanelShell({ children }: { children: ReactNode }) {
             <BoltRoundedIcon fontSize="small" />
           </Avatar>
           <Box>
-            <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
-              Hysteria 2
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              Control Panel
-            </Typography>
+            <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>Hysteria 2</Typography>
+            <Typography variant="caption" color="text.secondary">Control Panel</Typography>
           </Box>
         </Stack>
       </Box>
@@ -119,9 +104,7 @@ export function PanelShell({ children }: { children: ReactNode }) {
       </List>
       <Box sx={{ p: 1.5 }}>
         <ListItemButton onClick={logout} sx={{ borderRadius: 2 }}>
-          <ListItemIcon sx={{ minWidth: 38 }}>
-            <LogoutRoundedIcon />
-          </ListItemIcon>
+          <ListItemIcon sx={{ minWidth: 38 }}><LogoutRoundedIcon /></ListItemIcon>
           <ListItemText primary="Sign out" />
         </ListItemButton>
       </Box>
@@ -143,17 +126,11 @@ export function PanelShell({ children }: { children: ReactNode }) {
       >
         <Toolbar sx={{ gap: 1 }}>
           {!desktop ? (
-            <IconButton color="inherit" edge="start" onClick={() => setMobileOpen(true)}>
-              <MenuRoundedIcon />
-            </IconButton>
+            <IconButton color="inherit" edge="start" onClick={() => setMobileOpen(true)}><MenuRoundedIcon /></IconButton>
           ) : null}
-          <Typography variant="h6" sx={{ fontWeight: 700, flexGrow: 1 }}>
-            {activeTitle}
-          </Typography>
+          <Typography variant="h6" sx={{ fontWeight: 700, flexGrow: 1 }}>{activeTitle}</Typography>
           <Tooltip title="Sign out">
-            <IconButton color="inherit" onClick={logout}>
-              <LogoutRoundedIcon />
-            </IconButton>
+            <IconButton color="inherit" onClick={logout}><LogoutRoundedIcon /></IconButton>
           </Tooltip>
         </Toolbar>
       </AppBar>

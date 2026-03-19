@@ -5,10 +5,7 @@ import { AppThemeProvider } from "@/components/providers/app-theme-provider";
 
 import "./globals.css";
 
-const manrope = Manrope({
-  subsets: ["latin", "cyrillic"],
-  variable: "--font-panel",
-});
+const manrope = Manrope({ subsets: ["latin", "cyrillic"], variable: "--font-panel" });
 
 export const metadata: Metadata = {
   title: "Hysteria 2 Panel",
