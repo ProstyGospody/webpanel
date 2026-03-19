@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func TestMigrateAccessModelMapsLegacyClientsIntoExplicitDomains(t *testing.T) {
+func TestMigrateAccessModelMapsLegacyClientsIntoHysteriaUsers(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
 	repo, err := New(tmpDir, tmpDir+"/audit", tmpDir+"/run")
@@ -21,9 +21,6 @@ func TestMigrateAccessModelMapsLegacyClientsIntoExplicitDomains(t *testing.T) {
 	}
 	if err := os.MkdirAll(repo.legacyHy2AccountsDir, 0o750); err != nil {
 		t.Fatalf("mkdir legacy hy2 accounts: %v", err)
-	}
-	if err := os.MkdirAll(repo.legacyMTProxySecretsDir, 0o750); err != nil {
-		t.Fatalf("mkdir legacy mtproxy secrets: %v", err)
 	}
 
 	now := time.Now().UTC()
@@ -43,14 +40,6 @@ func TestMigrateAccessModelMapsLegacyClientsIntoExplicitDomains(t *testing.T) {
 		CreatedAt:   now.Add(-90 * time.Minute),
 		UpdatedAt:   now.Add(-30 * time.Minute),
 	}
-	secret := legacyMTProxySecret{
-		ID:        "mt-1",
-		ClientID:  client.ID,
-		Secret:    "ddaabbccddeeff001122334455667788996578616d706c652e636f6d",
-		IsEnabled: true,
-		CreatedAt: now.Add(-80 * time.Minute),
-		UpdatedAt: now.Add(-20 * time.Minute),
-	}
 
 	if err := writeJSONFile(legacyClientPath(repo.legacyClientsDir, client.ID), 0o600, client); err != nil {
 		t.Fatalf("write legacy client: %v", err)
@@ -58,11 +47,8 @@ func TestMigrateAccessModelMapsLegacyClientsIntoExplicitDomains(t *testing.T) {
 	if err := writeJSONFile(legacyHy2AccountPath(repo.legacyHy2AccountsDir, account.ID), 0o600, account); err != nil {
 		t.Fatalf("write legacy hy2 account: %v", err)
 	}
-	if err := writeJSONFile(legacyMTProxySecretPath(repo.legacyMTProxySecretsDir, secret.ID), 0o600, secret); err != nil {
-		t.Fatalf("write legacy mtproxy secret: %v", err)
-	}
 
-	if err := repo.MigrateAccessModel(ctx, AccessMigrationOptions{MTProxyPublicHost: "proxy.example.com", MTProxyPort: 443, MTProxyShareMode: "telegram"}); err != nil {
+	if err := repo.MigrateAccessModel(ctx); err != nil {
 		t.Fatalf("migrate access model: %v", err)
 	}
 
@@ -78,19 +64,5 @@ func TestMigrateAccessModelMapsLegacyClientsIntoExplicitDomains(t *testing.T) {
 	}
 	if !users[0].Enabled {
 		t.Fatalf("expected migrated hysteria user to stay enabled")
-	}
-
-	settings, err := repo.GetMTProxySettings(ctx)
-	if err != nil {
-		t.Fatalf("get mtproxy settings: %v", err)
-	}
-	if !settings.Enabled {
-		t.Fatalf("expected migrated mtproxy access to be enabled")
-	}
-	if settings.CanonicalSecret != "aabbccddeeff00112233445566778899" {
-		t.Fatalf("unexpected migrated canonical secret: %s", settings.CanonicalSecret)
-	}
-	if settings.PublicHost != "proxy.example.com" {
-		t.Fatalf("unexpected migrated public host: %s", settings.PublicHost)
 	}
 }

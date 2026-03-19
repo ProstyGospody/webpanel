@@ -67,13 +67,6 @@ func NewRouter(
 			secured.Put("/hysteria/settings", h.SaveHysteriaSettings)
 			secured.Post("/hysteria/settings/apply", h.ApplyHysteriaSettings)
 
-			secured.Get("/mtproxy/settings", h.GetMTProxySettings)
-			secured.Post("/mtproxy/settings/validate", h.ValidateMTProxySettings)
-			secured.Put("/mtproxy/settings", h.SaveMTProxySettings)
-			secured.Get("/mtproxy/access", h.GetMTProxyAccess)
-			secured.Get("/mtproxy/access/qr", h.MTProxyAccessQR)
-			secured.Get("/mtproxy/stats/overview", h.MTProxyStatsOverview)
-
 			secured.Get("/services", h.ListServices)
 			secured.Get("/services/{name}", h.GetService)
 			secured.Post("/services/{name}/restart", h.RestartService)

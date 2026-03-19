@@ -15,9 +15,7 @@ type Jobs struct {
 	cfg            config.Config
 	repo           *repository.Repository
 	hy2Client      *services.HysteriaClient
-	mtProxyClient  *services.MTProxyClient
 	serviceManager *services.ServiceManager
-	runtimeManager *services.MTProxyRuntimeManager
 }
 
 func NewJobs(
@@ -25,26 +23,20 @@ func NewJobs(
 	cfg config.Config,
 	repo *repository.Repository,
 	hy2Client *services.HysteriaClient,
-	mtProxyClient *services.MTProxyClient,
 	serviceManager *services.ServiceManager,
-	runtimeManager *services.MTProxyRuntimeManager,
 ) *Jobs {
 	return &Jobs{
 		logger:         logger,
 		cfg:            cfg,
 		repo:           repo,
 		hy2Client:      hy2Client,
-		mtProxyClient:  mtProxyClient,
 		serviceManager: serviceManager,
-		runtimeManager: runtimeManager,
 	}
 }
 
 func (j *Jobs) Start(ctx context.Context) {
 	go j.runTicker(ctx, "hysteria-poll", j.cfg.Hy2PollInterval, j.pollHysteria)
-	go j.runTicker(ctx, "mtproxy-poll", j.cfg.MTProxyPollInterval, j.pollMTProxy)
 	go j.runTicker(ctx, "services-poll", j.cfg.ServicePollInterval, j.pollServices)
-	go j.runTicker(ctx, "mtproxy-sync", 1*time.Minute, j.syncMTProxyRuntime)
 }
 
 func (j *Jobs) runTicker(ctx context.Context, name string, interval time.Duration, fn func(context.Context) error) {
@@ -102,19 +94,6 @@ func (j *Jobs) pollHysteria(ctx context.Context) error {
 	return j.repo.InsertHysteriaSnapshots(ctx, snapshots)
 }
 
-func (j *Jobs) pollMTProxy(ctx context.Context) error {
-	stats, err := j.mtProxyClient.FetchStats(ctx)
-	if err != nil {
-		return err
-	}
-	return j.repo.InsertMTProxySnapshot(ctx, repository.MTProxySnapshot{
-		ConnectionsTotal: stats.ConnectionsTotal,
-		UsersTotal:       stats.UsersTotal,
-		RawStatsJSON:     stats.RawJSON,
-		SnapshotAt:       time.Now().UTC(),
-	})
-}
-
 func (j *Jobs) pollServices(ctx context.Context) error {
 	for service := range j.serviceManager.ManagedServices {
 		details, err := j.serviceManager.Status(ctx, service)
@@ -127,8 +106,6 @@ func (j *Jobs) pollServices(ctx context.Context) error {
 		switch service {
 		case "hysteria-server":
 			version, _ = services.DetectBinaryVersion(ctx, j.cfg.Hy2BinaryPath, "version")
-		case "mtproxy":
-			version, _ = services.DetectBinaryVersion(ctx, j.cfg.MTProxyBinaryPath, "--version")
 		case "proxy-panel-api":
 			version = "managed-by-systemd"
 		case "proxy-panel-web":
@@ -143,8 +120,4 @@ func (j *Jobs) pollServices(ctx context.Context) error {
 		}
 	}
 	return nil
-}
-
-func (j *Jobs) syncMTProxyRuntime(ctx context.Context) error {
-	return j.runtimeManager.Sync(ctx, false)
 }

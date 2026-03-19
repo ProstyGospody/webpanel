@@ -1,62 +1,57 @@
-# Deploy
+# Deploy Guide
 
-## Requirements
+## Host requirements
 
-- Clean Ubuntu 24.04 LTS server
-- Root access (or sudo)
-- DNS records prepared for panel and Hysteria domains
-- Ports open:
-  - SSH (`22/tcp`)
-  - ACME HTTP challenge (`80/tcp`)
-  - Panel (`8443/tcp` by default)
-  - Hysteria (`443/udp`)
-  - MTProxy (`443/tcp`)
+- Ubuntu 24.04 LTS
+- Root access (`sudo`)
+- Public DNS records:
+  - panel host (`PANEL_PUBLIC_HOST`)
+  - Hysteria host (`HY2_DOMAIN`)
+
+## Open ports
+
+- Panel HTTPS: `${PANEL_PUBLIC_PORT}` (default `8443`, TCP)
+- Hysteria transport: `${HY2_PORT}` (default `443`, UDP)
 
 ## One-command install
+
+From repository root:
 
 ```bash
 sudo bash ./deploy/install.sh
 ```
 
-Compatibility wrapper:
+Wrapper (same behavior):
 
 ```bash
 sudo bash ./deploy/ubuntu24-host-install.sh
 ```
 
-## Reconfigure
+## Non-interactive mode
+
+You can preseed values with environment variables and run:
+
+```bash
+PROXY_PANEL_NONINTERACTIVE=1 \
+PANEL_PUBLIC_HOST=panel.example.com \
+HY2_DOMAIN=hy2.example.com \
+INITIAL_ADMIN_EMAIL=admin@example.com \
+sudo -E bash ./deploy/install.sh --non-interactive
+```
+
+## Reconfigure existing host
 
 ```bash
 sudo bash ./deploy/install.sh --reconfigure
 ```
 
-## Install phases
-
-1. Ubuntu 24.04 + root checks
-2. Package installation (system packages from Ubuntu repositories)
-3. Go install from pinned tarball + Hysteria install from pinned release asset
-4. MTProxy build from source
-5. User/group and directory setup
-6. Source sync to `/opt/proxy-panel/current`
-7. Interactive configuration + env generation
-8. Backend/frontend build
-9. Runtime config rendering
-10. MTProxy asset refresh to local disk
-11. File-store bootstrap (admin + initial MTProxy secret)
-12. Sudoers + systemd install
-13. Start panel services, MTProxy, Prometheus, and Caddy
-14. Wait for and sync the Hysteria certificate from Caddy
-15. Start Hysteria + smoke checks
-
-## Generated runtime env
-
-Main runtime env:
+## What gets generated
 
 - `/opt/proxy-panel/.env.generated`
-
-Credentials output:
-
 - `/root/proxy-panel-initial-admin.txt`
+- `/etc/proxy-panel/hysteria/server.yaml`
+- `/etc/proxy-panel/hysteria/tls.crt`
+- `/etc/proxy-panel/hysteria/tls.key`
 
 ## Post-install verification
 
@@ -64,13 +59,10 @@ Credentials output:
 sudo bash ./deploy/verify.sh
 ```
 
-This checks service status, API health/readiness, MTProxy listener/stats, and admin login flow.
+This validates:
 
-## MTProxy asset refresh
-
-```bash
-sudo bash /opt/proxy-panel/current/scripts/update-mtproxy-assets.sh /opt/proxy-panel/.env.generated
-sudo systemctl restart mtproxy
-```
-
-
+- core systemd services
+- API health/readiness
+- Hysteria listener check
+- optional Prometheus checks
+- admin login flow

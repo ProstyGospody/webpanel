@@ -8,14 +8,7 @@ import (
 	"time"
 
 	hysteriadomain "proxy-panel/internal/domain/hysteria"
-	mtproxydomain "proxy-panel/internal/domain/mtproxy"
 )
-
-type AccessMigrationOptions struct {
-	MTProxyPublicHost string
-	MTProxyPort       int
-	MTProxyShareMode  string
-}
 
 type legacyClient struct {
 	ID        string    `json:"id"`
@@ -38,18 +31,7 @@ type legacyHy2Account struct {
 	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
-type legacyMTProxySecret struct {
-	ID         string     `json:"id"`
-	ClientID   string     `json:"client_id"`
-	Secret     string     `json:"secret"`
-	Label      *string    `json:"label"`
-	IsEnabled  bool       `json:"is_enabled"`
-	CreatedAt  time.Time  `json:"created_at"`
-	UpdatedAt  time.Time  `json:"updated_at"`
-	LastSeenAt *time.Time `json:"last_seen_at"`
-}
-
-func (r *Repository) MigrateAccessModel(ctx context.Context, opts AccessMigrationOptions) error {
+func (r *Repository) MigrateAccessModel(ctx context.Context) error {
 	return r.withLock(ctx, func() error {
 		meta, err := r.loadMetaNoLock()
 		if err != nil {
@@ -57,9 +39,6 @@ func (r *Repository) MigrateAccessModel(ctx context.Context, opts AccessMigratio
 		}
 
 		if err := r.migrateLegacyHysteriaUsersNoLock(); err != nil {
-			return err
-		}
-		if err := r.migrateLegacyMTProxySettingsNoLock(opts); err != nil {
 			return err
 		}
 
@@ -129,46 +108,6 @@ func (r *Repository) migrateLegacyHysteriaUsersNoLock() error {
 		}
 	}
 	return nil
-}
-
-func (r *Repository) migrateLegacyMTProxySettingsNoLock(opts AccessMigrationOptions) error {
-	if _, err := r.loadMTProxySettingsNoLock(); err == nil {
-		return nil
-	} else if !IsNotFound(err) {
-		return err
-	}
-
-	legacySecrets, err := r.loadLegacyMTProxySecretsNoLock()
-	if err != nil {
-		return err
-	}
-	primary, hasPrimary := pickLegacyMTProxySecret(legacySecrets)
-
-	now := time.Now().UTC()
-	settings := MTProxySettings{
-		Enabled:    hasPrimary,
-		PublicHost: mtproxydomain.NormalizeHost(opts.MTProxyPublicHost),
-		ListenPort: opts.MTProxyPort,
-		ShareMode:  mtproxydomain.NormalizeShareMode(opts.MTProxyShareMode),
-		CreatedAt:  now,
-		UpdatedAt:  now,
-	}
-	if settings.ShareMode == "" {
-		settings.ShareMode = mtproxydomain.ShareModeTelegram
-	}
-	if settings.ListenPort == 0 {
-		settings.ListenPort = 443
-	}
-	if hasPrimary {
-		secret, err := mtproxydomain.NormalizeSecret(primary.Secret)
-		if err == nil {
-			settings.CanonicalSecret = secret
-			settings.Enabled = true
-			settings.CreatedAt = primary.CreatedAt
-			settings.UpdatedAt = primary.UpdatedAt
-		}
-	}
-	return r.writeMTProxySettingsNoLock(settings)
 }
 
 func uniqueLegacyUsername(account legacyHy2Account, client legacyClient, hasClient bool, used map[string]int) string {
@@ -283,35 +222,10 @@ func legacyUserNote(account legacyHy2Account, client legacyClient, hasClient boo
 	return &joined
 }
 
-func pickLegacyMTProxySecret(items []legacyMTProxySecret) (legacyMTProxySecret, bool) {
-	if len(items) == 0 {
-		return legacyMTProxySecret{}, false
-	}
-	sort.Slice(items, func(i, j int) bool {
-		if items[i].IsEnabled != items[j].IsEnabled {
-			return items[i].IsEnabled
-		}
-		if items[i].UpdatedAt.Equal(items[j].UpdatedAt) {
-			return items[i].CreatedAt.After(items[j].CreatedAt)
-		}
-		return items[i].UpdatedAt.After(items[j].UpdatedAt)
-	})
-	for _, item := range items {
-		if _, err := mtproxydomain.NormalizeSecret(item.Secret); err == nil {
-			return item, true
-		}
-	}
-	return legacyMTProxySecret{}, false
-}
-
 func (r *Repository) loadLegacyClientsNoLock() ([]legacyClient, error) {
 	return loadEntities[legacyClient](r.legacyClientsDir)
 }
 
 func (r *Repository) loadLegacyHy2AccountsNoLock() ([]legacyHy2Account, error) {
 	return loadEntities[legacyHy2Account](r.legacyHy2AccountsDir)
-}
-
-func (r *Repository) loadLegacyMTProxySecretsNoLock() ([]legacyMTProxySecret, error) {
-	return loadEntities[legacyMTProxySecret](r.legacyMTProxySecretsDir)
 }

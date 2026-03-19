@@ -10,8 +10,7 @@ if [[ -f "${ENV_FILE}" ]]; then
 fi
 
 PANEL_API_PORT="${PANEL_API_PORT:-18080}"
-MTPROXY_PORT="${MTPROXY_PORT:-443}"
-MTPROXY_STATS_PORT="${MTPROXY_STATS_PORT:-3129}"
+HY2_PORT="${HY2_PORT:-443}"
 PROMETHEUS_URL="${PROMETHEUS_URL:-http://127.0.0.1:9090}"
 PROMETHEUS_ENABLED="${PROMETHEUS_ENABLED:-true}"
 SMOKE_ADMIN_EMAIL="${SMOKE_ADMIN_EMAIL:-${INITIAL_ADMIN_EMAIL:-}}"
@@ -35,7 +34,7 @@ wait_http_ok() {
   return 1
 }
 
-services=(proxy-panel-api proxy-panel-web hysteria-server mtproxy caddy)
+services=(proxy-panel-api proxy-panel-web hysteria-server caddy)
 if [[ "${PROMETHEUS_ENABLED}" == "true" ]]; then
   services+=(prometheus prometheus-node-exporter)
 fi
@@ -56,17 +55,12 @@ curl -fsS --connect-timeout "${CURL_CONNECT_TIMEOUT}" --max-time "${CURL_MAX_TIM
 curl -fsS --connect-timeout "${CURL_CONNECT_TIMEOUT}" --max-time "${CURL_MAX_TIME}" "http://127.0.0.1:${PANEL_API_PORT}/readyz" >/dev/null
 echo "[ok] panel-api health and readiness checks passed"
 
-echo "[step] checking mtproxy listener and local stats"
-if ! ss -ltn "( sport = :${MTPROXY_PORT} )" | grep -q ":${MTPROXY_PORT}"; then
-  echo "[error] mtproxy is not listening on configured public port ${MTPROXY_PORT}" >&2
-  exit 1
+echo "[step] checking hysteria listener"
+if ! ss -lun "( sport = :${HY2_PORT} )" | grep -q ":${HY2_PORT}"; then
+  echo "[warn] hysteria UDP listener on ${HY2_PORT} was not observed via ss"
+else
+  echo "[ok] hysteria listener check passed"
 fi
-if ! ss -ltn "( sport = :${MTPROXY_STATS_PORT} )" | grep -q "127.0.0.1:${MTPROXY_STATS_PORT}"; then
-  echo "[warn] mtproxy stats port ${MTPROXY_STATS_PORT} is not shown as loopback-only"
-fi
-curl -fsS --connect-timeout "${CURL_CONNECT_TIMEOUT}" --max-time "${CURL_MAX_TIME}" "http://127.0.0.1:${MTPROXY_STATS_PORT}/stats" >/dev/null || \
-curl -fsS --connect-timeout "${CURL_CONNECT_TIMEOUT}" --max-time "${CURL_MAX_TIME}" "http://127.0.0.1:${MTPROXY_STATS_PORT}/" >/dev/null
-echo "[ok] mtproxy listener and local stats check passed"
 
 if [[ "${PROMETHEUS_ENABLED}" == "true" ]]; then
   echo "[step] checking prometheus and node_exporter"
@@ -89,7 +83,7 @@ if [[ -n "${SMOKE_ADMIN_EMAIL}" && -n "${SMOKE_ADMIN_PASSWORD}" ]]; then
     exit 1
   fi
 
-  curl -fsS --connect-timeout "${CURL_CONNECT_TIMEOUT}" --max-time "${CURL_MAX_TIME}" -b "${cookie_jar}" "http://127.0.0.1:${PANEL_API_PORT}/api/auth/me" >/dev/null
+  curl -fsS --connect-timeout "${CURL_CONNECT_TIMEOUT}" --max-time "${CURL_MAX_TIME}" -b "${cookie_jar}" -H "X-CSRF-Token: ${csrf_token}" "http://127.0.0.1:${PANEL_API_PORT}/api/auth/me" >/dev/null
   rm -f "${cookie_jar}"
   trap - EXIT
   echo "[ok] admin login smoke check passed"

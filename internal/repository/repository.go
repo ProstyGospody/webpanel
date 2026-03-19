@@ -25,33 +25,29 @@ const currentSchemaVersion = 2
 type Repository struct {
 	mu sync.Mutex
 
-	rootDir               string
-	stateDir              string
-	adminsDir             string
-	sessionsDir           string
-	hysteriaUsersDir      string
-	mtproxySettingsFile   string
-	serviceStatesDir      string
-	hysteriaSnapshotsDir  string
-	mtproxySnapshotsDir   string
-	backupsDir            string
-	auditDir              string
-	runDir                string
-	lockPath              string
-	metaPath              string
-	legacyClientsDir      string
-	legacyHy2AccountsDir  string
-	legacyMTProxySecretsDir string
+	rootDir              string
+	stateDir             string
+	adminsDir            string
+	sessionsDir          string
+	hysteriaUsersDir     string
+	serviceStatesDir     string
+	hysteriaSnapshotsDir string
+	backupsDir           string
+	auditDir             string
+	runDir               string
+	lockPath             string
+	metaPath             string
+	legacyClientsDir     string
+	legacyHy2AccountsDir string
 }
 
 type metaState struct {
-	SchemaVersion         int       `json:"schema_version"`
-	CreatedAt             time.Time `json:"created_at"`
-	UpdatedAt             time.Time `json:"updated_at"`
-	NextAuditID           int64     `json:"next_audit_id"`
-	NextHy2SnapshotID     int64     `json:"next_hy2_snapshot_id"`
-	NextMTProxySnapshotID int64     `json:"next_mtproxy_snapshot_id"`
-	NextServiceStateID    int64     `json:"next_service_state_id"`
+	SchemaVersion     int       `json:"schema_version"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
+	NextAuditID       int64     `json:"next_audit_id"`
+	NextHy2SnapshotID int64     `json:"next_hy2_snapshot_id"`
+	NextServiceStateID int64    `json:"next_service_state_id"`
 }
 
 func New(storageRoot string, auditDir string, runDir string) (*Repository, error) {
@@ -69,23 +65,20 @@ func New(storageRoot string, auditDir string, runDir string) (*Repository, error
 	}
 
 	r := &Repository{
-		rootDir:                storageRoot,
-		stateDir:               filepath.Join(storageRoot, "state"),
-		adminsDir:              filepath.Join(storageRoot, "state", "admins"),
-		sessionsDir:            filepath.Join(storageRoot, "state", "sessions"),
-		hysteriaUsersDir:       filepath.Join(storageRoot, "state", "hysteria-users"),
-		mtproxySettingsFile:    filepath.Join(storageRoot, "state", "mtproxy-settings.json"),
-		serviceStatesDir:       filepath.Join(storageRoot, "state", "service-states"),
-		hysteriaSnapshotsDir:   filepath.Join(storageRoot, "snapshots", "hy2"),
-		mtproxySnapshotsDir:    filepath.Join(storageRoot, "snapshots", "mtproxy"),
-		backupsDir:             filepath.Join(storageRoot, "backups"),
-		auditDir:               auditDir,
-		runDir:                 runDir,
-		lockPath:               filepath.Join(runDir, "locks", "repository.lock"),
-		metaPath:               filepath.Join(storageRoot, "state", "meta.json"),
-		legacyClientsDir:       filepath.Join(storageRoot, "state", "clients"),
-		legacyHy2AccountsDir:   filepath.Join(storageRoot, "state", "hy2-accounts"),
-		legacyMTProxySecretsDir: filepath.Join(storageRoot, "state", "mtproxy-secrets"),
+		rootDir:              storageRoot,
+		stateDir:             filepath.Join(storageRoot, "state"),
+		adminsDir:            filepath.Join(storageRoot, "state", "admins"),
+		sessionsDir:          filepath.Join(storageRoot, "state", "sessions"),
+		hysteriaUsersDir:     filepath.Join(storageRoot, "state", "hysteria-users"),
+		serviceStatesDir:     filepath.Join(storageRoot, "state", "service-states"),
+		hysteriaSnapshotsDir: filepath.Join(storageRoot, "snapshots", "hy2"),
+		backupsDir:           filepath.Join(storageRoot, "backups"),
+		auditDir:             auditDir,
+		runDir:               runDir,
+		lockPath:             filepath.Join(runDir, "locks", "repository.lock"),
+		metaPath:             filepath.Join(storageRoot, "state", "meta.json"),
+		legacyClientsDir:     filepath.Join(storageRoot, "state", "clients"),
+		legacyHy2AccountsDir: filepath.Join(storageRoot, "state", "hy2-accounts"),
 	}
 	if err := r.ensureLayout(); err != nil {
 		return nil, err
@@ -141,7 +134,6 @@ func (r *Repository) ensureLayout() error {
 		r.hysteriaUsersDir,
 		r.serviceStatesDir,
 		r.hysteriaSnapshotsDir,
-		r.mtproxySnapshotsDir,
 		r.backupsDir,
 		r.auditDir,
 		filepath.Join(r.runDir, "locks"),
@@ -275,7 +267,6 @@ func adminPath(dir string, id string) string { return filepath.Join(dir, strings
 func sessionPath(dir string, id string) string { return filepath.Join(dir, strings.TrimSpace(id)+".json") }
 func legacyClientPath(dir string, id string) string { return filepath.Join(dir, strings.TrimSpace(id)+".json") }
 func legacyHy2AccountPath(dir string, id string) string { return filepath.Join(dir, strings.TrimSpace(id)+".json") }
-func legacyMTProxySecretPath(dir string, id string) string { return filepath.Join(dir, strings.TrimSpace(id)+".json") }
 func hysteriaUserPath(dir string, id string) string { return filepath.Join(dir, strings.TrimSpace(id)+".json") }
 
 func serviceStatePath(dir string, serviceName string) string {

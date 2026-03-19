@@ -22,7 +22,6 @@ type Server struct {
 	repo           *repository.Repository
 	httpServer     *http.Server
 	jobs           *scheduler.Jobs
-	runtimeManager *services.MTProxyRuntimeManager
 	hysteriaAccess *services.HysteriaAccessManager
 	cancelJobs     context.CancelFunc
 }
@@ -30,9 +29,7 @@ type Server struct {
 func NewServer(cfg config.Config, logger *slog.Logger, repo *repository.Repository) *Server {
 	rateLimiter := middleware.NewLoginRateLimiter(cfg.RateLimitWindow, cfg.RateLimitBurst)
 	hy2Client := services.NewHysteriaClient(cfg.Hy2StatsURL, cfg.Hy2StatsSecret)
-	mtProxyClient := services.NewMTProxyClient(cfg.MTProxyStatsURL, "")
 	serviceManager := services.NewServiceManager(cfg.SystemctlPath, cfg.SudoPath, cfg.JournalctlPath, cfg.ManagedServices)
-	runtimeManager := services.NewMTProxyRuntimeManager(repo, cfg.MTProxyActiveSecretPath, cfg.MTProxyRuntimeEnvPath, "mtproxy", serviceManager)
 	hy2ConfigManager := services.NewHysteriaConfigManager(cfg.Hy2ConfigPath)
 	hysteriaAccess := services.NewHysteriaAccessManager(repo, cfg, hy2ConfigManager)
 	systemMetrics := services.NewSystemMetricsCollector()
@@ -42,7 +39,7 @@ func NewServer(cfg config.Config, logger *slog.Logger, repo *repository.Reposito
 		prometheusClient = services.NewPrometheusClient(cfg.PrometheusURL, cfg.PrometheusQueryTTL)
 	}
 
-	h := handlers.New(cfg, logger, repo, rateLimiter, hy2Client, mtProxyClient, serviceManager, runtimeManager, hy2ConfigManager, hysteriaAccess, prometheusClient, systemMetrics)
+	h := handlers.New(cfg, logger, repo, rateLimiter, hy2Client, serviceManager, hy2ConfigManager, hysteriaAccess, prometheusClient, systemMetrics)
 	router := httpserver.NewRouter(cfg, logger, repo, h)
 
 	httpSrv := &http.Server{
@@ -54,16 +51,13 @@ func NewServer(cfg config.Config, logger *slog.Logger, repo *repository.Reposito
 		IdleTimeout:       60 * time.Second,
 	}
 
-	jobs := scheduler.NewJobs(logger, cfg, repo, hy2Client, mtProxyClient, serviceManager, runtimeManager)
-	return &Server{cfg: cfg, logger: logger, repo: repo, httpServer: httpSrv, jobs: jobs, runtimeManager: runtimeManager, hysteriaAccess: hysteriaAccess}
+	jobs := scheduler.NewJobs(logger, cfg, repo, hy2Client, serviceManager)
+	return &Server{cfg: cfg, logger: logger, repo: repo, httpServer: httpSrv, jobs: jobs, hysteriaAccess: hysteriaAccess}
 }
 
 func (s *Server) Run(ctx context.Context) error {
 	if _, err := s.hysteriaAccess.Sync(ctx); err != nil {
 		s.logger.Warn("failed to sync hysteria config on startup", "error", err)
-	}
-	if err := s.runtimeManager.Sync(ctx, false); err != nil {
-		s.logger.Warn("failed to sync mtproxy runtime on startup", "error", err)
 	}
 	jobsCtx, cancel := context.WithCancel(ctx)
 	s.cancelJobs = cancel
@@ -83,8 +77,4 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	err := s.httpServer.Shutdown(ctx)
 	_ = s.repo.Close()
 	return err
-}
-
-func (s *Server) SyncMTProxy(ctx context.Context, force bool) error {
-	return s.runtimeManager.Sync(ctx, force)
 }

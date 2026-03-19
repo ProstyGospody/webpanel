@@ -34,21 +34,13 @@ type liveServiceStatus struct {
 }
 
 type liveHy2Overview struct {
-	EnabledUsers    int64     `json:"enabled_users"`
-	TotalTxBytes    int64     `json:"total_tx_bytes"`
-	TotalRxBytes    int64     `json:"total_rx_bytes"`
-	OnlineCount     int64     `json:"online_count"`
-	CollectedAt     time.Time `json:"collected_at"`
-	Source          string    `json:"source"`
-	IsStale         bool      `json:"is_stale"`
-}
-
-type liveMTProxyOverview struct {
-	AccessEnabled    bool       `json:"access_enabled"`
-	ConnectionsTotal *int64     `json:"connections_total"`
-	CollectedAt      *time.Time `json:"collected_at,omitempty"`
-	Source           string     `json:"source"`
-	IsStale          bool       `json:"is_stale"`
+	EnabledUsers int64     `json:"enabled_users"`
+	TotalTxBytes int64     `json:"total_tx_bytes"`
+	TotalRxBytes int64     `json:"total_rx_bytes"`
+	OnlineCount  int64     `json:"online_count"`
+	CollectedAt  time.Time `json:"collected_at"`
+	Source       string    `json:"source"`
+	IsStale      bool      `json:"is_stale"`
 }
 
 func (h *Handler) GetSystemMetrics(w http.ResponseWriter, r *http.Request) {
@@ -70,7 +62,7 @@ func (h *Handler) GetSystemLive(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	generatedAt := time.Now().UTC()
-	errors := make([]string, 0, 4)
+	errors := make([]string, 0, 3)
 
 	snapshot, networkRx, networkTx, source, err := h.collectSystemMetrics(ctx)
 	if err != nil {
@@ -83,11 +75,6 @@ func (h *Handler) GetSystemLive(w http.ResponseWriter, r *http.Request) {
 	hy2, hy2Err := h.collectHy2Live(ctx)
 	if hy2Err != "" {
 		errors = append(errors, hy2Err)
-	}
-
-	mtproxy, mtErr := h.collectMTProxyLive(ctx)
-	if mtErr != "" {
-		errors = append(errors, mtErr)
 	}
 
 	serviceStatuses := h.collectProxyServiceStatuses(ctx)
@@ -112,7 +99,6 @@ func (h *Handler) GetSystemLive(w http.ResponseWriter, r *http.Request) {
 			IsStale:           time.Since(snapshot.CollectedAt) > 15*time.Second,
 		},
 		"hysteria": hy2,
-		"mtproxy":  mtproxy,
 		"services": serviceStatuses,
 		"errors":   errors,
 	})
@@ -205,13 +191,13 @@ func (h *Handler) collectHy2Live(ctx context.Context) (liveHy2Overview, string) 
 	}
 
 	resp := liveHy2Overview{
-		EnabledUsers:    base.EnabledUsers,
-		TotalTxBytes:    base.TotalTxBytes,
-		TotalRxBytes:    base.TotalRxBytes,
-		OnlineCount:     base.OnlineCount,
-		CollectedAt:     time.Now().UTC(),
-		Source:          "snapshot",
-		IsStale:         true,
+		EnabledUsers: base.EnabledUsers,
+		TotalTxBytes: base.TotalTxBytes,
+		TotalRxBytes: base.TotalRxBytes,
+		OnlineCount:  base.OnlineCount,
+		CollectedAt:  time.Now().UTC(),
+		Source:       "snapshot",
+		IsStale:      true,
 	}
 
 	if h.hy2Client == nil {
@@ -246,40 +232,9 @@ func (h *Handler) collectHy2Live(ctx context.Context) (liveHy2Overview, string) 
 	return resp, ""
 }
 
-func (h *Handler) collectMTProxyLive(ctx context.Context) (liveMTProxyOverview, string) {
-	base, err := h.repo.GetMTProxyStatsOverview(ctx)
-	if err != nil {
-		return liveMTProxyOverview{Source: "unavailable", IsStale: true}, "mtproxy overview unavailable"
-	}
-
-	resp := liveMTProxyOverview{
-		AccessEnabled:    base.AccessEnabled,
-		ConnectionsTotal: base.ConnectionsTotal,
-		Source:           "snapshot",
-		IsStale:          true,
-	}
-
-	if h.mtProxyClient == nil {
-		return resp, "mtproxy live stats client is not configured"
-	}
-
-	stats, fetchErr := h.mtProxyClient.FetchStats(ctx)
-	if fetchErr != nil {
-		return resp, "mtproxy live stats fallback to snapshots"
-	}
-
-	now := time.Now().UTC()
-	resp.ConnectionsTotal = stats.ConnectionsTotal
-	resp.CollectedAt = &now
-	resp.Source = "live"
-	resp.IsStale = false
-
-	return resp, ""
-}
-
 func (h *Handler) collectProxyServiceStatuses(ctx context.Context) []liveServiceStatus {
-	targets := make([]string, 0, 2)
-	for _, candidate := range []string{"hysteria-server", "mtproxy"} {
+	targets := make([]string, 0, 1)
+	for _, candidate := range []string{"hysteria-server"} {
 		if _, ok := h.serviceManager.ManagedServices[candidate]; ok {
 			targets = append(targets, candidate)
 		}
@@ -340,6 +295,3 @@ func latestTime(values ...time.Time) time.Time {
 	}
 	return latest
 }
-
-
-

@@ -1,72 +1,71 @@
 export class APIError extends Error {
   status: number;
-  errorType?: string;
-  details?: unknown;
+  details: unknown;
 
-  constructor(status: number, message: string, options?: { errorType?: string; details?: unknown }) {
+  constructor(message: string, status: number, details: unknown = null) {
     super(message);
+    this.name = "APIError";
     this.status = status;
-    this.errorType = options?.errorType;
-    this.details = options?.details;
+    this.details = details;
   }
 }
 
-function getCookie(name: string): string {
+function readCookie(name: string): string {
   if (typeof document === "undefined") {
     return "";
   }
-  const parts = document.cookie.split(";");
-  for (const part of parts) {
-    const [key, value] = part.trim().split("=");
-    if (key === name) {
-      return decodeURIComponent(value || "");
-    }
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = document.cookie.match(new RegExp(`(?:^|; )${escaped}=([^;]*)`));
+  if (!match) {
+    return "";
   }
-  return "";
+  return decodeURIComponent(match[1]);
+}
+
+export function getCSRFToken(): string {
+  const cookieName = process.env.NEXT_PUBLIC_CSRF_COOKIE_NAME || "pp_csrf";
+  return readCookie(cookieName);
 }
 
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const method = (init.method || "GET").toUpperCase();
   const headers = new Headers(init.headers || {});
+  const csrfHeaderName = process.env.NEXT_PUBLIC_CSRF_HEADER_NAME || "X-CSRF-Token";
+  const csrfToken = getCSRFToken();
 
-  if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS") {
-    if (!headers.has("Content-Type") && init.body) {
-      headers.set("Content-Type", "application/json");
-    }
-    const csrf = getCookie("pp_csrf");
-    if (csrf && !headers.has("X-CSRF-Token")) {
-      headers.set("X-CSRF-Token", csrf);
-    }
+  if (csrfToken && !headers.has(csrfHeaderName)) {
+    headers.set(csrfHeaderName, csrfToken);
+  }
+
+  if (init.body && !(init.body instanceof FormData) && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
   }
 
   const response = await fetch(path, {
     ...init,
-    method,
     headers,
     credentials: "include",
     cache: "no-store",
   });
 
-  let payload: any = null;
-  const contentType = response.headers.get("content-type") || "";
-  if (contentType.includes("application/json")) {
-    payload = await response.json();
-  } else {
-    const text = await response.text();
-    payload = text ? { message: text } : null;
+  const raw = await response.text();
+  let payload: unknown = null;
+
+  if (raw) {
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      payload = raw;
+    }
   }
 
   if (!response.ok) {
-    const message = payload?.error || payload?.message || `HTTP ${response.status}`;
-    throw new APIError(response.status, message, {
-      errorType: payload?.error_type,
-      details: payload?.details,
-    });
+    const message =
+      typeof payload === "object" && payload !== null && "error" in payload
+        ? String((payload as Record<string, unknown>).error || "Request failed")
+        : `${response.status} ${response.statusText}`;
+    const details = typeof payload === "object" && payload !== null && "details" in payload ? (payload as Record<string, unknown>).details : null;
+    throw new APIError(message, response.status, details);
   }
 
   return payload as T;
-}
-
-export function toJSONBody<T extends Record<string, unknown>>(data: T): string {
-  return JSON.stringify(data);
 }

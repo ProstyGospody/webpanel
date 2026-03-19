@@ -59,26 +59,9 @@ func run() int {
 		}
 		logger.Info("admin account prepared", "email", *email)
 		return 0
-	case "bootstrap-mtproxy":
-		fs := flag.NewFlagSet("bootstrap-mtproxy", flag.ContinueOnError)
-		secret := fs.String("secret", "", "initial mtproxy secret")
-		if err := fs.Parse(os.Args[2:]); err != nil {
-			fmt.Fprintf(os.Stderr, "failed to parse flags: %v\n", err)
-			return 1
-		}
-		if strings.TrimSpace(*secret) == "" {
-			fmt.Fprintln(os.Stderr, "secret is required")
-			return 1
-		}
-		if err := app.BootstrapMTProxySecret(ctx, cfg, *secret); err != nil {
-			logger.Error("bootstrap-mtproxy failed", "error", err)
-			return 1
-		}
-		logger.Info("mtproxy bootstrap secret prepared")
-		return 0
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", command)
-		fmt.Fprintln(os.Stderr, "available commands: serve, bootstrap-admin, bootstrap-mtproxy")
+		fmt.Fprintln(os.Stderr, "available commands: serve, bootstrap-admin")
 		return 1
 	}
 }

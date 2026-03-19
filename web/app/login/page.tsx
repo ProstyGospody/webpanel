@@ -1,133 +1,131 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  CircularProgress,
+  Stack,
+  TextField,
+  Typography,
+} from "@mui/material";
+import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
 import { useRouter } from "next/navigation";
-import { LogIn } from "lucide-react";
+import { FormEvent, useEffect, useState } from "react";
 
-import { APIError, apiFetch, toJSONBody } from "@/lib/api";
-import { ProxyPanelLogo } from "@/components/proxy-panel-logo";
-import { TextField } from "@/components/app/fields";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-
-type LoginFieldErrors = {
-  email?: string;
-  password?: string;
-};
+import { APIError, apiFetch } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<LoginFieldErrors>({});
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [checking, setChecking] = useState(true);
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+  useEffect(() => {
+    let disposed = false;
+
+    async function bootstrap() {
+      try {
+        await apiFetch<{ id: string }>("/api/auth/me", { method: "GET" });
+        if (!disposed) {
+          router.replace("/");
+        }
+      } catch {
+        if (!disposed) {
+          setChecking(false);
+        }
+      }
+    }
+
+    void bootstrap();
+
+    return () => {
+      disposed = true;
+    };
+  }, [router]);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    const nextErrors: LoginFieldErrors = {};
-    const normalizedEmail = email.trim();
-
-    if (!normalizedEmail) {
-      nextErrors.email = "Email is required.";
-    } else if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
-      nextErrors.email = "Enter a valid email.";
-    }
-
-    if (!password) {
-      nextErrors.password = "Password is required.";
-    }
-
-    if (Object.keys(nextErrors).length > 0) {
-      setFieldErrors(nextErrors);
-      setError(null);
-      return;
-    }
-
-    setFieldErrors({});
-    setLoading(true);
-    setError(null);
+    setError("");
+    setBusy(true);
 
     try {
       await apiFetch<{ csrf_token: string }>("/api/auth/login", {
         method: "POST",
-        body: toJSONBody({ email: normalizedEmail, password }),
+        body: JSON.stringify({ email, password }),
       });
       router.replace("/");
     } catch (err) {
-      if (err instanceof APIError) {
-        setError(err.message);
-      } else {
-        setError("Login failed");
-      }
+      const message = err instanceof APIError ? err.message : "Login failed";
+      setError(message);
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   }
 
-  return (
-    <div className="grid min-h-screen place-items-center p-4">
-      <Card className="w-full max-w-md shadow-sm">
-        <CardHeader className="space-y-4">
-          <div className="flex justify-center">
-            <ProxyPanelLogo
-              showLabel={false}
-              priority
-              size={64}
-              imageClassName="size-16 rounded-2xl shadow-sm ring-1 ring-border/60"
-            />
-          </div>
-          <div className="space-y-2 text-center">
-            <CardTitle className="text-2xl">Proxy Panel</CardTitle>
-            <CardDescription>Sign in to continue.</CardDescription>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {error && (
-            <Alert variant="destructive">
-              <AlertTitle>Authentication failed</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
+  if (checking) {
+    return (
+      <Stack sx={{ minHeight: "100vh" }} alignItems="center" justifyContent="center" spacing={2}>
+        <CircularProgress />
+        <Typography color="text.secondary">Loading...</Typography>
+      </Stack>
+    );
+  }
 
-          <form onSubmit={onSubmit} noValidate className="space-y-3">
-            <TextField
-              label="Email"
-              type="email"
-              autoComplete="username"
-              value={email}
-              error={fieldErrors.email}
-              onChange={(event) => {
-                setEmail(event.target.value);
-                if (fieldErrors.email) {
-                  setFieldErrors((prev) => ({ ...prev, email: undefined }));
-                }
-              }}
-            />
-            <TextField
-              label="Password"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              error={fieldErrors.password}
-              onChange={(event) => {
-                setPassword(event.target.value);
-                if (fieldErrors.password) {
-                  setFieldErrors((prev) => ({ ...prev, password: undefined }));
-                }
-              }}
-            />
-            <Button type="submit" className="w-full" disabled={loading}>
-              <LogIn className="size-4" />
-              {loading ? "Signing in..." : "Sign in"}
-            </Button>
-          </form>
+  return (
+    <Box
+      sx={{
+        minHeight: "100vh",
+        display: "grid",
+        placeItems: "center",
+        px: 2,
+      }}
+    >
+      <Card sx={{ width: "100%", maxWidth: 430 }}>
+        <CardContent sx={{ p: 4 }}>
+          <Stack spacing={3}>
+            <Stack direction="row" spacing={1.5} alignItems="center">
+              <Box
+                sx={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 2,
+                  bgcolor: "primary.main",
+                  display: "grid",
+                  placeItems: "center",
+                  color: "primary.contrastText",
+                }}
+              >
+                <BoltRoundedIcon />
+              </Box>
+              <Box>
+                <Typography variant="h5" sx={{ fontWeight: 800 }}>
+                  Hysteria 2 Panel
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Sign in to manage clients and runtime config.
+                </Typography>
+              </Box>
+            </Stack>
+
+            {error ? <Alert severity="error">{error}</Alert> : null}
+
+            <Box component="form" onSubmit={submit}>
+              <Stack spacing={2}>
+                <TextField label="Admin email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required fullWidth />
+                <TextField label="Password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required fullWidth />
+                <Button type="submit" variant="contained" size="large" disabled={busy}>
+                  {busy ? "Signing in..." : "Sign in"}
+                </Button>
+              </Stack>
+            </Box>
+          </Stack>
         </CardContent>
       </Card>
-    </div>
+    </Box>
   );
 }
-
-

@@ -21,9 +21,7 @@ type Handler struct {
 	repo             *repository.Repository
 	rateLimiter      *middleware.LoginRateLimiter
 	hy2Client        *services.HysteriaClient
-	mtProxyClient    *services.MTProxyClient
 	serviceManager   *services.ServiceManager
-	runtimeManager   *services.MTProxyRuntimeManager
 	hy2ConfigManager *services.HysteriaConfigManager
 	hysteriaAccess   *services.HysteriaAccessManager
 	prometheus       *services.PrometheusClient
@@ -36,9 +34,7 @@ func New(
 	repo *repository.Repository,
 	rateLimiter *middleware.LoginRateLimiter,
 	hy2Client *services.HysteriaClient,
-	mtProxyClient *services.MTProxyClient,
 	serviceManager *services.ServiceManager,
-	runtimeManager *services.MTProxyRuntimeManager,
 	hy2ConfigManager *services.HysteriaConfigManager,
 	hysteriaAccess *services.HysteriaAccessManager,
 	prometheus *services.PrometheusClient,
@@ -50,9 +46,7 @@ func New(
 		repo:             repo,
 		rateLimiter:      rateLimiter,
 		hy2Client:        hy2Client,
-		mtProxyClient:    mtProxyClient,
 		serviceManager:   serviceManager,
-		runtimeManager:   runtimeManager,
 		hy2ConfigManager: hy2ConfigManager,
 		hysteriaAccess:   hysteriaAccess,
 		prometheus:       prometheus,

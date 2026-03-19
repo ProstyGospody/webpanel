@@ -10,7 +10,7 @@ import (
 	"proxy-panel/internal/http/handlers"
 )
 
-func TestRouterExposesNewAccessRoutesAndDropsLegacyClientRoutes(t *testing.T) {
+func TestRouterExposesHysteriaRoutesAndDropsLegacyRoutes(t *testing.T) {
 	cfg := config.Config{
 		SessionCookieName: "pp_session",
 		CSRFCookieName:    "pp_csrf",
@@ -18,7 +18,7 @@ func TestRouterExposesNewAccessRoutesAndDropsLegacyClientRoutes(t *testing.T) {
 	}
 	router := NewRouter(cfg, slog.Default(), nil, &handlers.Handler{})
 
-	for _, path := range []string{"/api/hysteria/users", "/api/mtproxy/access", "/api/mtproxy/settings"} {
+	for _, path := range []string{"/api/hysteria/users", "/api/hysteria/settings", "/api/services"} {
 		req := httptest.NewRequest(http.MethodGet, path, nil)
 		resp := httptest.NewRecorder()
 		router.ServeHTTP(resp, req)
@@ -27,12 +27,12 @@ func TestRouterExposesNewAccessRoutesAndDropsLegacyClientRoutes(t *testing.T) {
 		}
 	}
 
-	for _, path := range []string{"/api/clients", "/api/hy2/accounts", "/api/mtproxy/secrets"} {
+	for _, path := range []string{"/api/clients", "/api/hy2/accounts", "/api/legacy/access", "/api/legacy/settings"} {
 		req := httptest.NewRequest(http.MethodGet, path, nil)
 		resp := httptest.NewRecorder()
 		router.ServeHTTP(resp, req)
 		if resp.Code != http.StatusNotFound {
-			t.Fatalf("expected legacy path %s to be removed with 404, got %d", path, resp.Code)
+			t.Fatalf("expected removed path %s to return 404, got %d", path, resp.Code)
 		}
 	}
 }
