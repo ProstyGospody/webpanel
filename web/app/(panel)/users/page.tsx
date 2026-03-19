@@ -145,12 +145,14 @@ export default function UsersPage() {
   }
 
   function downloadConfigFile() {
-    if (!artifactTarget?.artifacts?.client_config || !artifactTarget?.user.username) return;
-    const blob = new Blob([artifactTarget.artifacts.client_config], { type: "text/plain;charset=utf-8" });
+    const artifacts = artifactTarget?.artifacts;
+    const username = artifactTarget?.user.username;
+    if (!artifacts?.client_config || !username) return;
+    const blob = new Blob([artifacts.client_config], { type: "text/plain;charset=utf-8" });
     const href = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = href;
-    anchor.download = `${artifactTarget.user.username}-hysteria2.yaml`;
+    anchor.download = `${username}-hysteria2.yaml`;
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
@@ -165,6 +167,8 @@ export default function UsersPage() {
       setError("Clipboard write failed");
     }
   }
+
+  const artifacts = artifactTarget?.artifacts ?? null;
 
   return (
     <Stack spacing={3}>
@@ -252,19 +256,19 @@ export default function UsersPage() {
       <Dialog open={Boolean(artifactTarget)} onClose={() => setArtifactTarget(null)} fullWidth maxWidth="md">
         <DialogTitle>{artifactTarget?.user.username || "Client"} access artifacts</DialogTitle>
         <DialogContent>
-          {artifactTarget?.artifacts ? (
+          {artifacts ? (
             <Stack spacing={2}>
               <Stack direction={{ xs: "column", md: "row" }} spacing={1}>
-                <TextField label="Primary URI" value={artifactTarget.artifacts.uri} fullWidth InputProps={{ readOnly: true }} />
-                <Button variant="outlined" startIcon={<ContentCopyRoundedIcon />} onClick={() => void copy(artifactTarget.artifacts.uri)}>Copy</Button>
+                <TextField label="Primary URI" value={artifacts.uri} fullWidth InputProps={{ readOnly: true }} />
+                <Button variant="outlined" startIcon={<ContentCopyRoundedIcon />} onClick={() => void copy(artifacts.uri)}>Copy</Button>
               </Stack>
               <Stack direction={{ xs: "column", md: "row" }} spacing={1}>
-                <TextField label="hy2:// URI" value={artifactTarget.artifacts.uri_hy2} fullWidth InputProps={{ readOnly: true }} />
-                <Button variant="outlined" startIcon={<ContentCopyRoundedIcon />} onClick={() => void copy(artifactTarget.artifacts.uri_hy2)}>Copy</Button>
+                <TextField label="hy2:// URI" value={artifacts.uri_hy2} fullWidth InputProps={{ readOnly: true }} />
+                <Button variant="outlined" startIcon={<ContentCopyRoundedIcon />} onClick={() => void copy(artifacts.uri_hy2)}>Copy</Button>
               </Stack>
-              <TextField label="Client config" value={artifactTarget.artifacts.client_config} multiline minRows={10} fullWidth InputProps={{ readOnly: true }} />
+              <TextField label="Client config" value={artifacts.client_config} multiline minRows={10} fullWidth InputProps={{ readOnly: true }} />
               <Stack direction={{ xs: "column", md: "row" }} spacing={1}>
-                <Button variant="outlined" startIcon={<ContentCopyRoundedIcon />} onClick={() => void copy(artifactTarget.artifacts.client_config)}>Copy Config</Button>
+                <Button variant="outlined" startIcon={<ContentCopyRoundedIcon />} onClick={() => void copy(artifacts.client_config)}>Copy Config</Button>
                 <Button variant="contained" startIcon={<DownloadRoundedIcon />} onClick={downloadConfigFile}>Download YAML</Button>
               </Stack>
               <Box component="img" alt="Hysteria QR" src={`/api/hysteria/users/${artifactTarget.user.id}/qr?size=360`} sx={{ width: 220, height: 220, borderRadius: 2, bgcolor: "common.white", p: 1, alignSelf: "center" }} />
