@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"proxy-panel/internal/config"
@@ -101,7 +100,7 @@ func (m *HysteriaAccessManager) ClientDefaults(ctx context.Context) (HysteriaCli
 	if err != nil {
 		return HysteriaClientDefaults{}, err
 	}
-	settings := m.configManager.ExtractSettings(content, m.cfg.Hy2Domain, m.cfg.Hy2Port)
+	settings := m.configManager.ExtractSettings(content, m.preferredPublicHost(), m.cfg.Hy2Port)
 	return HysteriaClientDefaults{
 		ClientParams:  m.currentClientParamsFromContent(content),
 		ServerOptions: m.serverClientOptionsFromSettings(settings),
@@ -132,12 +131,13 @@ func (m *HysteriaAccessManager) BuildUserArtifacts(user repository.HysteriaUserV
 	if err != nil {
 		return HysteriaUserArtifacts{}, Hy2ClientValidation{}, err
 	}
-	settings := m.configManager.ExtractSettings(content, m.cfg.Hy2Domain, m.cfg.Hy2Port)
-	serverDefaults := m.currentClientParamsFromContent(content)
+	settings := m.configManager.ExtractSettings(content, m.preferredPublicHost(), m.cfg.Hy2Port)
+	baseProfile := m.baseClientProfileFromContent(content)
+	serverDefaults := m.clientParamsFromProfile(baseProfile)
 	profile := m.defaultClientProfileFromContent(content, user)
 	effectiveProfile := applyClientOverrides(profile, user.ClientOverrides)
 
-	artifacts, validation := m.configManager.GenerateClientArtifacts(effectiveProfile, "socks5")
+	artifacts, validation := m.configManager.GenerateClientArtifacts(effectiveProfile)
 	if !validation.Valid {
 		return HysteriaUserArtifacts{}, validation, fmt.Errorf("invalid hysteria client profile")
 	}
@@ -165,60 +165,38 @@ func (m *HysteriaAccessManager) managedContent(ctx context.Context) (string, err
 	return m.InjectManagedAuth(ctx, content)
 }
 
-func (m *HysteriaAccessManager) currentClientParamsFromContent(content string) Hy2ClientParams {
-	params := Hy2ClientParams{
-		Server:   NormalizeHost(m.cfg.Hy2Domain),
-		Port:     m.cfg.Hy2Port,
-		SNI:      NormalizeHost(m.cfg.Hy2Domain),
-		Insecure: false,
-	}
-	if params.Server == "" {
-		params.Server = NormalizeHost(m.cfg.PanelPublicHost)
-	}
-	if params.SNI == "" {
-		params.SNI = params.Server
-	}
-	if strings.TrimSpace(content) != "" {
-		parsed := m.configManager.ClientParams(content, m.cfg.Hy2Domain, m.cfg.Hy2Port)
-		if parsed.Server != "" {
-			params = parsed
-		}
-	}
-	if params.Server == "" {
-		params.Server = NormalizeHost(m.cfg.PanelPublicHost)
-	}
-	if params.Port <= 0 {
-		params.Port = m.cfg.Hy2Port
-	}
-	if params.SNI == "" {
-		params.SNI = params.Server
-	}
-	return params
+func (m *HysteriaAccessManager) preferredPublicHost() string {
+	return NormalizeHost(m.cfg.Hy2Domain)
 }
 
-func (m *HysteriaAccessManager) defaultClientProfileFromContent(content string, user repository.HysteriaUserView) Hy2ClientProfile {
-	auth := hysteriadomain.BuildCredential(user.User)
-	profile := Hy2ClientProfile{
-		Name:   user.Username,
-		Server: NormalizeHost(m.cfg.Hy2Domain) + ":" + strconv.Itoa(m.cfg.Hy2Port),
-		Auth:   auth,
-		TLS:    Hy2ClientTLS{SNI: NormalizeHost(m.cfg.Hy2Domain)},
-	}
-	if strings.TrimSpace(content) != "" {
-		profile = m.configManager.DefaultClientProfile(content, m.cfg.Hy2Domain, m.cfg.Hy2Port, auth)
-	}
-	profile.Auth = auth
-	profile.Name = user.Username
+func (m *HysteriaAccessManager) baseClientProfileFromContent(content string) Hy2ClientProfile {
+	fallbackHost := m.preferredPublicHost()
+	profile := m.configManager.DefaultClientProfile(content, fallbackHost, m.cfg.Hy2Port, "")
 	if strings.TrimSpace(profile.Server) == "" {
-		host := NormalizeHost(m.cfg.Hy2Domain)
+		host := fallbackHost
 		if host == "" {
 			host = NormalizeHost(m.cfg.PanelPublicHost)
 		}
 		if host == "" {
 			host = "127.0.0.1"
 		}
-		profile.Server = host + ":" + strconv.Itoa(m.cfg.Hy2Port)
+		port := m.cfg.Hy2Port
+		if port <= 0 {
+			port = 443
+		}
+		profile.Server = fmt.Sprintf("%s:%d", host, port)
 	}
+	return profile
+}
+
+func (m *HysteriaAccessManager) currentClientParamsFromContent(content string) Hy2ClientParams {
+	return m.clientParamsFromProfile(m.baseClientProfileFromContent(content))
+}
+
+func (m *HysteriaAccessManager) defaultClientProfileFromContent(content string, user repository.HysteriaUserView) Hy2ClientProfile {
+	profile := m.baseClientProfileFromContent(content)
+	profile.Auth = hysteriadomain.BuildCredential(user.User)
+	profile.Name = user.Username
 	return profile
 }
 
@@ -234,10 +212,13 @@ func applyClientOverrides(profile Hy2ClientProfile, overrides *hysteriadomain.Cl
 		profile.TLS.Insecure = *normalized.Insecure
 	}
 	if normalized.PinSHA256 != nil {
-		profile.TLS.PinSHA256 = []string{strings.TrimSpace(*normalized.PinSHA256)}
+		profile.TLS.PinSHA256 = strings.TrimSpace(*normalized.PinSHA256)
 	}
 	if normalized.ObfsType != nil && strings.EqualFold(strings.TrimSpace(*normalized.ObfsType), "salamander") {
 		password := ""
+		if profile.Obfs != nil && strings.EqualFold(strings.TrimSpace(profile.Obfs.Type), "salamander") && profile.Obfs.Salamander != nil {
+			password = strings.TrimSpace(profile.Obfs.Salamander.Password)
+		}
 		if normalized.ObfsPassword != nil {
 			password = strings.TrimSpace(*normalized.ObfsPassword)
 		}
@@ -255,10 +236,7 @@ func (m *HysteriaAccessManager) clientParamsFromProfile(profile Hy2ClientProfile
 	if port <= 0 {
 		port = m.cfg.Hy2Port
 	}
-	pin := ""
-	if len(profile.TLS.PinSHA256) > 0 {
-		pin = strings.TrimSpace(profile.TLS.PinSHA256[0])
-	}
+	pin := strings.TrimSpace(profile.TLS.PinSHA256)
 	obfsType := ""
 	obfsPassword := ""
 	if profile.Obfs != nil {
@@ -306,20 +284,37 @@ func (m *HysteriaAccessManager) buildSingBoxOutbound(user repository.HysteriaUse
 	if params.Insecure {
 		tls["insecure"] = true
 	}
-	if strings.TrimSpace(params.PinSHA256) != "" {
-		tls["certificate_public_key_sha256"] = []string{strings.TrimSpace(params.PinSHA256)}
-	}
 	serverPort := params.Port
 	if serverPort <= 0 {
 		serverPort = m.cfg.Hy2Port
 	}
+	serverHost := strings.TrimSpace(params.Server)
+	if serverHost == "" {
+		serverHost = m.preferredPublicHost()
+	}
+	if serverHost == "" {
+		serverHost = "127.0.0.1"
+	}
 	outbound := map[string]any{
 		"type":        "hysteria2",
 		"tag":         "hy2-" + strings.TrimSpace(user.Username),
-		"server":      params.Server,
+		"server":      serverHost,
 		"server_port": serverPort,
 		"password":    hysteriadomain.BuildCredential(user.User),
 		"tls":         tls,
+	}
+	if ports := strings.TrimSpace(params.PortUnion); ports != "" && (strings.Contains(ports, ",") || strings.Contains(ports, "-")) {
+		segments := make([]string, 0, 4)
+		for _, segment := range strings.Split(ports, ",") {
+			segment = strings.TrimSpace(segment)
+			if segment != "" {
+				segments = append(segments, segment)
+			}
+		}
+		if len(segments) > 0 {
+			outbound["server_ports"] = segments
+			delete(outbound, "server_port")
+		}
 	}
 	if strings.TrimSpace(params.ObfsType) != "" {
 		obfs := map[string]any{"type": strings.TrimSpace(params.ObfsType)}
@@ -330,3 +325,4 @@ func (m *HysteriaAccessManager) buildSingBoxOutbound(user repository.HysteriaUse
 	}
 	return outbound
 }
+

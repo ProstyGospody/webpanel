@@ -116,11 +116,11 @@ func TestHysteriaConfigManagerGenerateClientArtifacts(t *testing.T) {
 	profile := Hy2ClientProfile{
 		Name:   "demo",
 		Server: "hy2.example.com:443",
-		Auth:   "token",
+		Auth:   "demo-user:supersecret88",
 		TLS: Hy2ClientTLS{
 			SNI:       "hy2.example.com",
 			Insecure:  true,
-			PinSHA256: []string{"pin-value"},
+			PinSHA256: "AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99",
 		},
 		Obfs: &Hy2ClientObfs{
 			Type:       "salamander",
@@ -132,12 +132,18 @@ func TestHysteriaConfigManagerGenerateClientArtifacts(t *testing.T) {
 		},
 	}
 
-	artifacts, validation := manager.GenerateClientArtifacts(profile, "socks5")
+	artifacts, validation := manager.GenerateClientArtifacts(profile)
 	if !validation.Valid {
 		t.Fatalf("profile validation failed: %#v", validation.Errors)
 	}
 	if !strings.HasPrefix(artifacts.URI, "hysteria2://") {
 		t.Fatalf("unexpected URI scheme: %s", artifacts.URI)
+	}
+	if strings.Contains(artifacts.URI, "demo-user%3Asupersecret88@") {
+		t.Fatalf("userpass auth must be encoded as URI userinfo, got: %s", artifacts.URI)
+	}
+	if !strings.Contains(artifacts.URI, "demo-user:supersecret88@hy2.example.com:443/") {
+		t.Fatalf("expected userpass auth and authority in URI: %s", artifacts.URI)
 	}
 	if !strings.Contains(artifacts.URI, "obfs=salamander") {
 		t.Fatalf("obfs type is missing in URI: %s", artifacts.URI)
@@ -145,8 +151,8 @@ func TestHysteriaConfigManagerGenerateClientArtifacts(t *testing.T) {
 	if !strings.Contains(artifacts.URI, "obfs-password=obfs-pass") {
 		t.Fatalf("obfs password is missing in URI: %s", artifacts.URI)
 	}
-	if !strings.Contains(artifacts.URI, "pinSHA256=pin-value") {
-		t.Fatalf("pinSHA256 is missing in URI: %s", artifacts.URI)
+	if !strings.Contains(artifacts.URI, "pinSHA256=aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899") {
+		t.Fatalf("pinSHA256 is missing or unnormalized in URI: %s", artifacts.URI)
 	}
 
 	if strings.Contains(artifacts.URI, "maxIdleTimeout") {
@@ -161,9 +167,12 @@ func TestHysteriaConfigManagerGenerateClientArtifacts(t *testing.T) {
 	if !strings.Contains(artifacts.ClientYAML, "socks5:") {
 		t.Fatalf("client YAML does not contain socks5 mode: %s", artifacts.ClientYAML)
 	}
+	if !strings.Contains(artifacts.ClientYAML, "pinSHA256: AA:BB:CC:DD") {
+		t.Fatalf("client YAML must contain scalar pinSHA256 value: %s", artifacts.ClientYAML)
+	}
 }
 
-func TestDefaultClientProfileFromSettingsIgnoresWildcardHosts(t *testing.T) {
+func TestDefaultClientProfileFromSettingsUsesACMEDomainWhenFallbackWildcard(t *testing.T) {
 	manager := NewHysteriaConfigManager("/tmp/unused")
 
 	settings := Hy2Settings{
@@ -175,8 +184,39 @@ func TestDefaultClientProfileFromSettingsIgnoresWildcardHosts(t *testing.T) {
 	}
 
 	profile := manager.DefaultClientProfileFromSettings(settings, "0.0.0.0", 443, "token")
-	if !strings.HasPrefix(profile.Server, "127.0.0.1:") {
-		t.Fatalf("expected wildcard host fallback to loopback, got: %s", profile.Server)
+	if !strings.HasPrefix(profile.Server, "hy2.example.com:") {
+		t.Fatalf("expected ACME domain fallback for server host, got: %s", profile.Server)
+	}
+	if profile.TLS.SNI != "hy2.example.com" {
+		t.Fatalf("expected ACME domain SNI, got: %s", profile.TLS.SNI)
+	}
+}
+
+func TestValidateSettingsAllowsPortUnionListen(t *testing.T) {
+	manager := NewHysteriaConfigManager("/tmp/unused")
+	validation := manager.Validate(`listen: :443,8443-8450
+acme:
+  domains:
+    - hy2.example.com
+auth:
+  type: userpass
+  userpass: {}`)
+	if !validation.Valid {
+		t.Fatalf("expected port-union listen to be valid, got errors: %#v", validation.Errors)
+	}
+}
+
+func TestValidateSettingsSupportsCommandAuth(t *testing.T) {
+	manager := NewHysteriaConfigManager("/tmp/unused")
+	validation := manager.Validate(`listen: :443
+acme:
+  domains:
+    - hy2.example.com
+auth:
+  type: command
+  command: /usr/local/bin/hy2-auth`)
+	if !validation.Valid {
+		t.Fatalf("expected command auth to be valid, got errors: %#v", validation.Errors)
 	}
 }
 
@@ -218,3 +258,4 @@ auth:
 		t.Fatalf("udpIdleTimeout is missing: %s", next)
 	}
 }
+

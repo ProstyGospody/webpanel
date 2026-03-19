@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
 )
 
 var usernamePattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9._-]{1,62}[a-z0-9])?$`)
@@ -172,6 +173,9 @@ func ValidateClientOverrides(input *ClientOverrides) []ValidationError {
 	if overrides.SNI != nil && !isValidOverrideHost(*overrides.SNI) {
 		errors = append(errors, ValidationError{Field: "overrides.sni", Message: "sni must be a valid host"})
 	}
+	if overrides.PinSHA256 != nil && !IsValidPinSHA256(*overrides.PinSHA256) {
+		errors = append(errors, ValidationError{Field: "overrides.pinSHA256", Message: "pinSHA256 must be a valid SHA-256 certificate fingerprint"})
+	}
 	if overrides.ObfsType != nil && *overrides.ObfsType != "salamander" {
 		errors = append(errors, ValidationError{Field: "overrides.obfsType", Message: "obfsType must be salamander"})
 	}
@@ -204,3 +208,31 @@ func isValidOverrideHost(raw string) bool {
 	}
 	return true
 }
+
+func IsValidPinSHA256(raw string) bool {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return false
+	}
+	normalized := strings.Builder{}
+	normalized.Grow(len(value))
+	for _, ch := range value {
+		switch ch {
+		case ':', '-', ' ':
+			continue
+		default:
+			normalized.WriteRune(unicode.ToLower(ch))
+		}
+	}
+	hex := normalized.String()
+	if len(hex) != 64 {
+		return false
+	}
+	for _, ch := range hex {
+		if (ch < '0' || ch > '9') && (ch < 'a' || ch > 'f') {
+			return false
+		}
+	}
+	return true
+}
+

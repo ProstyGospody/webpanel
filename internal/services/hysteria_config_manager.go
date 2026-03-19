@@ -90,6 +90,7 @@ type Hy2ServerAuth struct {
 	Password string             `json:"password,omitempty"`
 	UserPass map[string]string  `json:"userpass,omitempty"`
 	HTTP     *Hy2ServerAuthHTTP `json:"http,omitempty"`
+	Command  string             `json:"command,omitempty"`
 }
 
 type Hy2ServerAuthHTTP struct {
@@ -163,9 +164,9 @@ type Hy2ClientProfile struct {
 }
 
 type Hy2ClientTLS struct {
-	SNI       string   `json:"sni,omitempty"`
-	Insecure  bool     `json:"insecure,omitempty"`
-	PinSHA256 []string `json:"pinSHA256,omitempty"`
+	SNI       string `json:"sni,omitempty"`
+	Insecure  bool   `json:"insecure,omitempty"`
+	PinSHA256 string `json:"pinSHA256,omitempty"`
 }
 
 type Hy2ClientObfs struct {
@@ -361,10 +362,7 @@ func (m *HysteriaConfigManager) ClientParams(content string, fallbackHost string
 	if host == "" {
 		host = "127.0.0.1"
 	}
-	pin := ""
-	if len(profile.TLS.PinSHA256) > 0 {
-		pin = strings.TrimSpace(profile.TLS.PinSHA256[0])
-	}
+	pin := strings.TrimSpace(profile.TLS.PinSHA256)
 	obfsType := ""
 	obfsPassword := ""
 	if profile.Obfs != nil {
@@ -398,6 +396,13 @@ func (m *HysteriaConfigManager) DefaultClientProfileFromSettings(settings Hy2Set
 	}
 
 	publicHost := sanitizePublicHost(fallbackHost)
+	acmeHost := ""
+	if settings.ACME != nil && len(settings.ACME.Domains) > 0 {
+		acmeHost = sanitizePublicHost(settings.ACME.Domains[0])
+	}
+	if publicHost == "" {
+		publicHost = acmeHost
+	}
 	if publicHost == "" {
 		publicHost = sanitizePublicHost(listenHost)
 	}
@@ -407,10 +412,7 @@ func (m *HysteriaConfigManager) DefaultClientProfileFromSettings(settings Hy2Set
 
 	sni := ""
 	if settings.TLSEnabled {
-		sni = publicHost
-		if settings.TLSMode == "acme" && settings.ACME != nil && len(settings.ACME.Domains) > 0 {
-			sni = NormalizeHost(settings.ACME.Domains[0])
-		}
+		sni = acmeHost
 		if sni == "" {
 			sni = publicHost
 		}
@@ -444,13 +446,13 @@ func (m *HysteriaConfigManager) DefaultClientProfileFromSettings(settings Hy2Set
 	return normalizeClientProfile(profile)
 }
 
-func (m *HysteriaConfigManager) ValidateClientProfile(profile Hy2ClientProfile, modeTemplate string) Hy2ClientValidation {
-	return validateClientProfile(normalizeClientProfile(profile), modeTemplate)
+func (m *HysteriaConfigManager) ValidateClientProfile(profile Hy2ClientProfile) Hy2ClientValidation {
+	return validateClientProfile(normalizeClientProfile(profile))
 }
 
-func (m *HysteriaConfigManager) GenerateClientArtifacts(profile Hy2ClientProfile, modeTemplate string) (Hy2ClientArtifacts, Hy2ClientValidation) {
+func (m *HysteriaConfigManager) GenerateClientArtifacts(profile Hy2ClientProfile) (Hy2ClientArtifacts, Hy2ClientValidation) {
 	normalized := normalizeClientProfile(profile)
-	v := validateClientProfile(normalized, modeTemplate)
+	v := validateClientProfile(normalized)
 	if !v.Valid {
 		return Hy2ClientArtifacts{}, v
 	}
@@ -605,6 +607,7 @@ func parseServerAuth(m map[string]any) Hy2ServerAuth {
 		Type:     strings.ToLower(strings.TrimSpace(toString(m["type"]))),
 		Password: strings.TrimSpace(toString(m["password"])),
 		UserPass: trimStringStringMap(toStringStringMap(m["userpass"])),
+		Command:  strings.TrimSpace(toString(m["command"])),
 	}
 	if mm, ok := toStringAnyMap(m["http"]); ok {
 		auth.HTTP = &Hy2ServerAuthHTTP{URL: strings.TrimSpace(toString(mm["url"])), Insecure: toBool(mm["insecure"])}
@@ -709,6 +712,7 @@ func normalizeSettings(input Hy2Settings) Hy2Settings {
 	settings.Auth.Type = strings.ToLower(strings.TrimSpace(settings.Auth.Type))
 	settings.Auth.Password = strings.TrimSpace(settings.Auth.Password)
 	settings.Auth.UserPass = trimStringStringMap(settings.Auth.UserPass)
+	settings.Auth.Command = strings.TrimSpace(settings.Auth.Command)
 	if settings.Auth.HTTP != nil {
 		settings.Auth.HTTP.URL = strings.TrimSpace(settings.Auth.HTTP.URL)
 		if settings.Auth.HTTP.URL == "" && !settings.Auth.HTTP.Insecure {
@@ -722,19 +726,27 @@ func normalizeSettings(input Hy2Settings) Hy2Settings {
 	case "userpass":
 		settings.Auth.Password = ""
 		settings.Auth.HTTP = nil
+		settings.Auth.Command = ""
 		if settings.Auth.UserPass == nil {
 			settings.Auth.UserPass = map[string]string{}
 		}
 	case "password":
 		settings.Auth.UserPass = nil
 		settings.Auth.HTTP = nil
+		settings.Auth.Command = ""
 	case "http":
 		settings.Auth.Password = ""
 		settings.Auth.UserPass = nil
+		settings.Auth.Command = ""
+	case "command":
+		settings.Auth.Password = ""
+		settings.Auth.UserPass = nil
+		settings.Auth.HTTP = nil
 	default:
 		settings.Auth.Type = "userpass"
 		settings.Auth.Password = ""
 		settings.Auth.HTTP = nil
+		settings.Auth.Command = ""
 		if settings.Auth.UserPass == nil {
 			settings.Auth.UserPass = map[string]string{}
 		}
@@ -849,7 +861,7 @@ func validateSettings(input Hy2Settings) Hy2SettingsValidation {
 	if settings.Listen == "" {
 		v.Errors = append(v.Errors, "listen is required")
 	} else if !validListenAddress(settings.Listen) {
-		v.Errors = append(v.Errors, "listen must be host:port or :port with a single valid port")
+		v.Errors = append(v.Errors, "listen must be host:port or :port with a valid port or port union")
 	}
 
 	if settings.TLSEnabled {
@@ -898,8 +910,12 @@ func validateSettings(input Hy2Settings) Hy2SettingsValidation {
 		if settings.Auth.HTTP == nil || !isValidAbsURL(settings.Auth.HTTP.URL) {
 			v.Errors = append(v.Errors, "auth.http.url must be a valid absolute URL")
 		}
+	case "command":
+		if strings.TrimSpace(settings.Auth.Command) == "" {
+			v.Errors = append(v.Errors, "auth.command is required when auth.type=command")
+		}
 	default:
-		v.Errors = append(v.Errors, "auth.type must be userpass, password, or http")
+		v.Errors = append(v.Errors, "auth.type must be userpass, password, http, or command")
 	}
 
 	if settings.Obfs != nil {
@@ -1150,6 +1166,8 @@ func buildServerAuthMap(cfg Hy2ServerAuth) map[string]any {
 			}
 		}
 		out["http"] = hm
+	case "command":
+		out["command"] = strings.TrimSpace(auth.Command)
 	}
 	return out
 }
@@ -1227,7 +1245,7 @@ func normalizeClientProfile(input Hy2ClientProfile) Hy2ClientProfile {
 	profile.Server = strings.TrimSpace(profile.Server)
 	profile.Auth = strings.TrimSpace(profile.Auth)
 	profile.TLS.SNI = strings.TrimSpace(profile.TLS.SNI)
-	profile.TLS.PinSHA256 = trimStringSlice(profile.TLS.PinSHA256)
+	profile.TLS.PinSHA256 = strings.TrimSpace(profile.TLS.PinSHA256)
 
 	if profile.Obfs != nil {
 		profile.Obfs.Type = strings.ToLower(strings.TrimSpace(profile.Obfs.Type))
@@ -1252,7 +1270,7 @@ func normalizeClientProfile(input Hy2ClientProfile) Hy2ClientProfile {
 	return profile
 }
 
-func validateClientProfile(profile Hy2ClientProfile, modeTemplate string) Hy2ClientValidation {
+func validateClientProfile(profile Hy2ClientProfile) Hy2ClientValidation {
 	v := Hy2ClientValidation{Errors: []string{}, Warnings: []string{}}
 	host, ports := splitServerForClient(profile.Server)
 	if host == "" {
@@ -1266,6 +1284,9 @@ func validateClientProfile(profile Hy2ClientProfile, modeTemplate string) Hy2Cli
 	}
 	if profile.TLS.SNI != "" && NormalizeHost(profile.TLS.SNI) == "" {
 		v.Errors = append(v.Errors, "profile.tls.sni must be a valid host")
+	}
+	if profile.TLS.PinSHA256 != "" && !isValidPinSHA256(profile.TLS.PinSHA256) {
+		v.Errors = append(v.Errors, "profile.tls.pinSHA256 must be a valid SHA-256 certificate fingerprint")
 	}
 	if profile.Obfs != nil {
 		if profile.Obfs.Type != "salamander" {
@@ -1310,13 +1331,24 @@ func buildClientURI(profile Hy2ClientProfile) (string, string) {
 	profile = normalizeClientProfile(profile)
 	host, ports := splitServerForClient(profile.Server)
 	if host == "" {
-		host = profile.Server
+		host = strings.TrimSpace(profile.Server)
 	}
 	authority := host
 	if strings.TrimSpace(ports) != "" {
 		authority = host + ":" + strings.TrimSpace(ports)
 	}
 	authority = ensureBracketedIPv6(authority)
+
+	u := url.URL{Scheme: "hysteria2", Host: authority, Path: "/"}
+	auth := strings.TrimSpace(profile.Auth)
+	if auth != "" {
+		parts := strings.SplitN(auth, ":", 2)
+		if len(parts) == 2 {
+			u.User = url.UserPassword(parts[0], parts[1])
+		} else {
+			u.User = url.User(auth)
+		}
+	}
 
 	query := url.Values{}
 	if profile.TLS.SNI != "" {
@@ -1325,8 +1357,8 @@ func buildClientURI(profile Hy2ClientProfile) (string, string) {
 	if profile.TLS.Insecure {
 		query.Set("insecure", "1")
 	}
-	if len(profile.TLS.PinSHA256) > 0 && strings.TrimSpace(profile.TLS.PinSHA256[0]) != "" {
-		query.Set("pinSHA256", strings.TrimSpace(profile.TLS.PinSHA256[0]))
+	if pin := normalizeCertHash(profile.TLS.PinSHA256); pin != "" {
+		query.Set("pinSHA256", pin)
 	}
 	if profile.Obfs != nil && strings.EqualFold(profile.Obfs.Type, "salamander") {
 		query.Set("obfs", "salamander")
@@ -1334,14 +1366,12 @@ func buildClientURI(profile Hy2ClientProfile) (string, string) {
 			query.Set("obfs-password", strings.TrimSpace(profile.Obfs.Salamander.Password))
 		}
 	}
-
-	uri := "hysteria2://" + url.PathEscape(profile.Auth) + "@" + authority + "/"
-	if encoded := query.Encode(); encoded != "" {
-		uri += "?" + encoded
-	}
+	u.RawQuery = query.Encode()
 	if profile.Name != "" {
-		uri += "#" + url.QueryEscape(profile.Name)
+		u.Fragment = profile.Name
 	}
+
+	uri := u.String()
 	return uri, strings.Replace(uri, "hysteria2://", "hy2://", 1)
 }
 
@@ -1355,7 +1385,7 @@ func buildClientYAML(profile Hy2ClientProfile) (string, error) {
 	if profile.TLS.Insecure {
 		tlsMap["insecure"] = true
 	}
-	if len(profile.TLS.PinSHA256) > 0 {
+	if profile.TLS.PinSHA256 != "" {
 		tlsMap["pinSHA256"] = profile.TLS.PinSHA256
 	}
 	if len(tlsMap) > 0 {
@@ -1771,19 +1801,7 @@ func validListenAddress(listen string) bool {
 	if !ok {
 		return false
 	}
-	return validSinglePortSpec(ports)
-}
-
-func validSinglePortSpec(value string) bool {
-	value = strings.TrimSpace(value)
-	if value == "" || strings.Contains(value, ",") || strings.Contains(value, "-") {
-		return false
-	}
-	port, err := strconv.Atoi(value)
-	if err != nil {
-		return false
-	}
-	return validPort(port)
+	return validPortUnion(ports)
 }
 
 func validPortUnion(value string) bool {
@@ -1902,6 +1920,30 @@ func sanitizePublicHost(raw string) string {
 
 func validPort(value int) bool {
 	return value >= 1 && value <= 65535
+}
+
+func normalizeCertHash(raw string) string {
+	value := strings.ToLower(strings.TrimSpace(raw))
+	if value == "" {
+		return ""
+	}
+	value = strings.ReplaceAll(value, ":", "")
+	value = strings.ReplaceAll(value, "-", "")
+	value = strings.ReplaceAll(value, " ", "")
+	return value
+}
+
+func isValidPinSHA256(raw string) bool {
+	hash := normalizeCertHash(raw)
+	if len(hash) != 64 {
+		return false
+	}
+	for _, ch := range hash {
+		if (ch < '0' || ch > '9') && (ch < 'a' || ch > 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 func validBandwidthValue(raw string) bool {
@@ -2050,6 +2092,7 @@ func buildServerSchema() *schemaNode {
 				"type":     emptySchema,
 				"password": emptySchema,
 				"userpass": {AnyMap: true},
+				"command": emptySchema,
 				"http": {
 					Fields: map[string]*schemaNode{
 						"url":      emptySchema,
@@ -2106,23 +2149,4 @@ func buildServerSchema() *schemaNode {
 		"udpIdleTimeout":        emptySchema,
 	}}
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
