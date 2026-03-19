@@ -546,7 +546,8 @@ tls:
 
 auth:
   type: userpass
-  userpass: {}
+  userpass:
+    __bootstrap__: ${INTERNAL_AUTH_TOKEN}
 
 trafficStats:
   listen: 127.0.0.1:${HY2_STATS_PORT}

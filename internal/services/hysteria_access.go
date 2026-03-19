@@ -87,6 +87,13 @@ func (m *HysteriaAccessManager) managedAuth(ctx context.Context) (Hy2ServerAuth,
 	for _, user := range users {
 		userPass[user.Username] = user.Password
 	}
+	if len(userPass) == 0 {
+		bootstrapPassword := strings.TrimSpace(m.cfg.InternalAuthToken)
+		if bootstrapPassword == "" {
+			bootstrapPassword = "proxy-panel-bootstrap"
+		}
+		userPass["__bootstrap__"] = bootstrapPassword
+	}
 	return Hy2ServerAuth{Type: "userpass", UserPass: userPass}, nil
 }
 
