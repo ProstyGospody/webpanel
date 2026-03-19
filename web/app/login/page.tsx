@@ -5,7 +5,7 @@ import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 
-import { APIError, apiFetch } from "@/lib/api";
+import { APIError, apiFetch } from "@/services/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -68,7 +68,7 @@ export default function LoginPage() {
               </Box>
               <Box>
                 <Typography variant="h5" sx={{ fontWeight: 800 }}>Hysteria 2 Panel</Typography>
-                <Typography variant="body2" color="text.secondary">Sign in to manage clients and runtime config.</Typography>
+                <Typography variant="body2" color="text.secondary">Admin login</Typography>
               </Box>
             </Stack>
 
@@ -87,3 +87,5 @@ export default function LoginPage() {
     </Box>
   );
 }
+
+

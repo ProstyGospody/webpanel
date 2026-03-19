@@ -14,7 +14,7 @@ import (
 	hysteriadomain "proxy-panel/internal/domain/hysteria"
 )
 
-func (r *Repository) CreateHysteriaUser(ctx context.Context, username string, password string, note *string) (HysteriaUser, error) {
+func (r *Repository) CreateHysteriaUser(ctx context.Context, username string, password string, note *string, overrides *hysteriadomain.ClientOverrides) (HysteriaUser, error) {
 	var out HysteriaUser
 	err := r.withLock(ctx, func() error {
 		normalizedUsername, err := hysteriadomain.NormalizeUsername(username)
@@ -42,6 +42,7 @@ func (r *Repository) CreateHysteriaUser(ctx context.Context, username string, pa
 			Password:           normalizedPassword,
 			Enabled:            true,
 			Note:               hysteriadomain.NormalizeNote(note),
+			ClientOverrides:    hysteriadomain.NormalizeClientOverrides(overrides),
 			CreatedAt:          now,
 			UpdatedAt:          now,
 		}
@@ -103,7 +104,7 @@ func (r *Repository) GetHysteriaUser(ctx context.Context, id string) (HysteriaUs
 	return out, err
 }
 
-func (r *Repository) UpdateHysteriaUser(ctx context.Context, id string, username string, password string, note *string) (HysteriaUserView, error) {
+func (r *Repository) UpdateHysteriaUser(ctx context.Context, id string, username string, password string, note *string, overrides *hysteriadomain.ClientOverrides) (HysteriaUserView, error) {
 	var out HysteriaUserView
 	err := r.withLock(ctx, func() error {
 		current, err := r.loadHysteriaUserNoLock(id)
@@ -134,6 +135,7 @@ func (r *Repository) UpdateHysteriaUser(ctx context.Context, id string, username
 		current.UsernameNormalized = normalizedUsername
 		current.Password = normalizedPassword
 		current.Note = hysteriadomain.NormalizeNote(note)
+		current.ClientOverrides = hysteriadomain.NormalizeClientOverrides(overrides)
 		current.UpdatedAt = time.Now().UTC()
 		if err := r.writeHysteriaUserNoLock(current); err != nil {
 			return err
@@ -342,4 +344,6 @@ func (r *Repository) hysteriaUserViewNoLock(user HysteriaUser) HysteriaUserView 
 	}
 	return item
 }
+
+
 

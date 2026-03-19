@@ -14,15 +14,19 @@ import (
 )
 
 type createHysteriaUserRequest struct {
-	Username *string `json:"username"`
-	Password *string `json:"password"`
-	Note     *string `json:"note"`
+	Username        *string                          `json:"username"`
+	Password        *string                          `json:"password"`
+	AuthSecret      *string                          `json:"auth_secret"`
+	Note            *string                          `json:"note"`
+	ClientOverrides *hysteriadomain.ClientOverrides `json:"client_overrides"`
 }
 
 type updateHysteriaUserRequest struct {
-	Username *string `json:"username"`
-	Password *string `json:"password"`
-	Note     *string `json:"note"`
+	Username        *string                          `json:"username"`
+	Password        *string                          `json:"password"`
+	AuthSecret      *string                          `json:"auth_secret"`
+	Note            *string                          `json:"note"`
+	ClientOverrides *hysteriadomain.ClientOverrides `json:"client_overrides"`
 }
 
 func (h *Handler) ListHysteriaUsers(w http.ResponseWriter, r *http.Request) {
@@ -33,6 +37,15 @@ func (h *Handler) ListHysteriaUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	render.JSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+func (h *Handler) HysteriaClientDefaults(w http.ResponseWriter, r *http.Request) {
+	defaults, err := h.hysteriaAccess.ClientDefaults(r.Context())
+	if err != nil {
+		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to resolve client defaults", nil)
+		return
+	}
+	render.JSON(w, http.StatusOK, defaults)
 }
 
 func (h *Handler) CreateHysteriaUser(w http.ResponseWriter, r *http.Request) {
@@ -46,11 +59,8 @@ func (h *Handler) CreateHysteriaUser(w http.ResponseWriter, r *http.Request) {
 	if req.Username != nil {
 		username = strings.TrimSpace(*req.Username)
 	}
-	password := ""
-	if req.Password != nil {
-		password = strings.TrimSpace(*req.Password)
-	}
-	if password == "" {
+	password, hasPassword := selectAuthSecret(req.AuthSecret, req.Password)
+	if !hasPassword {
 		generated, err := security.RandomHex(16)
 		if err != nil {
 			h.renderError(w, http.StatusInternalServerError, "runtime", "failed to generate password", nil)
@@ -60,12 +70,13 @@ func (h *Handler) CreateHysteriaUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	validationErrors := hysteriadomain.ValidateUserInput(username, password)
+	validationErrors = append(validationErrors, hysteriadomain.ValidateClientOverrides(req.ClientOverrides)...)
 	if len(validationErrors) > 0 {
 		h.renderError(w, http.StatusBadRequest, "validation", "hysteria user validation failed", validationErrors)
 		return
 	}
 
-	user, err := h.repo.CreateHysteriaUser(r.Context(), username, password, req.Note)
+	user, err := h.repo.CreateHysteriaUser(r.Context(), username, password, req.Note, req.ClientOverrides)
 	if err != nil {
 		if repository.IsUniqueViolation(err) {
 			h.renderError(w, http.StatusConflict, "validation", "username already exists", nil)
@@ -138,16 +149,19 @@ func (h *Handler) UpdateHysteriaUser(w http.ResponseWriter, r *http.Request) {
 		username = strings.TrimSpace(*req.Username)
 	}
 	password := current.Password
-	if req.Password != nil {
-		password = strings.TrimSpace(*req.Password)
+	if requestedPassword, hasPassword := selectAuthSecret(req.AuthSecret, req.Password); hasPassword {
+		password = requestedPassword
 	}
+	overrides := coalesceClientOverrides(req.ClientOverrides, current.ClientOverrides)
+
 	validationErrors := hysteriadomain.ValidateUserInput(username, password)
+	validationErrors = append(validationErrors, hysteriadomain.ValidateClientOverrides(overrides)...)
 	if len(validationErrors) > 0 {
 		h.renderError(w, http.StatusBadRequest, "validation", "hysteria user validation failed", validationErrors)
 		return
 	}
 
-	updated, err := h.repo.UpdateHysteriaUser(r.Context(), id, username, password, coalesceNote(req.Note, current.Note))
+	updated, err := h.repo.UpdateHysteriaUser(r.Context(), id, username, password, coalesceNote(req.Note, current.Note), overrides)
 	if err != nil {
 		if repository.IsNotFound(err) {
 			h.renderError(w, http.StatusNotFound, "not_found", "hysteria user not found", nil)
@@ -162,7 +176,7 @@ func (h *Handler) UpdateHysteriaUser(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, err := h.hysteriaAccess.Sync(r.Context()); err != nil {
 		details := map[string]any{}
-		if _, rollbackErr := h.repo.UpdateHysteriaUser(r.Context(), id, current.Username, current.Password, current.Note); rollbackErr != nil {
+		if _, rollbackErr := h.repo.UpdateHysteriaUser(r.Context(), id, current.Username, current.Password, current.Note, current.ClientOverrides); rollbackErr != nil {
 			details["rollback_error"] = rollbackErr.Error()
 		}
 		if len(details) == 0 {
@@ -358,7 +372,24 @@ func (h *Handler) HysteriaStatsHistory(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, http.StatusOK, map[string]any{"items": items})
 }
 
+func selectAuthSecret(primary *string, fallback *string) (string, bool) {
+	if primary != nil {
+		return strings.TrimSpace(*primary), true
+	}
+	if fallback != nil {
+		return strings.TrimSpace(*fallback), true
+	}
+	return "", false
+}
+
 func coalesceNote(next *string, current *string) *string {
+	if next != nil {
+		return next
+	}
+	return current
+}
+
+func coalesceClientOverrides(next *hysteriadomain.ClientOverrides, current *hysteriadomain.ClientOverrides) *hysteriadomain.ClientOverrides {
 	if next != nil {
 		return next
 	}

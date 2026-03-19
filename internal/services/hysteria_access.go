@@ -12,11 +12,29 @@ import (
 )
 
 type HysteriaUserArtifacts struct {
-	URI             string         `json:"uri"`
-	URIHy2          string         `json:"uri_hy2"`
-	ClientYAML      string         `json:"client_config"`
-	ClientParams    Hy2ClientParams `json:"client_params"`
-	SingBoxOutbound map[string]any `json:"singbox_outbound"`
+	URI             string                           `json:"uri"`
+	URIHy2          string                           `json:"uri_hy2"`
+	ClientYAML      string                           `json:"client_config"`
+	ClientParams    Hy2ClientParams                  `json:"client_params"`
+	ServerDefaults  Hy2ClientParams                  `json:"server_defaults"`
+	ClientOverrides *hysteriadomain.ClientOverrides `json:"client_overrides,omitempty"`
+	ServerOptions   HysteriaServerClientOptions      `json:"server_options"`
+	SingBoxOutbound map[string]any                   `json:"singbox_outbound"`
+}
+
+type HysteriaClientDefaults struct {
+	ClientParams  Hy2ClientParams             `json:"client_params"`
+	ServerOptions HysteriaServerClientOptions `json:"server_options"`
+}
+
+type HysteriaServerClientOptions struct {
+	TLSEnabled            bool   `json:"tls_enabled"`
+	TLSMode               string `json:"tls_mode"`
+	ObfsType              string `json:"obfs_type,omitempty"`
+	MasqueradeType        string `json:"masquerade_type,omitempty"`
+	BandwidthUp           string `json:"bandwidth_up,omitempty"`
+	BandwidthDown         string `json:"bandwidth_down,omitempty"`
+	IgnoreClientBandwidth bool   `json:"ignore_client_bandwidth"`
 }
 
 type HysteriaSyncResult struct {
@@ -78,6 +96,18 @@ func (m *HysteriaAccessManager) InjectManagedAuth(ctx context.Context, content s
 	return marshalYAMLMap(root)
 }
 
+func (m *HysteriaAccessManager) ClientDefaults(ctx context.Context) (HysteriaClientDefaults, error) {
+	content, err := m.managedContent(ctx)
+	if err != nil {
+		return HysteriaClientDefaults{}, err
+	}
+	settings := m.configManager.ExtractSettings(content, m.cfg.Hy2Domain, m.cfg.Hy2Port)
+	return HysteriaClientDefaults{
+		ClientParams:  m.currentClientParamsFromContent(content),
+		ServerOptions: m.serverClientOptionsFromSettings(settings),
+	}, nil
+}
+
 func (m *HysteriaAccessManager) managedAuth(ctx context.Context) (Hy2ServerAuth, error) {
 	users, err := m.repo.ListEnabledHysteriaUsers(ctx)
 	if err != nil {
@@ -102,18 +132,25 @@ func (m *HysteriaAccessManager) BuildUserArtifacts(user repository.HysteriaUserV
 	if err != nil {
 		return HysteriaUserArtifacts{}, Hy2ClientValidation{}, err
 	}
+	settings := m.configManager.ExtractSettings(content, m.cfg.Hy2Domain, m.cfg.Hy2Port)
+	serverDefaults := m.currentClientParamsFromContent(content)
 	profile := m.defaultClientProfileFromContent(content, user)
-	artifacts, validation := m.configManager.GenerateClientArtifacts(profile, "socks5")
+	effectiveProfile := applyClientOverrides(profile, user.ClientOverrides)
+
+	artifacts, validation := m.configManager.GenerateClientArtifacts(effectiveProfile, "socks5")
 	if !validation.Valid {
 		return HysteriaUserArtifacts{}, validation, fmt.Errorf("invalid hysteria client profile")
 	}
-	params := m.currentClientParamsFromContent(content)
+	effectiveParams := m.clientParamsFromProfile(effectiveProfile)
 	return HysteriaUserArtifacts{
 		URI:             artifacts.URI,
 		URIHy2:          artifacts.URIHy2,
 		ClientYAML:      artifacts.ClientYAML,
-		ClientParams:    params,
-		SingBoxOutbound: m.buildSingBoxOutbound(user, params),
+		ClientParams:    effectiveParams,
+		ServerDefaults:  serverDefaults,
+		ClientOverrides: hysteriadomain.NormalizeClientOverrides(user.ClientOverrides),
+		ServerOptions:   m.serverClientOptionsFromSettings(settings),
+		SingBoxOutbound: m.buildSingBoxOutbound(user, effectiveParams),
 	}, validation, nil
 }
 
@@ -183,6 +220,82 @@ func (m *HysteriaAccessManager) defaultClientProfileFromContent(content string, 
 		profile.Server = host + ":" + strconv.Itoa(m.cfg.Hy2Port)
 	}
 	return profile
+}
+
+func applyClientOverrides(profile Hy2ClientProfile, overrides *hysteriadomain.ClientOverrides) Hy2ClientProfile {
+	normalized := hysteriadomain.NormalizeClientOverrides(overrides)
+	if normalized == nil {
+		return profile
+	}
+	if normalized.SNI != nil {
+		profile.TLS.SNI = strings.TrimSpace(*normalized.SNI)
+	}
+	if normalized.Insecure != nil {
+		profile.TLS.Insecure = *normalized.Insecure
+	}
+	if normalized.PinSHA256 != nil {
+		profile.TLS.PinSHA256 = []string{strings.TrimSpace(*normalized.PinSHA256)}
+	}
+	if normalized.ObfsType != nil && strings.EqualFold(strings.TrimSpace(*normalized.ObfsType), "salamander") {
+		password := ""
+		if normalized.ObfsPassword != nil {
+			password = strings.TrimSpace(*normalized.ObfsPassword)
+		}
+		profile.Obfs = &Hy2ClientObfs{Type: "salamander", Salamander: &Hy2ClientSalamander{Password: password}}
+	}
+	return profile
+}
+
+func (m *HysteriaAccessManager) clientParamsFromProfile(profile Hy2ClientProfile) Hy2ClientParams {
+	host, ports := splitServerForClient(profile.Server)
+	if host == "" {
+		host = strings.TrimSpace(profile.Server)
+	}
+	port := firstPortFromUnion(ports)
+	if port <= 0 {
+		port = m.cfg.Hy2Port
+	}
+	pin := ""
+	if len(profile.TLS.PinSHA256) > 0 {
+		pin = strings.TrimSpace(profile.TLS.PinSHA256[0])
+	}
+	obfsType := ""
+	obfsPassword := ""
+	if profile.Obfs != nil {
+		obfsType = strings.TrimSpace(profile.Obfs.Type)
+		if profile.Obfs.Salamander != nil {
+			obfsPassword = strings.TrimSpace(profile.Obfs.Salamander.Password)
+		}
+	}
+	return Hy2ClientParams{
+		Server:       host,
+		Port:         port,
+		PortUnion:    ports,
+		SNI:          strings.TrimSpace(profile.TLS.SNI),
+		Insecure:     profile.TLS.Insecure,
+		PinSHA256:    pin,
+		ObfsType:     obfsType,
+		ObfsPassword: obfsPassword,
+	}
+}
+
+func (m *HysteriaAccessManager) serverClientOptionsFromSettings(settings Hy2Settings) HysteriaServerClientOptions {
+	result := HysteriaServerClientOptions{
+		TLSEnabled:            settings.TLSEnabled,
+		TLSMode:               settings.TLSMode,
+		IgnoreClientBandwidth: settings.IgnoreClientBandwidth,
+	}
+	if settings.Obfs != nil {
+		result.ObfsType = strings.TrimSpace(settings.Obfs.Type)
+	}
+	if settings.Masquerade != nil {
+		result.MasqueradeType = strings.TrimSpace(settings.Masquerade.Type)
+	}
+	if settings.Bandwidth != nil {
+		result.BandwidthUp = strings.TrimSpace(settings.Bandwidth.Up)
+		result.BandwidthDown = strings.TrimSpace(settings.Bandwidth.Down)
+	}
+	return result
 }
 
 func (m *HysteriaAccessManager) buildSingBoxOutbound(user repository.HysteriaUserView, params Hy2ClientParams) map[string]any {

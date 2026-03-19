@@ -27,11 +27,11 @@ import RestartAltRoundedIcon from "@mui/icons-material/RestartAltRounded";
 import SyncRoundedIcon from "@mui/icons-material/SyncRounded";
 import { useCallback, useEffect, useState } from "react";
 
-import { PageHeader } from "@/components/common/page-header";
-import { StatusChip } from "@/components/common/status-chip";
-import { APIError, apiFetch } from "@/lib/api";
-import { formatDateTime } from "@/lib/format";
-import { ServiceDetails, ServiceSummary } from "@/lib/types";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatusChip } from "@/components/ui/status-chip";
+import { APIError, apiFetch } from "@/services/api";
+import { formatDateTime } from "@/utils/format";
+import { ServiceDetails, ServiceSummary } from "@/types/common";
 
 type ActionState = { name: string; action: "restart" | "reload" } | null;
 
@@ -87,7 +87,7 @@ export default function ServicesPage() {
 
   return (
     <Stack spacing={3}>
-      <PageHeader title="Service Control" subtitle="Inspect and operate managed systemd services." actions={<Button variant="contained" startIcon={<RefreshRoundedIcon />} onClick={() => void load()}>Refresh</Button>} />
+      <PageHeader title="Services" subtitle="Managed systemd units" actions={<Button variant="contained" startIcon={<RefreshRoundedIcon />} onClick={() => void load()}>Refresh</Button>} />
       {error ? <Alert severity="error">{error}</Alert> : null}
 
       <Card>
@@ -154,3 +154,5 @@ export default function ServicesPage() {
     </Stack>
   );
 }
+
+

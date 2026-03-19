@@ -1,5 +1,5 @@
-import { AuthGuard } from "@/components/layout/auth-guard";
-import { PanelShell } from "@/components/layout/panel-shell";
+import { AuthGuard } from "@/shell/auth-guard";
+import { PanelShell } from "@/shell/panel-shell";
 
 export default function PanelLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -8,3 +8,4 @@ export default function PanelLayout({ children }: { children: React.ReactNode })
     </AuthGuard>
   );
 }
+

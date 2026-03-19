@@ -179,3 +179,42 @@ func TestDefaultClientProfileFromSettingsIgnoresWildcardHosts(t *testing.T) {
 		t.Fatalf("expected wildcard host fallback to loopback, got: %s", profile.Server)
 	}
 }
+
+func TestHysteriaConfigManagerApplySettingsWithBandwidthAndUDP(t *testing.T) {
+	cfg := `listen: :443
+acme:
+  domains:
+    - hy2.example.com
+auth:
+  type: password
+  password: old-secret
+`
+
+	manager := NewHysteriaConfigManager("/tmp/unused")
+	next, validation := manager.ApplySettings(cfg, Hy2Settings{
+		Listen:                ":443",
+		TLSEnabled:            true,
+		TLSMode:               "acme",
+		ACME:                  &Hy2ServerACME{Domains: []string{"hy2.example.com"}, Email: "admin@example.com"},
+		Auth:                  Hy2ServerAuth{Type: "password", Password: "new-secret"},
+		Bandwidth:             &Hy2ServerBandwidth{Up: "100 mbps", Down: "200 mbps"},
+		IgnoreClientBandwidth: true,
+		DisableUDP:            false,
+		UDPIdleTimeout:        "90s",
+	})
+	if !validation.Valid {
+		t.Fatalf("apply validation failed: %#v", validation.Errors)
+	}
+	if !strings.Contains(next, "bandwidth:") {
+		t.Fatalf("bandwidth section is missing: %s", next)
+	}
+	if !strings.Contains(next, "up: 100 mbps") || !strings.Contains(next, "down: 200 mbps") {
+		t.Fatalf("bandwidth values are missing: %s", next)
+	}
+	if !strings.Contains(next, "ignoreClientBandwidth: true") {
+		t.Fatalf("ignoreClientBandwidth is missing: %s", next)
+	}
+	if !strings.Contains(next, "udpIdleTimeout: 90s") {
+		t.Fatalf("udpIdleTimeout is missing: %s", next)
+	}
+}

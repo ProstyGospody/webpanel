@@ -29,7 +29,7 @@ import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
 import { ReactNode, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
-import { apiFetch } from "@/lib/api";
+import { apiFetch } from "@/services/api";
 
 type NavItem = { href: string; label: string; icon: ReactNode };
 
@@ -37,14 +37,14 @@ const drawerWidth = 280;
 const navItems: NavItem[] = [
   { href: "/", label: "Overview", icon: <DashboardRoundedIcon /> },
   { href: "/users", label: "Clients", icon: <GroupRoundedIcon /> },
-  { href: "/config", label: "Server Config", icon: <TuneRoundedIcon /> },
+  { href: "/config", label: "Server", icon: <TuneRoundedIcon /> },
   { href: "/services", label: "Services", icon: <SettingsEthernetRoundedIcon /> },
   { href: "/audit", label: "Audit", icon: <ReceiptLongRoundedIcon /> },
 ];
 
 function resolveTitle(pathname: string): string {
-  if (pathname === "/") return "Hysteria 2 Operations";
-  return navItems.find((x) => x.href === pathname)?.label || "Hysteria 2 Panel";
+  if (pathname === "/") return "Hysteria 2";
+  return navItems.find((x) => x.href === pathname)?.label || "Panel";
 }
 
 export function PanelShell({ children }: { children: ReactNode }) {
@@ -58,7 +58,9 @@ export function PanelShell({ children }: { children: ReactNode }) {
   async function logout() {
     try {
       await apiFetch<{ ok: boolean }>("/api/auth/logout", { method: "POST", body: JSON.stringify({}) });
-    } catch {}
+    } catch {
+      // no-op
+    }
     router.replace("/login");
   }
 
@@ -71,7 +73,7 @@ export function PanelShell({ children }: { children: ReactNode }) {
           </Avatar>
           <Box>
             <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>Hysteria 2</Typography>
-            <Typography variant="caption" color="text.secondary">Control Panel</Typography>
+            <Typography variant="caption" color="text.secondary">Admin Panel</Typography>
           </Box>
         </Stack>
       </Box>
@@ -90,9 +92,9 @@ export function PanelShell({ children }: { children: ReactNode }) {
               sx={{
                 mb: 0.5,
                 borderRadius: 2,
-                '&.Mui-selected': {
-                  backgroundColor: "rgba(43,212,255,0.18)",
-                  border: "1px solid rgba(43,212,255,0.35)",
+                "&.Mui-selected": {
+                  backgroundColor: "rgba(41,198,255,0.18)",
+                  border: "1px solid rgba(41,198,255,0.35)",
                 },
               }}
             >
@@ -143,7 +145,7 @@ export function PanelShell({ children }: { children: ReactNode }) {
         sx={{
           width: drawerWidth,
           flexShrink: 0,
-          '& .MuiDrawer-paper': {
+          "& .MuiDrawer-paper": {
             width: drawerWidth,
             boxSizing: "border-box",
             borderRight: "1px solid rgba(77,119,176,0.28)",

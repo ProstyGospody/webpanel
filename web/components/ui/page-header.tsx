@@ -5,11 +5,11 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
   return (
     <Stack direction={{ xs: "column", md: "row" }} spacing={2} justifyContent="space-between" alignItems={{ xs: "flex-start", md: "center" }}>
       <Box>
-        <Typography variant="h3" sx={{ mb: 0.5 }}>
+        <Typography variant="h3" sx={{ mb: subtitle ? 0.5 : 0 }}>
           {title}
         </Typography>
         {subtitle ? (
-          <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 840 }}>
+          <Typography variant="body2" color="text.secondary">
             {subtitle}
           </Typography>
         ) : null}

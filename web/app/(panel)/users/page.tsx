@@ -1,5 +1,10 @@
 "use client";
 
+import AddRoundedIcon from "@mui/icons-material/AddRounded";
+import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
+import EditRoundedIcon from "@mui/icons-material/EditRounded";
+import QrCode2RoundedIcon from "@mui/icons-material/QrCode2Rounded";
+import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import {
   Alert,
   Box,
@@ -7,10 +12,7 @@ import {
   Card,
   CardContent,
   CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
+  Fab,
   IconButton,
   Snackbar,
   Stack,
@@ -21,48 +23,62 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  TextField,
   Tooltip,
   Typography,
 } from "@mui/material";
-import AddRoundedIcon from "@mui/icons-material/AddRounded";
-import EditRoundedIcon from "@mui/icons-material/EditRounded";
-import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
-import KeyRoundedIcon from "@mui/icons-material/KeyRounded";
-import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
-import PowerSettingsNewRoundedIcon from "@mui/icons-material/PowerSettingsNewRounded";
-import DownloadRoundedIcon from "@mui/icons-material/DownloadRounded";
-import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { PageHeader } from "@/components/common/page-header";
-import { StatusChip } from "@/components/common/status-chip";
-import { APIError, apiFetch } from "@/lib/api";
-import { formatBytes, formatDateTime } from "@/lib/format";
-import { HysteriaUser, HysteriaUserPayload } from "@/lib/types";
-
-type FormState = { username: string; password: string; note: string };
-const emptyForm: FormState = { username: "", password: "", note: "" };
+import { PageHeader } from "@/components/ui/page-header";
+import { StatusChip } from "@/components/ui/status-chip";
+import { ClientArtifactsDialog } from "@/components/dialogs/client-artifacts-dialog";
+import { ConfirmDialog } from "@/components/dialogs/confirm-dialog";
+import { ClientFormDialog } from "@/components/forms/client-form-dialog";
+import { defaultsSummary, downloadClientConfig, toCreateRequest, toUpdateRequest, type ClientFormValues } from "@/domain/clients/adapters";
+import {
+  createClient,
+  deleteClient,
+  getClientArtifacts,
+  getClientDefaults,
+  listClients,
+  setClientEnabled,
+  updateClient,
+} from "@/domain/clients/services";
+import { HysteriaClient, HysteriaClientDefaults, HysteriaUserPayload } from "@/domain/clients/types";
+import { APIError } from "@/services/api";
+import { formatBytes, formatDateTime } from "@/utils/format";
+import { useNotice } from "@/hooks/use-notice";
 
 export default function UsersPage() {
-  const [users, setUsers] = useState<HysteriaUser[]>([]);
+  const [clients, setClients] = useState<HysteriaClient[]>([]);
+  const [defaults, setDefaults] = useState<HysteriaClientDefaults | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [snack, setSnack] = useState("");
 
   const [formOpen, setFormOpen] = useState(false);
+  const [formMode, setFormMode] = useState<"create" | "edit">("create");
   const [formBusy, setFormBusy] = useState(false);
-  const [editing, setEditing] = useState<HysteriaUser | null>(null);
-  const [form, setForm] = useState<FormState>(emptyForm);
+  const [formError, setFormError] = useState("");
+  const [editingClient, setEditingClient] = useState<HysteriaClient | null>(null);
 
-  const [deleteTarget, setDeleteTarget] = useState<HysteriaUser | null>(null);
-  const [artifactTarget, setArtifactTarget] = useState<HysteriaUserPayload | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<HysteriaClient | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
-  const loadUsers = useCallback(async () => {
+  const [artifactOpen, setArtifactOpen] = useState(false);
+  const [artifactLoading, setArtifactLoading] = useState(false);
+  const [artifactTab, setArtifactTab] = useState<"qr" | "details">("qr");
+  const [artifactClient, setArtifactClient] = useState<HysteriaClient | null>(null);
+  const [artifactPayload, setArtifactPayload] = useState<HysteriaUserPayload | null>(null);
+
+  const notice = useNotice();
+
+  const inheritedText = useMemo(() => defaultsSummary(defaults), [defaults]);
+
+  const load = useCallback(async () => {
     setError("");
     try {
-      const payload = await apiFetch<{ items: HysteriaUser[] }>("/api/hysteria/users?limit=500", { method: "GET" });
-      setUsers(payload.items || []);
+      const [items, inherited] = await Promise.all([listClients(), getClientDefaults()]);
+      setClients(items);
+      setDefaults(inherited);
     } catch (err) {
       setError(err instanceof APIError ? err.message : "Failed to load clients");
     } finally {
@@ -71,115 +87,113 @@ export default function UsersPage() {
   }, []);
 
   useEffect(() => {
-    void loadUsers();
-  }, [loadUsers]);
+    void load();
+  }, [load]);
 
-  async function submitForm(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function openCreate() {
+    setFormMode("create");
+    setEditingClient(null);
+    setFormError("");
+    setFormOpen(true);
+  }
+
+  function openEdit(client: HysteriaClient) {
+    setFormMode("edit");
+    setEditingClient(client);
+    setFormError("");
+    setFormOpen(true);
+  }
+
+  async function submitForm(values: ClientFormValues) {
     setFormBusy(true);
+    setFormError("");
     try {
-      if (editing) {
-        const body: Record<string, string> = { username: form.username, note: form.note };
-        if (form.password.trim()) body.password = form.password;
-        await apiFetch<HysteriaUserPayload>(`/api/hysteria/users/${editing.id}`, { method: "PATCH", body: JSON.stringify(body) });
-        setSnack("Client updated");
-      } else {
-        await apiFetch<HysteriaUserPayload>("/api/hysteria/users", {
-          method: "POST",
-          body: JSON.stringify({ username: form.username, password: form.password, note: form.note }),
-        });
-        setSnack("Client created");
+      if (formMode === "create") {
+        await createClient(toCreateRequest(values));
+        notice.notify("Client created");
+      } else if (editingClient) {
+        await updateClient(editingClient.id, toUpdateRequest(values));
+        notice.notify("Client updated");
       }
       setFormOpen(false);
-      setEditing(null);
-      setForm(emptyForm);
-      await loadUsers();
+      await load();
     } catch (err) {
-      setError(err instanceof APIError ? err.message : "Failed to save client");
+      const message = err instanceof APIError ? err.message : "Failed to save client";
+      setFormError(message);
     } finally {
       setFormBusy(false);
     }
   }
 
-  async function setEnabled(user: HysteriaUser, enabled: boolean) {
+  async function removeClient() {
+    if (!deleteTarget) return;
+    setDeleteBusy(true);
     try {
-      await apiFetch<{ ok: boolean }>(`/api/hysteria/users/${user.id}/${enabled ? "enable" : "disable"}`, { method: "POST", body: JSON.stringify({}) });
-      await loadUsers();
+      await deleteClient(deleteTarget.id);
+      setDeleteTarget(null);
+      notice.notify("Client deleted");
+      await load();
+    } catch (err) {
+      setError(err instanceof APIError ? err.message : "Failed to delete client");
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
+  async function toggleEnabled(client: HysteriaClient) {
+    try {
+      await setClientEnabled(client.id, !client.enabled);
+      await load();
     } catch (err) {
       setError(err instanceof APIError ? err.message : "Failed to change state");
     }
   }
 
-  async function kick(user: HysteriaUser) {
+  async function openArtifacts(client: HysteriaClient, tab: "qr" | "details") {
+    setArtifactClient(client);
+    setArtifactTab(tab);
+    setArtifactOpen(true);
+    setArtifactLoading(true);
     try {
-      await apiFetch<{ ok: boolean }>(`/api/hysteria/users/${user.id}/kick`, { method: "POST", body: JSON.stringify({}) });
-      setSnack("Live session kicked");
-      await loadUsers();
+      const payload = await getClientArtifacts(client.id);
+      setArtifactPayload(payload);
     } catch (err) {
-      setError(err instanceof APIError ? err.message : "Failed to kick session");
-    }
-  }
-
-  async function revoke() {
-    if (!deleteTarget) return;
-    setFormBusy(true);
-    try {
-      await apiFetch<{ ok: boolean }>(`/api/hysteria/users/${deleteTarget.id}/revoke`, { method: "POST", body: JSON.stringify({}) });
-      setSnack("Client revoked");
-      setDeleteTarget(null);
-      await loadUsers();
-    } catch (err) {
-      setError(err instanceof APIError ? err.message : "Failed to revoke client");
-    } finally {
-      setFormBusy(false);
-    }
-  }
-
-  async function openArtifacts(user: HysteriaUser) {
-    try {
-      const payload = await apiFetch<HysteriaUserPayload>(`/api/hysteria/users/${user.id}/artifacts`, { method: "GET" });
-      setArtifactTarget(payload);
-    } catch (err) {
+      setArtifactPayload(null);
       setError(err instanceof APIError ? err.message : "Failed to load artifacts");
+    } finally {
+      setArtifactLoading(false);
     }
-  }
-
-  function downloadConfigFile() {
-    const artifacts = artifactTarget?.artifacts;
-    const username = artifactTarget?.user.username;
-    if (!artifacts?.client_config || !username) return;
-    const blob = new Blob([artifacts.client_config], { type: "text/plain;charset=utf-8" });
-    const href = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = href;
-    anchor.download = `${username}-hysteria2.yaml`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(href);
   }
 
   async function copy(value: string) {
     try {
       await navigator.clipboard.writeText(value);
-      setSnack("Copied");
+      notice.notify("Copied");
     } catch {
       setError("Clipboard write failed");
     }
   }
 
-  const artifacts = artifactTarget?.artifacts ?? null;
-  const artifactUser = artifactTarget?.user ?? null;
+  function download() {
+    const artifacts = artifactPayload?.artifacts;
+    const username = artifactPayload?.user.username;
+    if (!artifacts?.client_config || !username) return;
+    downloadClientConfig(username, artifacts.client_config);
+  }
 
   return (
     <Stack spacing={3}>
       <PageHeader
-        title="Client Management"
-        subtitle="Manage Hysteria 2 identities and generated access artifacts."
+        title="Clients"
+        subtitle={inheritedText}
         actions={
           <>
-            <Button variant="outlined" startIcon={<RefreshRoundedIcon />} onClick={() => void loadUsers()}>Reload</Button>
-            <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => { setFormOpen(true); setEditing(null); setForm(emptyForm); }}>Add Client</Button>
+            <Button variant="outlined" startIcon={<RefreshRoundedIcon />} onClick={() => void load()}>
+              Reload
+            </Button>
+            <Fab color="primary" size="medium" aria-label="create client" onClick={openCreate}>
+              <AddRoundedIcon />
+            </Fab>
           </>
         }
       />
@@ -189,34 +203,60 @@ export default function UsersPage() {
       <Card>
         <CardContent>
           {loading ? (
-            <Stack alignItems="center" justifyContent="center" sx={{ py: 8 }} spacing={1.5}><CircularProgress size={28} /><Typography color="text.secondary">Loading clients...</Typography></Stack>
+            <Stack alignItems="center" justifyContent="center" sx={{ py: 8 }} spacing={1.5}>
+              <CircularProgress size={28} />
+              <Typography color="text.secondary">Loading clients...</Typography>
+            </Stack>
           ) : (
             <TableContainer>
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell>Username</TableCell>
+                    <TableCell>Client</TableCell>
                     <TableCell>Status</TableCell>
-                    <TableCell>Online</TableCell>
                     <TableCell>Traffic</TableCell>
                     <TableCell>Last Seen</TableCell>
                     <TableCell align="right">Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {users.map((user) => (
-                    <TableRow key={user.id} hover>
-                      <TableCell><Typography sx={{ fontWeight: 700 }}>{user.username}</Typography><Typography variant="caption" color="text.secondary">{user.note || "No note"}</Typography></TableCell>
-                      <TableCell><Stack direction="row" spacing={1} alignItems="center"><Switch size="small" checked={user.enabled} onChange={() => void setEnabled(user, !user.enabled)} /><StatusChip status={user.enabled ? "enabled" : "disabled"} /></Stack></TableCell>
-                      <TableCell>{user.online_count}</TableCell>
-                      <TableCell>{formatBytes(user.last_tx_bytes + user.last_rx_bytes)}</TableCell>
-                      <TableCell>{formatDateTime(user.last_seen_at || user.updated_at)}</TableCell>
+                  {clients.map((client) => (
+                    <TableRow key={client.id} hover>
+                      <TableCell>
+                        <Stack spacing={0.25}>
+                          <Box sx={{ cursor: "pointer" }} onClick={() => void openArtifacts(client, "details")}>
+                            <Typography sx={{ fontWeight: 700 }}>{client.username}</Typography>
+                          </Box>
+                          <Typography variant="caption" color="text.secondary">{client.note || "-"}</Typography>
+                        </Stack>
+                      </TableCell>
+                      <TableCell>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <Switch size="small" checked={client.enabled} onChange={() => void toggleEnabled(client)} />
+                          <StatusChip status={client.enabled ? "enabled" : "disabled"} />
+                        </Stack>
+                      </TableCell>
+                      <TableCell>{formatBytes(client.last_tx_bytes + client.last_rx_bytes)}</TableCell>
+                      <TableCell>{formatDateTime(client.last_seen_at || client.updated_at)}</TableCell>
                       <TableCell align="right">
                         <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                          <Tooltip title="Artifacts"><IconButton size="small" onClick={() => void openArtifacts(user)}><KeyRoundedIcon fontSize="small" /></IconButton></Tooltip>
-                          <Tooltip title="Edit"><IconButton size="small" onClick={() => { setEditing(user); setForm({ username: user.username, password: "", note: user.note || "" }); setFormOpen(true); }}><EditRoundedIcon fontSize="small" /></IconButton></Tooltip>
-                          <Tooltip title="Kick Session"><span><IconButton size="small" disabled={!user.enabled} onClick={() => void kick(user)}><PowerSettingsNewRoundedIcon fontSize="small" /></IconButton></span></Tooltip>
-                          <Tooltip title="Revoke"><IconButton size="small" color="error" onClick={() => setDeleteTarget(user)}><DeleteOutlineRoundedIcon fontSize="small" /></IconButton></Tooltip>
+                          <Tooltip title="Show QR">
+                            <span>
+                              <IconButton size="small" onClick={() => void openArtifacts(client, "qr")} disabled={!client.enabled}>
+                                <QrCode2RoundedIcon fontSize="small" />
+                              </IconButton>
+                            </span>
+                          </Tooltip>
+                          <Tooltip title="Edit">
+                            <IconButton size="small" onClick={() => openEdit(client)}>
+                              <EditRoundedIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Delete">
+                            <IconButton size="small" color="error" onClick={() => setDeleteTarget(client)}>
+                              <DeleteOutlineRoundedIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
                         </Stack>
                       </TableCell>
                     </TableRow>
@@ -228,58 +268,39 @@ export default function UsersPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={formOpen} onClose={() => !formBusy && setFormOpen(false)} fullWidth maxWidth="sm">
-        <DialogTitle>{editing ? "Edit Client" : "Create Client"}</DialogTitle>
-        <Box component="form" onSubmit={submitForm}>
-          <DialogContent>
-            <Stack spacing={2}>
-              <TextField label="Username" value={form.username} onChange={(e) => setForm((c) => ({ ...c, username: e.target.value }))} required fullWidth />
-              <TextField label={editing ? "Password (optional)" : "Password"} value={form.password} onChange={(e) => setForm((c) => ({ ...c, password: e.target.value }))} required={!editing} fullWidth />
-              <TextField label="Note" value={form.note} onChange={(e) => setForm((c) => ({ ...c, note: e.target.value }))} fullWidth multiline minRows={2} />
-            </Stack>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setFormOpen(false)} disabled={formBusy}>Cancel</Button>
-            <Button type="submit" variant="contained" disabled={formBusy}>{formBusy ? "Saving..." : "Save"}</Button>
-          </DialogActions>
-        </Box>
-      </Dialog>
+      <ClientFormDialog
+        open={formOpen}
+        mode={formMode}
+        busy={formBusy}
+        client={editingClient}
+        defaults={defaults}
+        error={formError}
+        onClose={() => setFormOpen(false)}
+        onSubmit={submitForm}
+      />
 
-      <Dialog open={Boolean(deleteTarget)} onClose={() => !formBusy && setDeleteTarget(null)}>
-        <DialogTitle>Revoke client</DialogTitle>
-        <DialogContent><Typography>Revoke <strong>{deleteTarget?.username}</strong> and remove access?</Typography></DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteTarget(null)} disabled={formBusy}>Cancel</Button>
-          <Button color="error" variant="contained" onClick={() => void revoke()} disabled={formBusy}>{formBusy ? "Revoking..." : "Revoke"}</Button>
-        </DialogActions>
-      </Dialog>
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Delete client"
+        description={`Delete ${deleteTarget?.username || "client"} and remove access?`}
+        busy={deleteBusy}
+        confirmText="Delete"
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => void removeClient()}
+      />
 
-      <Dialog open={Boolean(artifactTarget)} onClose={() => setArtifactTarget(null)} fullWidth maxWidth="md">
-        <DialogTitle>{artifactTarget?.user.username || "Client"} access artifacts</DialogTitle>
-        <DialogContent>
-          {artifacts && artifactUser ? (
-            <Stack spacing={2}>
-              <Stack direction={{ xs: "column", md: "row" }} spacing={1}>
-                <TextField label="Primary URI" value={artifacts.uri} fullWidth InputProps={{ readOnly: true }} />
-                <Button variant="outlined" startIcon={<ContentCopyRoundedIcon />} onClick={() => void copy(artifacts.uri)}>Copy</Button>
-              </Stack>
-              <Stack direction={{ xs: "column", md: "row" }} spacing={1}>
-                <TextField label="hy2:// URI" value={artifacts.uri_hy2} fullWidth InputProps={{ readOnly: true }} />
-                <Button variant="outlined" startIcon={<ContentCopyRoundedIcon />} onClick={() => void copy(artifacts.uri_hy2)}>Copy</Button>
-              </Stack>
-              <TextField label="Client config" value={artifacts.client_config} multiline minRows={10} fullWidth InputProps={{ readOnly: true }} />
-              <Stack direction={{ xs: "column", md: "row" }} spacing={1}>
-                <Button variant="outlined" startIcon={<ContentCopyRoundedIcon />} onClick={() => void copy(artifacts.client_config)}>Copy Config</Button>
-                <Button variant="contained" startIcon={<DownloadRoundedIcon />} onClick={downloadConfigFile}>Download YAML</Button>
-              </Stack>
-              <Box component="img" alt="Hysteria QR" src={`/api/hysteria/users/${artifactUser.id}/qr?size=360`} sx={{ width: 220, height: 220, borderRadius: 2, bgcolor: "common.white", p: 1, alignSelf: "center" }} />
-            </Stack>
-          ) : <Alert severity="warning">No artifacts available.</Alert>}
-        </DialogContent>
-        <DialogActions><Button onClick={() => setArtifactTarget(null)}>Close</Button></DialogActions>
-      </Dialog>
+      <ClientArtifactsDialog
+        open={artifactOpen}
+        tab={artifactTab}
+        client={artifactClient}
+        payload={artifactPayload}
+        loading={artifactLoading}
+        onClose={() => setArtifactOpen(false)}
+        onCopy={(value) => void copy(value)}
+        onDownload={download}
+      />
 
-      <Snackbar open={Boolean(snack)} autoHideDuration={2600} onClose={() => setSnack("")} message={snack} />
+      <Snackbar open={Boolean(notice.message)} autoHideDuration={2600} onClose={notice.clear} message={notice.message} />
     </Stack>
   );
 }

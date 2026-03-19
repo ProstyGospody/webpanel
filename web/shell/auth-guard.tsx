@@ -4,7 +4,7 @@ import { Box, CircularProgress, Stack, Typography } from "@mui/material";
 import { usePathname, useRouter } from "next/navigation";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 
-import { APIError, apiFetch } from "@/lib/api";
+import { APIError, apiFetch } from "@/services/api";
 
 type SessionState = "loading" | "ready";
 

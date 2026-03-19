@@ -45,6 +45,7 @@ func NewRouter(
 			secured.Use(middleware.RequireAuth(cfg, repo, logger))
 			secured.Use(middleware.RequireCSRF(cfg))
 
+			secured.Get("/hysteria/client-defaults", h.HysteriaClientDefaults)
 			secured.Get("/hysteria/users", h.ListHysteriaUsers)
 			secured.Post("/hysteria/users", h.CreateHysteriaUser)
 			secured.Get("/hysteria/users/{id}", h.GetHysteriaUser)
@@ -81,3 +82,5 @@ func NewRouter(
 
 	return r
 }
+
+

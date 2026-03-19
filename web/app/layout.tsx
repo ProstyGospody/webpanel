@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Manrope } from "next/font/google";
 
-import { AppThemeProvider } from "@/components/providers/app-theme-provider";
+import { AppThemeProvider } from "@/theme/app-theme-provider";
 
 import "./globals.css";
 
@@ -21,3 +21,4 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     </html>
   );
 }
+

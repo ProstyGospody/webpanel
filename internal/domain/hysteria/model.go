@@ -2,6 +2,8 @@ package hysteria
 
 import (
 	"fmt"
+	"net"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -16,9 +18,18 @@ type User struct {
 	Password           string     `json:"password"`
 	Enabled            bool       `json:"enabled"`
 	Note               *string    `json:"note,omitempty"`
+	ClientOverrides    *ClientOverrides `json:"client_overrides,omitempty"`
 	CreatedAt          time.Time  `json:"created_at"`
 	UpdatedAt          time.Time  `json:"updated_at"`
 	LastSeenAt         *time.Time `json:"last_seen_at,omitempty"`
+}
+
+type ClientOverrides struct {
+	SNI          *string `json:"sni,omitempty"`
+	Insecure     *bool   `json:"insecure,omitempty"`
+	PinSHA256    *string `json:"pinSHA256,omitempty"`
+	ObfsType     *string `json:"obfsType,omitempty"`
+	ObfsPassword *string `json:"obfsPassword,omitempty"`
 }
 
 type UserView struct {
@@ -87,6 +98,55 @@ func NormalizeNote(input *string) *string {
 	return &value
 }
 
+func NormalizeClientOverrides(input *ClientOverrides) *ClientOverrides {
+	if input == nil {
+		return nil
+	}
+
+	out := ClientOverrides{}
+	if input.SNI != nil {
+		value := strings.TrimSpace(*input.SNI)
+		if value != "" {
+			out.SNI = &value
+		}
+	}
+	if input.Insecure != nil {
+		value := *input.Insecure
+		out.Insecure = &value
+	}
+	if input.PinSHA256 != nil {
+		value := strings.TrimSpace(*input.PinSHA256)
+		if value != "" {
+			out.PinSHA256 = &value
+		}
+	}
+	if input.ObfsType != nil {
+		value := strings.ToLower(strings.TrimSpace(*input.ObfsType))
+		if value != "" {
+			out.ObfsType = &value
+		}
+	}
+	if input.ObfsPassword != nil {
+		value := strings.TrimSpace(*input.ObfsPassword)
+		if value != "" {
+			out.ObfsPassword = &value
+		}
+	}
+
+	if out.ObfsType == nil && out.ObfsPassword != nil {
+		value := "salamander"
+		out.ObfsType = &value
+	}
+	if out.ObfsType != nil && *out.ObfsType != "salamander" {
+		out.ObfsPassword = nil
+	}
+
+	if out.SNI == nil && out.Insecure == nil && out.PinSHA256 == nil && out.ObfsType == nil && out.ObfsPassword == nil {
+		return nil
+	}
+	return &out
+}
+
 func BuildCredential(user User) string {
 	return strings.TrimSpace(user.Username) + ":" + strings.TrimSpace(user.Password)
 }
@@ -100,4 +160,47 @@ func ValidateUserInput(username string, password string) []ValidationError {
 		errors = append(errors, ValidationError{Field: "password", Message: err.Error()})
 	}
 	return errors
+}
+
+func ValidateClientOverrides(input *ClientOverrides) []ValidationError {
+	overrides := NormalizeClientOverrides(input)
+	if overrides == nil {
+		return nil
+	}
+	errors := make([]ValidationError, 0, 3)
+
+	if overrides.SNI != nil && !isValidOverrideHost(*overrides.SNI) {
+		errors = append(errors, ValidationError{Field: "overrides.sni", Message: "sni must be a valid host"})
+	}
+	if overrides.ObfsType != nil && *overrides.ObfsType != "salamander" {
+		errors = append(errors, ValidationError{Field: "overrides.obfsType", Message: "obfsType must be salamander"})
+	}
+	if overrides.ObfsType != nil && *overrides.ObfsType == "salamander" && (overrides.ObfsPassword == nil || strings.TrimSpace(*overrides.ObfsPassword) == "") {
+		errors = append(errors, ValidationError{Field: "overrides.obfsPassword", Message: "obfsPassword is required when obfsType is salamander"})
+	}
+
+	return errors
+}
+
+func isValidOverrideHost(raw string) bool {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return false
+	}
+	if strings.ContainsAny(value, " /?#") {
+		return false
+	}
+	if strings.HasPrefix(value, "[") && strings.HasSuffix(value, "]") {
+		value = strings.Trim(value, "[]")
+	}
+	if ip := net.ParseIP(value); ip != nil {
+		return true
+	}
+	if strings.Contains(value, ":") {
+		return false
+	}
+	if parsed, err := url.Parse("https://" + value); err != nil || strings.TrimSpace(parsed.Hostname()) == "" {
+		return false
+	}
+	return true
 }

@@ -20,14 +20,19 @@ import (
 )
 
 type Hy2ConfigSummary struct {
-	Listen            string `json:"listen"`
-	TLSEnabled        bool   `json:"tlsEnabled"`
-	TLSMode           string `json:"tlsMode,omitempty"`
-	AuthType          string `json:"authType,omitempty"`
-	ObfsType          string `json:"obfsType,omitempty"`
-	MasqueradeType    string `json:"masqueradeType,omitempty"`
-	QUICEnabled       bool   `json:"quicEnabled"`
-	RawOnlyPathsCount int    `json:"rawOnlyPathsCount"`
+	Listen                string `json:"listen"`
+	TLSEnabled            bool   `json:"tlsEnabled"`
+	TLSMode               string `json:"tlsMode,omitempty"`
+	AuthType              string `json:"authType,omitempty"`
+	ObfsType              string `json:"obfsType,omitempty"`
+	MasqueradeType        string `json:"masqueradeType,omitempty"`
+	QUICEnabled           bool   `json:"quicEnabled"`
+	BandwidthUp           string `json:"bandwidthUp,omitempty"`
+	BandwidthDown         string `json:"bandwidthDown,omitempty"`
+	IgnoreClientBandwidth bool   `json:"ignoreClientBandwidth"`
+	DisableUDP            bool   `json:"disableUDP"`
+	UDPIdleTimeout        string `json:"udpIdleTimeout,omitempty"`
+	RawOnlyPathsCount     int    `json:"rawOnlyPathsCount"`
 }
 
 type Hy2ConfigValidation struct {
@@ -39,16 +44,20 @@ type Hy2ConfigValidation struct {
 }
 
 type Hy2Settings struct {
-	Listen      string               `json:"listen"`
-	TLSEnabled  bool                 `json:"tlsEnabled"`
-	TLSMode     string               `json:"tlsMode"`
-	TLS         *Hy2ServerTLS        `json:"tls,omitempty"`
-	ACME        *Hy2ServerACME       `json:"acme,omitempty"`
-	Auth        Hy2ServerAuth        `json:"auth"`
-	Obfs        *Hy2ServerObfs       `json:"obfs,omitempty"`
-	Masquerade  *Hy2ServerMasquerade `json:"masquerade,omitempty"`
-	QUICEnabled bool                 `json:"quicEnabled"`
-	QUIC        *Hy2ServerQUIC       `json:"quic,omitempty"`
+	Listen                string               `json:"listen"`
+	TLSEnabled            bool                 `json:"tlsEnabled"`
+	TLSMode               string               `json:"tlsMode"`
+	TLS                   *Hy2ServerTLS        `json:"tls,omitempty"`
+	ACME                  *Hy2ServerACME       `json:"acme,omitempty"`
+	Auth                  Hy2ServerAuth        `json:"auth"`
+	Obfs                  *Hy2ServerObfs       `json:"obfs,omitempty"`
+	Masquerade            *Hy2ServerMasquerade `json:"masquerade,omitempty"`
+	Bandwidth             *Hy2ServerBandwidth  `json:"bandwidth,omitempty"`
+	IgnoreClientBandwidth bool                 `json:"ignoreClientBandwidth"`
+	DisableUDP            bool                 `json:"disableUDP"`
+	UDPIdleTimeout        string               `json:"udpIdleTimeout,omitempty"`
+	QUICEnabled           bool                 `json:"quicEnabled"`
+	QUIC                  *Hy2ServerQUIC       `json:"quic,omitempty"`
 }
 
 type Hy2ServerTLS struct {
@@ -59,6 +68,11 @@ type Hy2ServerTLS struct {
 type Hy2ServerACME struct {
 	Domains []string `json:"domains,omitempty"`
 	Email   string   `json:"email,omitempty"`
+}
+
+type Hy2ServerBandwidth struct {
+	Up   string `json:"up,omitempty"`
+	Down string `json:"down,omitempty"`
 }
 
 type Hy2ServerQUIC struct {
@@ -243,16 +257,7 @@ func (m *HysteriaConfigManager) Parse(content string) Hy2ConfigSummary {
 		return Hy2ConfigSummary{}
 	}
 	unknown := m.RawOnlyPaths(content)
-	return Hy2ConfigSummary{
-		Listen:            settings.Listen,
-		TLSEnabled:        settings.TLSEnabled,
-		TLSMode:           settings.TLSMode,
-		AuthType:          strings.ToLower(strings.TrimSpace(settings.Auth.Type)),
-		ObfsType:          normalizedObfsType(settings.Obfs),
-		MasqueradeType:    normalizedMasqueradeType(settings.Masquerade),
-		QUICEnabled:       settings.QUICEnabled,
-		RawOnlyPathsCount: len(unknown),
-	}
+	return configSummaryFromSettings(settings, len(unknown))
 }
 
 func (m *HysteriaConfigManager) Validate(content string) Hy2ConfigValidation {
@@ -278,16 +283,7 @@ func (m *HysteriaConfigManager) Validate(content string) Hy2ConfigValidation {
 		v.Warnings = append(v.Warnings, "raw-only fields detected; use Advanced YAML for unmanaged options")
 	}
 
-	v.Summary = Hy2ConfigSummary{
-		Listen:            settings.Listen,
-		TLSEnabled:        settings.TLSEnabled,
-		TLSMode:           settings.TLSMode,
-		AuthType:          strings.ToLower(strings.TrimSpace(settings.Auth.Type)),
-		ObfsType:          normalizedObfsType(settings.Obfs),
-		MasqueradeType:    normalizedMasqueradeType(settings.Masquerade),
-		QUICEnabled:       settings.QUICEnabled,
-		RawOnlyPathsCount: len(v.RawOnlyPaths),
-	}
+	v.Summary = configSummaryFromSettings(settings, len(v.RawOnlyPaths))
 	v.Valid = len(v.Errors) == 0
 	return v
 }
@@ -525,6 +521,12 @@ func parseSettingsFromMap(root map[string]any, fallbackHost string, fallbackPort
 	if m, ok := toStringAnyMap(root["masquerade"]); ok {
 		settings.Masquerade = parseServerMasquerade(m)
 	}
+	if m, ok := toStringAnyMap(root["bandwidth"]); ok {
+		settings.Bandwidth = parseServerBandwidth(m)
+	}
+	settings.IgnoreClientBandwidth = toBool(root["ignoreClientBandwidth"])
+	settings.DisableUDP = toBool(root["disableUDP"])
+	settings.UDPIdleTimeout = strings.TrimSpace(toString(root["udpIdleTimeout"]))
 	if m, ok := toStringAnyMap(root["quic"]); ok {
 		settings.QUIC = parseServerQUIC(m)
 		settings.QUICEnabled = settings.QUIC != nil
@@ -555,6 +557,16 @@ func parseServerACME(m map[string]any) *Hy2ServerACME {
 	return cfg
 }
 
+func parseServerBandwidth(m map[string]any) *Hy2ServerBandwidth {
+	cfg := &Hy2ServerBandwidth{
+		Up:   strings.TrimSpace(toString(m["up"])),
+		Down: strings.TrimSpace(toString(m["down"])),
+	}
+	if cfg.Up == "" && cfg.Down == "" {
+		return nil
+	}
+	return cfg
+}
 func parseServerQUIC(m map[string]any) *Hy2ServerQUIC {
 	cfg := &Hy2ServerQUIC{
 		InitStreamReceiveWindow: toInt(m["initStreamReceiveWindow"]),
@@ -779,6 +791,14 @@ func normalizeSettings(input Hy2Settings) Hy2Settings {
 		}
 	}
 
+	settings.UDPIdleTimeout = strings.TrimSpace(settings.UDPIdleTimeout)
+	if settings.Bandwidth != nil {
+		settings.Bandwidth.Up = strings.TrimSpace(settings.Bandwidth.Up)
+		settings.Bandwidth.Down = strings.TrimSpace(settings.Bandwidth.Down)
+		if settings.Bandwidth.Up == "" && settings.Bandwidth.Down == "" {
+			settings.Bandwidth = nil
+		}
+	}
 	if settings.QUIC != nil {
 		settings.QUIC.InitStreamReceiveWindow = positiveIntOrZero(settings.QUIC.InitStreamReceiveWindow)
 		settings.QUIC.MaxStreamReceiveWindow = positiveIntOrZero(settings.QUIC.MaxStreamReceiveWindow)
@@ -923,6 +943,25 @@ func validateSettings(input Hy2Settings) Hy2SettingsValidation {
 		}
 	}
 
+	if settings.Bandwidth != nil {
+		if settings.Bandwidth.Up != "" && !validBandwidthValue(settings.Bandwidth.Up) {
+			v.Errors = append(v.Errors, "bandwidth.up must use Hysteria bandwidth format (for example, 100 mbps)")
+		}
+		if settings.Bandwidth.Down != "" && !validBandwidthValue(settings.Bandwidth.Down) {
+			v.Errors = append(v.Errors, "bandwidth.down must use Hysteria bandwidth format (for example, 200 mbps)")
+		}
+	}
+	if settings.IgnoreClientBandwidth && settings.Bandwidth == nil {
+		v.Warnings = append(v.Warnings, "ignoreClientBandwidth is enabled while bandwidth is empty")
+	}
+	if settings.UDPIdleTimeout != "" {
+		if _, err := time.ParseDuration(settings.UDPIdleTimeout); err != nil {
+			v.Errors = append(v.Errors, "udpIdleTimeout must be a valid duration (for example, 30s or 2m)")
+		}
+	}
+	if settings.DisableUDP && settings.UDPIdleTimeout != "" {
+		v.Warnings = append(v.Warnings, "udpIdleTimeout is ignored when disableUDP is enabled")
+	}
 	if settings.QUICEnabled {
 		if settings.QUIC == nil {
 			v.Errors = append(v.Errors, "quic settings are enabled but quic section is empty")
@@ -990,6 +1029,18 @@ func buildSettingsMap(settings Hy2Settings) map[string]any {
 	if m := buildServerMasqueradeMap(settings.Masquerade); len(m) > 0 {
 		out["masquerade"] = m
 	}
+	if m := buildServerBandwidthMap(settings.Bandwidth); len(m) > 0 {
+		out["bandwidth"] = m
+	}
+	if settings.IgnoreClientBandwidth {
+		out["ignoreClientBandwidth"] = true
+	}
+	if settings.DisableUDP {
+		out["disableUDP"] = true
+	}
+	if settings.UDPIdleTimeout != "" {
+		out["udpIdleTimeout"] = settings.UDPIdleTimeout
+	}
 	if settings.QUICEnabled {
 		if m := buildServerQUICMap(settings.QUIC); len(m) > 0 {
 			out["quic"] = m
@@ -1031,6 +1082,19 @@ func buildServerACMEMap(cfg *Hy2ServerACME) map[string]any {
 	return out
 }
 
+func buildServerBandwidthMap(cfg *Hy2ServerBandwidth) map[string]any {
+	if cfg == nil {
+		return nil
+	}
+	out := map[string]any{}
+	if strings.TrimSpace(cfg.Up) != "" {
+		out["up"] = strings.TrimSpace(cfg.Up)
+	}
+	if strings.TrimSpace(cfg.Down) != "" {
+		out["down"] = strings.TrimSpace(cfg.Down)
+	}
+	return out
+}
 func buildServerQUICMap(cfg *Hy2ServerQUIC) map[string]any {
 	if cfg == nil {
 		return nil
@@ -1840,6 +1904,42 @@ func validPort(value int) bool {
 	return value >= 1 && value <= 65535
 }
 
+func validBandwidthValue(raw string) bool {
+	value := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(raw), " ", ""))
+	if value == "" {
+		return false
+	}
+	idx := 0
+	dotSeen := false
+	for idx < len(value) {
+		ch := value[idx]
+		if ch >= '0' && ch <= '9' {
+			idx++
+			continue
+		}
+		if ch == '.' && !dotSeen {
+			dotSeen = true
+			idx++
+			continue
+		}
+		break
+	}
+	if idx == 0 || idx >= len(value) {
+		return false
+	}
+	number := value[:idx]
+	unit := value[idx:]
+	parsed, err := strconv.ParseFloat(number, 64)
+	if err != nil || parsed <= 0 {
+		return false
+	}
+	switch unit {
+	case "bps", "kbps", "mbps", "gbps", "tbps":
+		return true
+	default:
+		return false
+	}
+}
 func isValidAbsURL(raw string) bool {
 	parsed, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil {
@@ -1885,6 +1985,29 @@ func normalizedMasqueradeType(masquerade *Hy2ServerMasquerade) string {
 	return strings.ToLower(strings.TrimSpace(masquerade.Type))
 }
 
+func configSummaryFromSettings(settings Hy2Settings, rawOnlyPathsCount int) Hy2ConfigSummary {
+	bandwidthUp := ""
+	bandwidthDown := ""
+	if settings.Bandwidth != nil {
+		bandwidthUp = strings.TrimSpace(settings.Bandwidth.Up)
+		bandwidthDown = strings.TrimSpace(settings.Bandwidth.Down)
+	}
+	return Hy2ConfigSummary{
+		Listen:                settings.Listen,
+		TLSEnabled:            settings.TLSEnabled,
+		TLSMode:               settings.TLSMode,
+		AuthType:              strings.ToLower(strings.TrimSpace(settings.Auth.Type)),
+		ObfsType:              normalizedObfsType(settings.Obfs),
+		MasqueradeType:        normalizedMasqueradeType(settings.Masquerade),
+		QUICEnabled:           settings.QUICEnabled,
+		BandwidthUp:           bandwidthUp,
+		BandwidthDown:         bandwidthDown,
+		IgnoreClientBandwidth: settings.IgnoreClientBandwidth,
+		DisableUDP:            settings.DisableUDP,
+		UDPIdleTimeout:        strings.TrimSpace(settings.UDPIdleTimeout),
+		RawOnlyPathsCount:     rawOnlyPathsCount,
+	}
+}
 func randomHex(bytesN int) (string, error) {
 	if bytesN <= 0 {
 		return "", errors.New("bytes count must be positive")
@@ -1955,19 +2078,49 @@ func buildServerSchema() *schemaNode {
 				},
 				"proxy": {
 					Fields: map[string]*schemaNode{
-						"url": emptySchema,
+						"url":         emptySchema,
+						"rewriteHost": emptySchema,
+						"insecure":    emptySchema,
 					},
 				},
 				"string": {
 					Fields: map[string]*schemaNode{
 						"content":    emptySchema,
+						"headers":    {AnyMap: true},
 						"statusCode": emptySchema,
 					},
 				},
+				"listenHTTP":  emptySchema,
+				"listenHTTPS": emptySchema,
+				"forceHTTPS":  emptySchema,
 			},
 		},
+		"bandwidth": {
+			Fields: map[string]*schemaNode{
+				"up":   emptySchema,
+				"down": emptySchema,
+			},
+		},
+		"ignoreClientBandwidth": emptySchema,
+		"disableUDP":            emptySchema,
+		"udpIdleTimeout":        emptySchema,
 	}}
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

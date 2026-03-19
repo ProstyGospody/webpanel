@@ -18,10 +18,10 @@ import {
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import { useCallback, useEffect, useState } from "react";
 
-import { PageHeader } from "@/components/common/page-header";
-import { APIError, apiFetch } from "@/lib/api";
-import { formatDateTime } from "@/lib/format";
-import { AuditLogItem } from "@/lib/types";
+import { PageHeader } from "@/components/ui/page-header";
+import { APIError, apiFetch } from "@/services/api";
+import { formatDateTime } from "@/utils/format";
+import { AuditLogItem } from "@/types/common";
 
 export default function AuditPage() {
   const [items, setItems] = useState<AuditLogItem[]>([]);
@@ -44,7 +44,7 @@ export default function AuditPage() {
 
   return (
     <Stack spacing={3}>
-      <PageHeader title="Audit Trail" subtitle="Immutable action history for admin operations." actions={<Button variant="contained" startIcon={<RefreshRoundedIcon />} onClick={() => void load()}>Refresh</Button>} />
+      <PageHeader title="Audit" subtitle="Admin actions" actions={<Button variant="contained" startIcon={<RefreshRoundedIcon />} onClick={() => void load()}>Refresh</Button>} />
       {error ? <Alert severity="error">{error}</Alert> : null}
 
       <Card>
@@ -78,3 +78,5 @@ export default function AuditPage() {
     </Stack>
   );
 }
+
+

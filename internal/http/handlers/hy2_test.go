@@ -21,7 +21,7 @@ func TestHysteriaUserArtifactsRejectsDisabledUser(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = repo.Close() })
 
-	created, err := repo.CreateHysteriaUser(ctx, "demo-user", "supersecret88", nil)
+	created, err := repo.CreateHysteriaUser(ctx, "demo-user", "supersecret88", nil, nil)
 	if err != nil {
 		t.Fatalf("create user: %v", err)
 	}
@@ -42,3 +42,4 @@ func TestHysteriaUserArtifactsRejectsDisabledUser(t *testing.T) {
 		t.Fatalf("expected disabled user artifacts request to fail with 409, got %d", resp.Code)
 	}
 }
+

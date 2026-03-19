@@ -15,11 +15,11 @@ import {
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import { useCallback, useEffect, useState } from "react";
 
-import { PageHeader } from "@/components/common/page-header";
-import { StatusChip } from "@/components/common/status-chip";
-import { APIError, apiFetch } from "@/lib/api";
-import { formatBytes, formatDateTime, formatRate, formatUptime } from "@/lib/format";
-import { HysteriaOverview, SystemLiveResponse } from "@/lib/types";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatusChip } from "@/components/ui/status-chip";
+import { APIError, apiFetch } from "@/services/api";
+import { formatBytes, formatDateTime, formatRate, formatUptime } from "@/utils/format";
+import { HysteriaOverview, SystemLiveResponse } from "@/types/common";
 
 function MetricCard({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
@@ -75,8 +75,8 @@ export default function DashboardPage() {
   return (
     <Stack spacing={3}>
       <PageHeader
-        title="Operations Overview"
-        subtitle="Live Hysteria 2 status, traffic posture, and service health in one operational surface."
+        title="Overview"
+        subtitle="System and Hysteria status"
         actions={<Button variant="contained" startIcon={<RefreshRoundedIcon />} onClick={() => void load()}>Refresh</Button>}
       />
 
@@ -85,16 +85,16 @@ export default function DashboardPage() {
 
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, md: 6, lg: 3 }}>
-          <MetricCard label="Enabled Clients" value={String(overview?.enabled_users ?? live?.hysteria.enabled_users ?? 0)} hint="Clients in managed auth" />
+          <MetricCard label="Enabled Clients" value={String(overview?.enabled_users ?? live?.hysteria.enabled_users ?? 0)} hint="Enabled" />
         </Grid>
         <Grid size={{ xs: 12, md: 6, lg: 3 }}>
-          <MetricCard label="Online Sessions" value={String(overview?.online_count ?? live?.hysteria.online_count ?? 0)} hint="Current online count" />
+          <MetricCard label="Online Sessions" value={String(overview?.online_count ?? live?.hysteria.online_count ?? 0)} hint="Online" />
         </Grid>
         <Grid size={{ xs: 12, md: 6, lg: 3 }}>
-          <MetricCard label="Total Upload" value={formatBytes(overview?.total_tx_bytes ?? live?.hysteria.total_tx_bytes ?? 0)} hint="Aggregated TX" />
+          <MetricCard label="Total Upload" value={formatBytes(overview?.total_tx_bytes ?? live?.hysteria.total_tx_bytes ?? 0)} hint="Upload" />
         </Grid>
         <Grid size={{ xs: 12, md: 6, lg: 3 }}>
-          <MetricCard label="Total Download" value={formatBytes(overview?.total_rx_bytes ?? live?.hysteria.total_rx_bytes ?? 0)} hint="Aggregated RX" />
+          <MetricCard label="Total Download" value={formatBytes(overview?.total_rx_bytes ?? live?.hysteria.total_rx_bytes ?? 0)} hint="Download" />
         </Grid>
       </Grid>
 
@@ -174,3 +174,5 @@ export default function DashboardPage() {
     </Stack>
   );
 }
+
+
