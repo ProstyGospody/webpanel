@@ -169,6 +169,7 @@ export default function UsersPage() {
   }
 
   const artifacts = artifactTarget?.artifacts ?? null;
+  const artifactUser = artifactTarget?.user ?? null;
 
   return (
     <Stack spacing={3}>
@@ -256,7 +257,7 @@ export default function UsersPage() {
       <Dialog open={Boolean(artifactTarget)} onClose={() => setArtifactTarget(null)} fullWidth maxWidth="md">
         <DialogTitle>{artifactTarget?.user.username || "Client"} access artifacts</DialogTitle>
         <DialogContent>
-          {artifacts ? (
+          {artifacts && artifactUser ? (
             <Stack spacing={2}>
               <Stack direction={{ xs: "column", md: "row" }} spacing={1}>
                 <TextField label="Primary URI" value={artifacts.uri} fullWidth InputProps={{ readOnly: true }} />
@@ -271,7 +272,7 @@ export default function UsersPage() {
                 <Button variant="outlined" startIcon={<ContentCopyRoundedIcon />} onClick={() => void copy(artifacts.client_config)}>Copy Config</Button>
                 <Button variant="contained" startIcon={<DownloadRoundedIcon />} onClick={downloadConfigFile}>Download YAML</Button>
               </Stack>
-              <Box component="img" alt="Hysteria QR" src={`/api/hysteria/users/${artifactTarget.user.id}/qr?size=360`} sx={{ width: 220, height: 220, borderRadius: 2, bgcolor: "common.white", p: 1, alignSelf: "center" }} />
+              <Box component="img" alt="Hysteria QR" src={`/api/hysteria/users/${artifactUser.id}/qr?size=360`} sx={{ width: 220, height: 220, borderRadius: 2, bgcolor: "common.white", p: 1, alignSelf: "center" }} />
             </Stack>
           ) : <Alert severity="warning">No artifacts available.</Alert>}
         </DialogContent>
