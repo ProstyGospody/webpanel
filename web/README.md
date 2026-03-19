@@ -1,0 +1,86 @@
+# Hysteria 2 Panel
+
+Production-oriented control plane for managing a native Hysteria 2 service on Ubuntu 24.04 LTS.
+
+Control plane stack:
+
+- `panel-api`: Go
+- `panel-web`: Next.js 15 + TypeScript + MUI
+- Local filesystem storage under `/var/lib/proxy-panel`
+- Caddy (TLS reverse proxy and certificate issuer)
+- Prometheus + node_exporter (live host metrics)
+- systemd
+
+## One-command deploy (Ubuntu 24.04 host)
+
+```bash
+sudo bash ./deploy/install.sh
+```
+
+Compatibility wrapper:
+
+```bash
+sudo bash ./deploy/ubuntu24-host-install.sh
+```
+
+## What deploy does
+
+Installer phases:
+
+1. Validates Ubuntu 24.04 + root access
+2. Installs host dependencies (Go, Node.js/npm, Caddy, Prometheus, node_exporter)
+3. Installs Hysteria binary
+4. Creates system users (`proxy-panel`, `hysteria`)
+5. Generates runtime env files and admin credentials
+6. Builds backend and frontend
+7. Renders Caddy + Hysteria runtime configuration
+8. Bootstraps file storage and admin account
+9. Installs systemd units + restricted sudoers policy
+10. Starts panel services, Hysteria, Prometheus, and Caddy
+11. Syncs Caddy-issued cert into `/etc/proxy-panel/hysteria/`
+12. Runs smoke checks
+
+## Generated files and directories
+
+- Main generated env: `/opt/proxy-panel/.env.generated`
+- Initial admin credentials file: `/root/proxy-panel-initial-admin.txt`
+- File-backed control-plane state: `/var/lib/proxy-panel/state/`
+- Historical snapshots: `/var/lib/proxy-panel/snapshots/`
+- Backups: `/var/lib/proxy-panel/backups/`
+- Audit records: `/var/log/proxy-panel/audit/`
+- Runtime locks/temp: `/run/proxy-panel/`
+- Hysteria config: `/etc/proxy-panel/hysteria/server.yaml`
+- Hysteria synced TLS cert/key: `/etc/proxy-panel/hysteria/tls.crt`, `/etc/proxy-panel/hysteria/tls.key`
+
+## Service names
+
+- `proxy-panel-api.service`
+- `proxy-panel-web.service`
+- `hysteria-server.service`
+- `prometheus.service`
+- `prometheus-node-exporter.service`
+- `caddy.service`
+
+Check status:
+
+```bash
+systemctl status proxy-panel-api proxy-panel-web hysteria-server prometheus prometheus-node-exporter caddy
+```
+
+## Smoke check
+
+```bash
+sudo bash ./deploy/verify.sh
+```
+
+Or directly:
+
+```bash
+sudo bash /opt/proxy-panel/current/scripts/smoke-check.sh /opt/proxy-panel/.env.generated
+```
+
+## Documentation
+
+- [Architecture](./docs/architecture.md)
+- [Deploy details](./docs/deploy.md)
+- [Operations](./docs/operations.md)

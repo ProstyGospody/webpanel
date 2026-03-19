@@ -1,0 +1,25 @@
+# Go
+/bin/
+*.exe
+*.out
+
+# Node
+web/node_modules/
+web/.next/
+web/out/
+
+# Env and secrets
+.env
+.env.local
+.env.generated
+*.secret
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local Ansible deploy vars
+deploy/ansible/group_vars/all.yml
