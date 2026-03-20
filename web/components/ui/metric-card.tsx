@@ -3,11 +3,11 @@ import TrendingFlatRoundedIcon from "@mui/icons-material/TrendingFlatRounded";
 import TrendingUpRoundedIcon from "@mui/icons-material/TrendingUpRounded";
 import { Chip, Paper, Stack, Typography } from "@mui/material";
 import { alpha } from "@mui/material/styles";
-import { ReactNode } from "react";
+import { ReactElement } from "react";
 
 type MetricTrend = "up" | "down" | "flat";
 
-function trendIcon(trend?: MetricTrend): ReactNode {
+function trendIcon(trend?: MetricTrend): ReactElement {
   if (trend === "up") {
     return <TrendingUpRoundedIcon fontSize="small" />;
   }
