@@ -181,36 +181,40 @@ install_go() {
 }
 
 install_node() {
-  local required_major=18
+  local required_node="20.9.0"
+  local target_major="20"
+  local current_node=""
 
-  if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
-    local current_major
-    current_major="$(node -v | sed 's/^v//' | cut -d. -f1)"
-    if [[ "${current_major}" -lt "${required_major}" ]]; then
-      fatal "Node.js >= ${required_major} is required, found $(node -v)"
-    fi
-    action "Node.js $(node -v) and npm $(npm -v) already installed"
+  if command -v node >/dev/null 2>&1; then
+    current_node="$(node -v | sed 's/^v//')"
+  fi
+
+  if [[ -n "${current_node}" ]] && command -v npm >/dev/null 2>&1 && version_gte "${required_node}" "${current_node}"; then
+    action "Node.js v${current_node} and npm $(npm -v) already installed"
     return
   fi
 
-  if command -v node >/dev/null 2>&1 && ! command -v npm >/dev/null 2>&1; then
-    fatal "node is installed but npm is missing; resolve package conflict and rerun"
+  if [[ -n "${current_node}" ]] && ! command -v npm >/dev/null 2>&1; then
+    action "Node.js v${current_node} is installed without npm; reinstalling Node.js ${target_major}.x"
+  elif [[ -n "${current_node}" ]]; then
+    action "Upgrading Node.js from v${current_node} to >= ${required_node}"
+  else
+    action "Installing Node.js >= ${required_node}"
   fi
 
-  action "Installing Node.js and npm from Ubuntu 24.04 repositories"
   export DEBIAN_FRONTEND=noninteractive
-  apt-get install -y nodejs npm
+  curl -fsSL "https://deb.nodesource.com/setup_${target_major}.x" | bash -
+  apt-get install -y nodejs
 
   command -v node >/dev/null 2>&1 || fatal "node installation failed"
   command -v npm >/dev/null 2>&1 || fatal "npm installation failed"
 
-  local current_major
-  current_major="$(node -v | sed 's/^v//' | cut -d. -f1)"
-  if [[ "${current_major}" -lt "${required_major}" ]]; then
-    fatal "Node.js >= ${required_major} is required after install, found $(node -v)"
+  current_node="$(node -v | sed 's/^v//')"
+  if ! version_gte "${required_node}" "${current_node}"; then
+    fatal "Node.js >= ${required_node} is required after install, found v${current_node}"
   fi
 
-  action "Installed Node.js $(node -v) and npm $(npm -v)"
+  action "Installed Node.js v${current_node} and npm $(npm -v)"
 }
 
 install_hysteria() {
