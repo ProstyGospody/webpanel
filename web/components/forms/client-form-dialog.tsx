@@ -93,34 +93,23 @@ export function ClientFormDialog({
 
             <Accordion expanded={previewOpen} onChange={(_, expanded) => setPreviewOpen(expanded)}>
               <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
-                <Typography>Client Config Preview</Typography>
+                <Typography>Advanced YAML</Typography>
               </AccordionSummary>
               <AccordionDetails>
-                <Stack spacing={2}>
-                  <Typography variant="body2" color="text.secondary">
-                    Preview uses inherited server defaults and updates live while you edit the form.
-                  </Typography>
-                  <TextField
-                    label="Config"
-                    value={previewConfig}
-                    fullWidth
-                    multiline
-                    minRows={10}
-                    slotProps={{
-                      input: {
-                        readOnly: true,
-                      },
-                    }}
-                    sx={{
-                      "& .MuiInputBase-input": {
-                        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-                        fontSize: 13,
-                        lineHeight: 1.4,
-                        whiteSpace: "pre",
-                      },
-                    }}
-                  />
-                </Stack>
+                <TextField
+                  multiline
+                  minRows={12}
+                  fullWidth
+                  value={previewConfig}
+                  InputProps={{
+                    readOnly: true,
+                    sx: (theme) => ({
+                      ...theme.typography.code,
+                      lineHeight: 1.5,
+                    }),
+                  }}
+                  helperText="Generated preview"
+                />
               </AccordionDetails>
             </Accordion>
           </Stack>
