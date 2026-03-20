@@ -5,7 +5,6 @@ import {
   Avatar,
   Box,
   Button,
-  Divider,
   Drawer,
   IconButton,
   List,
@@ -25,6 +24,7 @@ import SettingsEthernetRoundedIcon from "@mui/icons-material/SettingsEthernetRou
 import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
 import TuneRoundedIcon from "@mui/icons-material/TuneRounded";
 import MenuRoundedIcon from "@mui/icons-material/MenuRounded";
+import MenuOpenRoundedIcon from "@mui/icons-material/MenuOpenRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
 import { ReactNode, useMemo, useState } from "react";
@@ -54,7 +54,11 @@ export function PanelShell({ children }: { children: ReactNode }) {
   const theme = useTheme();
   const desktop = useMediaQuery(theme.breakpoints.up("lg"));
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [desktopNavHidden, setDesktopNavHidden] = useState(false);
   const activeTitle = useMemo(() => resolveTitle(pathname), [pathname]);
+  const topBarHeight = { xs: 54, sm: 58 };
+  const desktopDrawerVisible = desktop && !desktopNavHidden;
+  const layoutDrawerWidth = desktopDrawerVisible ? drawerWidth : 0;
 
   async function logout() {
     try {
@@ -85,7 +89,6 @@ export function PanelShell({ children }: { children: ReactNode }) {
           </Box>
         </Stack>
       </Toolbar>
-      <Divider sx={{ borderColor: (theme) => alpha(theme.palette.divider, 0.6) }} />
       <List sx={{ px: 1.5, py: 1.5, flexGrow: 1 }}>
         {navItems.map((item) => {
           const selected = pathname === item.href;
@@ -156,15 +159,37 @@ export function PanelShell({ children }: { children: ReactNode }) {
           border: 0,
           borderBottom: 0,
           borderRadius: 0,
-          boxShadow: `inset 0 -1px 0 ${alpha(theme.palette.primary.main, 0.2)}`,
-          width: desktop ? `calc(100% - ${drawerWidth}px)` : "100%",
-          ml: desktop ? `${drawerWidth}px` : 0,
+          boxShadow: [
+            `inset 0 -1px 0 ${alpha(theme.palette.primary.main, 0.22)}`,
+            `inset 0 1px 0 ${alpha(theme.palette.common.white, 0.03)}`,
+          ].join(","),
+          width: desktop ? `calc(100% - ${layoutDrawerWidth}px)` : "100%",
+          ml: desktop ? `${layoutDrawerWidth}px` : 0,
+          transition: theme.transitions.create(["width", "margin-left"], {
+            duration: theme.transitions.duration.shortest,
+          }),
         })}
       >
-        <Toolbar sx={{ gap: 1, minHeight: "76px !important", px: { xs: 1.25, sm: 2.5 } }}>
-          {!desktop ? (
-            <IconButton color="inherit" edge="start" onClick={() => setMobileOpen(true)}><MenuRoundedIcon /></IconButton>
-          ) : null}
+        <Toolbar sx={{ gap: 1, minHeight: `${topBarHeight.xs}px`, px: { xs: 1.25, sm: 2.5 }, "@media (min-width:600px)": { minHeight: `${topBarHeight.sm}px` } }}>
+          {desktop ? (
+            <Tooltip title={desktopDrawerVisible ? "Hide menu" : "Show menu"}>
+              <IconButton
+                color="inherit"
+                edge="start"
+                onClick={() => setDesktopNavHidden((value) => !value)}
+                sx={(theme) => ({
+                  color: theme.palette.text.secondary,
+                  "&:hover": { color: theme.palette.text.primary, backgroundColor: alpha(theme.palette.primary.main, 0.08) },
+                })}
+              >
+                {desktopDrawerVisible ? <MenuOpenRoundedIcon /> : <MenuRoundedIcon />}
+              </IconButton>
+            </Tooltip>
+          ) : (
+            <IconButton color="inherit" edge="start" onClick={() => setMobileOpen(true)}>
+              <MenuRoundedIcon />
+            </IconButton>
+          )}
           <Box sx={{ flexGrow: 1 }}>
             <Typography variant="h6" sx={{ fontWeight: 700 }}>{activeTitle}</Typography>
           </Box>
@@ -174,31 +199,56 @@ export function PanelShell({ children }: { children: ReactNode }) {
         </Toolbar>
       </AppBar>
 
-      <Drawer
-        variant={desktop ? "permanent" : "temporary"}
-        open={desktop ? true : mobileOpen}
-        onClose={() => setMobileOpen(false)}
-        ModalProps={{ keepMounted: true }}
-        sx={(theme) => ({
-          width: drawerWidth,
-          flexShrink: 0,
-          "& .MuiDrawer-paper": {
+      {desktopDrawerVisible ? (
+        <Drawer
+          variant="permanent"
+          open
+          sx={(theme) => ({
             width: drawerWidth,
-            boxSizing: "border-box",
-            border: 0,
-            borderRight: 0,
-            borderRadius: 0,
-            boxShadow: `inset -1px 0 0 ${alpha(theme.palette.primary.main, 0.2)}`,
-            backgroundImage: "none",
-            backgroundColor: alpha(theme.palette.background.paper, 0.96),
-          },
-        })}
-      >
-        {drawerContent}
-      </Drawer>
+            flexShrink: 0,
+            "& .MuiDrawer-paper": {
+              width: drawerWidth,
+              boxSizing: "border-box",
+              border: 0,
+              borderRight: 0,
+              borderRadius: 0,
+              boxShadow: `inset -1px 0 0 ${alpha(theme.palette.primary.main, 0.16)}`,
+              backgroundImage: "none",
+              backgroundColor: alpha(theme.palette.background.paper, 0.96),
+            },
+          })}
+        >
+          {drawerContent}
+        </Drawer>
+      ) : null}
+
+      {!desktop ? (
+        <Drawer
+          variant="temporary"
+          open={mobileOpen}
+          onClose={() => setMobileOpen(false)}
+          ModalProps={{ keepMounted: true }}
+          sx={(theme) => ({
+            width: drawerWidth,
+            flexShrink: 0,
+            "& .MuiDrawer-paper": {
+              width: drawerWidth,
+              boxSizing: "border-box",
+              border: 0,
+              borderRight: 0,
+              borderRadius: 0,
+              boxShadow: `inset -1px 0 0 ${alpha(theme.palette.primary.main, 0.16)}`,
+              backgroundImage: "none",
+              backgroundColor: alpha(theme.palette.background.paper, 0.98),
+            },
+          })}
+        >
+          {drawerContent}
+        </Drawer>
+      ) : null}
 
       <Box component="main" sx={{ flexGrow: 1, p: { xs: 2, md: 3 }, width: "100%" }}>
-        <Toolbar />
+        <Toolbar sx={{ minHeight: `${topBarHeight.xs}px`, "@media (min-width:600px)": { minHeight: `${topBarHeight.sm}px` } }} />
         {children}
       </Box>
     </Box>
