@@ -140,10 +140,7 @@ func TestHysteriaConfigManagerGenerateClientArtifacts(t *testing.T) {
 	if !strings.HasPrefix(artifacts.URI, "hysteria2://") {
 		t.Fatalf("unexpected URI scheme: %s", artifacts.URI)
 	}
-	if strings.Contains(artifacts.URI, "demo-user%3Asupersecret88@") {
-		t.Fatalf("userpass auth must be encoded as URI userinfo, got: %s", artifacts.URI)
-	}
-	if !strings.Contains(artifacts.URI, "demo-user:supersecret88@hy2.example.com:443/") {
+	if !strings.Contains(artifacts.URI, "demo-user%3Asupersecret88@hy2.example.com:443/") {
 		t.Fatalf("expected userpass auth and authority in URI: %s", artifacts.URI)
 	}
 	if !strings.Contains(artifacts.URI, "obfs=salamander") {

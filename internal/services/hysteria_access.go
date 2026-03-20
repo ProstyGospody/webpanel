@@ -320,12 +320,8 @@ func withAuthOnServerURI(rawServer string, auth string) string {
 	}
 	credential := strings.TrimSpace(auth)
 	if credential != "" {
-		parts := strings.SplitN(credential, ":", 2)
-		if len(parts) == 2 {
-			u.User = url.UserPassword(parts[0], parts[1])
-		} else {
-			u.User = url.User(credential)
-		}
+		// Keep auth as a single userinfo token for URI compatibility across clients.
+		u.User = url.User(credential)
 	}
 	u.Path = "/"
 	u.Fragment = ""

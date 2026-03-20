@@ -343,8 +343,12 @@ func (h *Handler) HysteriaUserQR(w http.ResponseWriter, r *http.Request) {
 		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to generate hysteria artifacts", nil)
 		return
 	}
+	shareURI := strings.TrimSpace(artifacts.URIHy2)
+	if shareURI == "" {
+		shareURI = artifacts.URI
+	}
 	size := parseQRSize(r.URL.Query().Get("size"), 320)
-	if err := renderQRCodePNG(w, artifacts.URI, size); err != nil {
+	if err := renderQRCodePNG(w, shareURI, size); err != nil {
 		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to render qr code", nil)
 	}
 }

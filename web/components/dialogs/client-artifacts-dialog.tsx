@@ -51,6 +51,7 @@ export function ClientArtifactsDialog({
 
   const artifacts = payload?.artifacts || null;
   const currentClient = payload?.user || client;
+  const shareURI = artifacts?.uri_hy2 || artifacts?.uri || "";
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
@@ -71,8 +72,8 @@ export function ClientArtifactsDialog({
             {activeTab === "qr" ? (
               <Stack spacing={2}>
                 <Stack direction={{ xs: "column", md: "row" }} spacing={1} alignItems={{ xs: "stretch", md: "center" }}>
-                  <TextField label="Hysteria URI" value={artifacts.uri} fullWidth InputProps={{ readOnly: true }} />
-                  <Button variant="outlined" startIcon={<ContentCopyRoundedIcon />} onClick={() => onCopy(artifacts.uri)}>Copy URI</Button>
+                  <TextField label="Hysteria URI" value={shareURI} fullWidth InputProps={{ readOnly: true }} />
+                  <Button variant="outlined" startIcon={<ContentCopyRoundedIcon />} onClick={() => onCopy(shareURI)}>Copy URI</Button>
                 </Stack>
                 <Box
                   component="img"
@@ -112,8 +113,8 @@ export function ClientArtifactsDialog({
                 <Divider />
 
                 <Stack direction={{ xs: "column", md: "row" }} spacing={1} alignItems={{ xs: "stretch", md: "center" }}>
-                  <TextField label="Hysteria URI" value={artifacts.uri} fullWidth InputProps={{ readOnly: true }} />
-                  <Button variant="outlined" startIcon={<ContentCopyRoundedIcon />} onClick={() => onCopy(artifacts.uri)}>Copy URI</Button>
+                  <TextField label="Hysteria URI" value={shareURI} fullWidth InputProps={{ readOnly: true }} />
+                  <Button variant="outlined" startIcon={<ContentCopyRoundedIcon />} onClick={() => onCopy(shareURI)}>Copy URI</Button>
                 </Stack>
 
                 <Stack direction="row" spacing={1}>

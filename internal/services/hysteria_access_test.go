@@ -103,11 +103,8 @@ obfs:
 	if !strings.HasPrefix(artifacts.URI, "hysteria2://") {
 		t.Fatalf("unexpected uri: %s", artifacts.URI)
 	}
-	if !strings.Contains(artifacts.URI, "demo-user:supersecret88@hy2.example.com:443/") {
+	if !strings.Contains(artifacts.URI, "demo-user%3Asupersecret88@hy2.example.com:443/") {
 		t.Fatalf("expected userpass auth and server address in uri: %s", artifacts.URI)
-	}
-	if strings.Contains(artifacts.URI, "demo-user%3Asupersecret88@") {
-		t.Fatalf("expected userpass auth to use URI userinfo, got: %s", artifacts.URI)
 	}
 	if !strings.Contains(artifacts.URI, "obfs-password=managed-obfs") {
 		t.Fatalf("expected obfs password in uri: %s", artifacts.URI)
@@ -353,7 +350,7 @@ auth:
 	if !validation.Valid {
 		t.Fatalf("expected valid artifacts, got errors: %#v", validation.Errors)
 	}
-	if !strings.Contains(artifacts.URI, "demo-user:supersecret88@hy2.example.com:443/") {
+	if !strings.Contains(artifacts.URI, "demo-user%3Asupersecret88@hy2.example.com:443/") {
 		t.Fatalf("expected user credential embedded into URI server value: %s", artifacts.URI)
 	}
 	if strings.Contains(artifacts.URI, "127.0.0.1:1080") {

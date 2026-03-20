@@ -1643,12 +1643,8 @@ func buildClientURI(profile Hy2ClientProfile) (string, string) {
 
 	u := url.URL{Scheme: "hysteria2", Host: joinServerValue(resolved.Host, resolved.PortUnion), Path: "/"}
 	if strings.TrimSpace(resolved.Auth) != "" {
-		parts := strings.SplitN(strings.TrimSpace(resolved.Auth), ":", 2)
-		if len(parts) == 2 {
-			u.User = url.UserPassword(parts[0], parts[1])
-		} else {
-			u.User = url.User(strings.TrimSpace(resolved.Auth))
-		}
+		// Hysteria expects auth in URI userinfo "username" part; keep it as a single token.
+		u.User = url.User(strings.TrimSpace(resolved.Auth))
 	}
 
 	query := url.Values{}
