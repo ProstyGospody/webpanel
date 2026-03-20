@@ -34,7 +34,7 @@ type ChartPoint = {
 };
 
 type AxisValueFormatterContext = {
-  location?: "tick" | "tooltip";
+  location?: string;
   defaultTickLabel?: string;
 };
 
