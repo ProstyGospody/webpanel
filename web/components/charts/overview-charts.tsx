@@ -38,8 +38,19 @@ type AxisValueFormatterContext = {
   defaultTickLabel?: string;
 };
 
+type TimelineData = {
+  xAxis: Date[];
+  networkRx: Array<number | null>;
+  networkTx: Array<number | null>;
+  cpu: Array<number | null>;
+  ram: Array<number | null>;
+  filledBuckets: number;
+};
+
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
+const HOUR_BUCKET_MS = 60 * 1000;
+const DAY_BUCKET_MS = 10 * 60 * 1000;
 
 function clampPercent(value: number): number {
   if (!Number.isFinite(value)) {
@@ -49,37 +60,25 @@ function clampPercent(value: number): number {
 }
 
 function parseTimestamp(raw: string): number | null {
-  const ms = Date.parse(raw || "");
-  if (Number.isNaN(ms)) {
+  const parsed = Date.parse(raw || "");
+  if (Number.isNaN(parsed)) {
     return null;
   }
-  return ms;
+  return parsed;
 }
 
-function parseAxisValue(value: unknown): number | null {
+function toDate(value: unknown): Date | null {
   if (value instanceof Date) {
-    const ms = value.getTime();
-    return Number.isNaN(ms) ? null : ms;
+    return Number.isNaN(value.getTime()) ? null : value;
   }
   if (typeof value === "number") {
-    return Number.isFinite(value) ? value : null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
   }
   if (typeof value === "string") {
     const numeric = Number(value);
-    if (Number.isFinite(numeric) && /^\d+$/.test(value.trim())) {
-      return numeric;
-    }
-    const parsed = Date.parse(value);
-    return Number.isNaN(parsed) ? null : parsed;
-  }
-  if (typeof value === "object" && value !== null && "valueOf" in value) {
-    const primitive = (value as { valueOf: () => unknown }).valueOf();
-    if (typeof primitive === "number" && Number.isFinite(primitive)) {
-      return primitive;
-    }
-    if (typeof primitive === "string") {
-      return parseAxisValue(primitive);
-    }
+    const date = Number.isFinite(numeric) && /^\d+$/.test(value.trim()) ? new Date(numeric) : new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
   }
   return null;
 }
@@ -103,13 +102,8 @@ function formatTooltipClock(date: Date): string {
 }
 
 function formatAxisTime(value: unknown, context?: AxisValueFormatterContext): string {
-  const timestampMs = parseAxisValue(value);
-  if (timestampMs === null) {
-    return typeof context?.defaultTickLabel === "string" ? context.defaultTickLabel : "";
-  }
-
-  const date = new Date(timestampMs);
-  if (Number.isNaN(date.getTime())) {
+  const date = toDate(value);
+  if (!date) {
     return typeof context?.defaultTickLabel === "string" ? context.defaultTickLabel : "";
   }
 
@@ -119,19 +113,11 @@ function formatAxisTime(value: unknown, context?: AxisValueFormatterContext): st
   return formatClock(date);
 }
 
-function downsample<T>(items: T[], maxPoints: number): T[] {
-  if (items.length <= maxPoints) {
-    return items;
-  }
-  const step = Math.ceil(items.length / maxPoints);
-  return items.filter((_, index) => index % step === 0 || index === items.length - 1);
-}
-
-function buildRangePoints(samples: SystemTrendSample[], rangeStartMs: number, rangeEndMs: number): ChartPoint[] {
-  const prepared = samples
+function normalizePoints(samples: SystemTrendSample[], startMs: number, endMs: number): ChartPoint[] {
+  return samples
     .map((sample) => {
       const timestampMs = parseTimestamp(sample.timestamp);
-      if (timestampMs === null || timestampMs < rangeStartMs || timestampMs > rangeEndMs) {
+      if (timestampMs === null || timestampMs < startMs || timestampMs > endMs) {
         return null;
       }
 
@@ -145,30 +131,58 @@ function buildRangePoints(samples: SystemTrendSample[], rangeStartMs: number, ra
     })
     .filter((point): point is ChartPoint => point !== null)
     .sort((a, b) => a.timestampMs - b.timestampMs);
+}
 
-  if (prepared.length === 0) {
-    return [];
+function alignFloor(value: number, stepMs: number): number {
+  return Math.floor(value / stepMs) * stepMs;
+}
+
+function alignCeil(value: number, stepMs: number): number {
+  return Math.ceil(value / stepMs) * stepMs;
+}
+
+function buildTimeline(points: ChartPoint[], startMs: number, endMs: number, stepMs: number): TimelineData {
+  const byBucket = new Map<number, ChartPoint>();
+  for (const point of points) {
+    const bucketTs = alignFloor(point.timestampMs, stepMs);
+    if (bucketTs < startMs || bucketTs > endMs) {
+      continue;
+    }
+    byBucket.set(bucketTs, point);
   }
 
-  const output = [...prepared];
-  const first = output[0];
-  const last = output[output.length - 1];
+  const xAxis: Date[] = [];
+  const networkRx: Array<number | null> = [];
+  const networkTx: Array<number | null> = [];
+  const cpu: Array<number | null> = [];
+  const ram: Array<number | null> = [];
+  let filledBuckets = 0;
 
-  if (first.timestampMs > rangeStartMs) {
-    output.unshift({
-      ...first,
-      timestampMs: rangeStartMs,
-    });
+  for (let ts = startMs; ts <= endMs; ts += stepMs) {
+    const point = byBucket.get(ts);
+    xAxis.push(new Date(ts));
+    if (point) {
+      filledBuckets += 1;
+      networkRx.push(point.networkRxBps);
+      networkTx.push(point.networkTxBps);
+      cpu.push(point.cpuUsagePercent);
+      ram.push(point.memoryUsedPercent);
+    } else {
+      networkRx.push(null);
+      networkTx.push(null);
+      cpu.push(null);
+      ram.push(null);
+    }
   }
 
-  if (last.timestampMs < rangeEndMs) {
-    output.push({
-      ...last,
-      timestampMs: rangeEndMs,
-    });
-  }
-
-  return output;
+  return {
+    xAxis,
+    networkRx,
+    networkTx,
+    cpu,
+    ram,
+    filledBuckets,
+  };
 }
 
 function chartStyleSx(theme: Theme) {
@@ -198,7 +212,7 @@ function chartStyleSx(theme: Theme) {
       fillOpacity: 0.19,
     },
     "& .MuiAreaElement-series-upload": {
-      fillOpacity: 0.12,
+      fillOpacity: 0.11,
     },
     "& .MuiLineElement-series-upload": {
       strokeDasharray: "6 4",
@@ -212,16 +226,18 @@ function chartStyleSx(theme: Theme) {
 
 export function OverviewCharts({ loading, samples, range, onRangeChange }: OverviewChartsProps) {
   const rangeMs = range === "24h" ? DAY_MS : HOUR_MS;
+  const bucketMs = range === "24h" ? DAY_BUCKET_MS : HOUR_BUCKET_MS;
   const rangeEndMs = Date.now();
   const rangeStartMs = rangeEndMs - rangeMs;
+  const alignedStartMs = alignFloor(rangeStartMs, bucketMs);
+  const alignedEndMs = alignCeil(rangeEndMs, bucketMs);
 
-  const points = useMemo(() => {
-    const prepared = buildRangePoints(samples, rangeStartMs, rangeEndMs);
-    return downsample(prepared, range === "24h" ? 1200 : 900);
-  }, [samples, range, rangeStartMs, rangeEndMs]);
+  const timeline = useMemo(() => {
+    const points = normalizePoints(samples, alignedStartMs, alignedEndMs);
+    return buildTimeline(points, alignedStartMs, alignedEndMs, bucketMs);
+  }, [samples, alignedStartMs, alignedEndMs, bucketMs]);
 
-  const hasTrend = points.length > 1;
-  const xAxisData = points.map((point) => point.timestampMs);
+  const hasTrend = timeline.filledBuckets > 1;
   const xAxisTickNumber = range === "24h" ? 7 : 6;
 
   const handleRangeChange = (_event: MouseEvent<HTMLElement>, nextRange: DashboardChartRange | null) => {
@@ -284,7 +300,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                     sx={chartStyleSx}
                     xAxis={[
                       {
-                        data: xAxisData,
+                        data: timeline.xAxis,
                         scaleType: "time",
                         tickNumber: xAxisTickNumber,
                         valueFormatter: formatAxisTime,
@@ -302,8 +318,8 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         curve: "monotoneX",
                         showMark: false,
                         area: true,
-                        data: points.map((point) => point.networkRxBps),
-                        valueFormatter: (value: unknown) => formatRate(Number(value) || 0),
+                        data: timeline.networkRx,
+                        valueFormatter: (value: unknown) => (value === null ? "-" : formatRate(Number(value) || 0)),
                       },
                       {
                         id: "upload",
@@ -311,8 +327,8 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         curve: "monotoneX",
                         showMark: false,
                         area: true,
-                        data: points.map((point) => point.networkTxBps),
-                        valueFormatter: (value: unknown) => formatRate(Number(value) || 0),
+                        data: timeline.networkTx,
+                        valueFormatter: (value: unknown) => (value === null ? "-" : formatRate(Number(value) || 0)),
                       },
                     ]}
                     grid={{ horizontal: true, vertical: false }}
@@ -340,7 +356,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                     sx={chartStyleSx}
                     xAxis={[
                       {
-                        data: xAxisData,
+                        data: timeline.xAxis,
                         scaleType: "time",
                         tickNumber: xAxisTickNumber,
                         valueFormatter: formatAxisTime,
@@ -360,8 +376,8 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         curve: "monotoneX",
                         showMark: false,
                         area: true,
-                        data: points.map((point) => point.cpuUsagePercent),
-                        valueFormatter: (value: unknown) => `${clampPercent(Number(value) || 0).toFixed(1)}%`,
+                        data: timeline.cpu,
+                        valueFormatter: (value: unknown) => (value === null ? "-" : `${clampPercent(Number(value) || 0).toFixed(1)}%`),
                       },
                     ]}
                     grid={{ horizontal: true, vertical: false }}
@@ -389,7 +405,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                     sx={chartStyleSx}
                     xAxis={[
                       {
-                        data: xAxisData,
+                        data: timeline.xAxis,
                         scaleType: "time",
                         tickNumber: xAxisTickNumber,
                         valueFormatter: formatAxisTime,
@@ -409,8 +425,8 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         curve: "monotoneX",
                         showMark: false,
                         area: true,
-                        data: points.map((point) => point.memoryUsedPercent),
-                        valueFormatter: (value: unknown) => `${clampPercent(Number(value) || 0).toFixed(1)}%`,
+                        data: timeline.ram,
+                        valueFormatter: (value: unknown) => (value === null ? "-" : `${clampPercent(Number(value) || 0).toFixed(1)}%`),
                       },
                     ]}
                     grid={{ horizontal: true, vertical: false }}
