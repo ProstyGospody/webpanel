@@ -55,7 +55,6 @@ export function OverviewCharts({
                   ]}
                   yAxis={[
                     {
-                      width: 70,
                       valueFormatter: (value) => formatRate(value || 0),
                     },
                   ]}
