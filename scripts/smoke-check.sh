@@ -13,6 +13,7 @@ PANEL_API_PORT="${PANEL_API_PORT:-18080}"
 HY2_PORT="${HY2_PORT:-443}"
 PROMETHEUS_URL="${PROMETHEUS_URL:-http://127.0.0.1:9090}"
 PROMETHEUS_ENABLED="${PROMETHEUS_ENABLED:-true}"
+PROMETHEUS_READY_GRACE_SECONDS="${PROMETHEUS_READY_GRACE_SECONDS:-5}"
 SMOKE_ADMIN_EMAIL="${SMOKE_ADMIN_EMAIL:-${INITIAL_ADMIN_EMAIL:-}}"
 SMOKE_ADMIN_PASSWORD="${SMOKE_ADMIN_PASSWORD:-${INITIAL_ADMIN_PASSWORD:-}}"
 CURL_CONNECT_TIMEOUT="${CURL_CONNECT_TIMEOUT:-3}"
@@ -63,6 +64,10 @@ else
 fi
 
 if [[ "${PROMETHEUS_ENABLED}" == "true" ]]; then
+  if [[ "${PROMETHEUS_READY_GRACE_SECONDS}" =~ ^[0-9]+$ ]] && [[ "${PROMETHEUS_READY_GRACE_SECONDS}" -gt 0 ]]; then
+    echo "[step] waiting ${PROMETHEUS_READY_GRACE_SECONDS}s for prometheus warm-up"
+    sleep "${PROMETHEUS_READY_GRACE_SECONDS}"
+  fi
   echo "[step] checking prometheus and node_exporter"
   wait_http_ok "${PROMETHEUS_URL}/-/ready" "prometheus readiness" 30 1
   curl -fsS --connect-timeout "${CURL_CONNECT_TIMEOUT}" --max-time "${CURL_MAX_TIME}" "${PROMETHEUS_URL}/api/v1/query?query=up" >/dev/null
