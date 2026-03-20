@@ -25,32 +25,22 @@ type OverviewChartsProps = {
   onRangeChange: (range: DashboardChartRange) => void;
 };
 
-type ChartPoint = {
+type PreparedPoint = {
   timestampMs: number;
-  cpuUsagePercent: number;
-  memoryUsedPercent: number;
-  networkRxBps: number;
-  networkTxBps: number;
+  date: Date;
+  cpu: number;
+  ram: number;
+  rx: number;
+  tx: number;
 };
 
-type AxisValueFormatterContext = {
+type AxisContext = {
   location?: string;
   defaultTickLabel?: string;
 };
 
-type TimelineData = {
-  xAxis: Date[];
-  networkRx: Array<number | null>;
-  networkTx: Array<number | null>;
-  cpu: Array<number | null>;
-  ram: Array<number | null>;
-  filledBuckets: number;
-};
-
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
-const HOUR_BUCKET_MS = 60 * 1000;
-const DAY_BUCKET_MS = 10 * 60 * 1000;
 
 function clampPercent(value: number): number {
   if (!Number.isFinite(value)) {
@@ -59,31 +49,54 @@ function clampPercent(value: number): number {
   return Math.max(0, Math.min(100, value));
 }
 
-function parseTimestamp(raw: string): number | null {
-  const parsed = Date.parse(raw || "");
-  if (Number.isNaN(parsed)) {
+function parsePoint(sample: SystemTrendSample): PreparedPoint | null {
+  const timestampMs = Date.parse(sample.timestamp || "");
+  if (Number.isNaN(timestampMs)) {
     return null;
   }
-  return parsed;
+
+  return {
+    timestampMs,
+    date: new Date(timestampMs),
+    cpu: clampPercent(sample.cpu_usage_percent),
+    ram: clampPercent(sample.memory_used_percent),
+    rx: Math.max(0, sample.network_rx_bps || 0),
+    tx: Math.max(0, sample.network_tx_bps || 0),
+  };
 }
 
-function toDate(value: unknown): Date | null {
-  if (value instanceof Date) {
-    return Number.isNaN(value.getTime()) ? null : value;
+function downsample<T>(items: T[], maxPoints: number): T[] {
+  if (items.length <= maxPoints) {
+    return items;
   }
-  if (typeof value === "number") {
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? null : date;
-  }
-  if (typeof value === "string") {
-    const numeric = Number(value);
-    const date = Number.isFinite(numeric) && /^\d+$/.test(value.trim()) ? new Date(numeric) : new Date(value);
-    return Number.isNaN(date.getTime()) ? null : date;
-  }
-  return null;
+  const step = Math.ceil(items.length / maxPoints);
+  return items.filter((_, index) => index % step === 0 || index === items.length - 1);
 }
 
-function formatClock(date: Date): string {
+function formatAxisTime(value: unknown, context?: AxisContext): string {
+  const date =
+    value instanceof Date
+      ? value
+      : typeof value === "number"
+        ? new Date(value)
+        : typeof value === "string"
+          ? new Date(value)
+          : null;
+
+  if (!date || Number.isNaN(date.getTime())) {
+    return typeof context?.defaultTickLabel === "string" ? context.defaultTickLabel : "";
+  }
+
+  if (context?.location === "tooltip") {
+    return date.toLocaleString([], {
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  }
+
   return date.toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
@@ -91,104 +104,10 @@ function formatClock(date: Date): string {
   });
 }
 
-function formatTooltipClock(date: Date): string {
-  return date.toLocaleString([], {
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-}
-
-function formatAxisTime(value: unknown, context?: AxisValueFormatterContext): string {
-  const date = toDate(value);
-  if (!date) {
-    return typeof context?.defaultTickLabel === "string" ? context.defaultTickLabel : "";
-  }
-
-  if (context?.location === "tooltip") {
-    return formatTooltipClock(date);
-  }
-  return formatClock(date);
-}
-
-function normalizePoints(samples: SystemTrendSample[], startMs: number, endMs: number): ChartPoint[] {
-  return samples
-    .map((sample) => {
-      const timestampMs = parseTimestamp(sample.timestamp);
-      if (timestampMs === null || timestampMs < startMs || timestampMs > endMs) {
-        return null;
-      }
-
-      return {
-        timestampMs,
-        cpuUsagePercent: clampPercent(sample.cpu_usage_percent),
-        memoryUsedPercent: clampPercent(sample.memory_used_percent),
-        networkRxBps: Math.max(0, sample.network_rx_bps || 0),
-        networkTxBps: Math.max(0, sample.network_tx_bps || 0),
-      } as ChartPoint;
-    })
-    .filter((point): point is ChartPoint => point !== null)
-    .sort((a, b) => a.timestampMs - b.timestampMs);
-}
-
-function alignFloor(value: number, stepMs: number): number {
-  return Math.floor(value / stepMs) * stepMs;
-}
-
-function alignCeil(value: number, stepMs: number): number {
-  return Math.ceil(value / stepMs) * stepMs;
-}
-
-function buildTimeline(points: ChartPoint[], startMs: number, endMs: number, stepMs: number): TimelineData {
-  const byBucket = new Map<number, ChartPoint>();
-  for (const point of points) {
-    const bucketTs = alignFloor(point.timestampMs, stepMs);
-    if (bucketTs < startMs || bucketTs > endMs) {
-      continue;
-    }
-    byBucket.set(bucketTs, point);
-  }
-
-  const xAxis: Date[] = [];
-  const networkRx: Array<number | null> = [];
-  const networkTx: Array<number | null> = [];
-  const cpu: Array<number | null> = [];
-  const ram: Array<number | null> = [];
-  let filledBuckets = 0;
-
-  for (let ts = startMs; ts <= endMs; ts += stepMs) {
-    const point = byBucket.get(ts);
-    xAxis.push(new Date(ts));
-    if (point) {
-      filledBuckets += 1;
-      networkRx.push(point.networkRxBps);
-      networkTx.push(point.networkTxBps);
-      cpu.push(point.cpuUsagePercent);
-      ram.push(point.memoryUsedPercent);
-    } else {
-      networkRx.push(null);
-      networkTx.push(null);
-      cpu.push(null);
-      ram.push(null);
-    }
-  }
-
-  return {
-    xAxis,
-    networkRx,
-    networkTx,
-    cpu,
-    ram,
-    filledBuckets,
-  };
-}
-
 function chartStyleSx(theme: Theme) {
   return {
     "& .MuiChartsAxis-line, & .MuiChartsAxis-tick": {
-      stroke: alpha(theme.palette.primary.main, 0.3),
+      stroke: alpha(theme.palette.primary.main, 0.28),
     },
     "& .MuiChartsGrid-line": {
       stroke: alpha(theme.palette.primary.main, 0.16),
@@ -226,19 +145,29 @@ function chartStyleSx(theme: Theme) {
 
 export function OverviewCharts({ loading, samples, range, onRangeChange }: OverviewChartsProps) {
   const rangeMs = range === "24h" ? DAY_MS : HOUR_MS;
-  const bucketMs = range === "24h" ? DAY_BUCKET_MS : HOUR_BUCKET_MS;
-  const rangeEndMs = Date.now();
-  const rangeStartMs = rangeEndMs - rangeMs;
-  const alignedStartMs = alignFloor(rangeStartMs, bucketMs);
-  const alignedEndMs = alignCeil(rangeEndMs, bucketMs);
+  const maxPoints = range === "24h" ? 480 : 360;
+  const xTicks = range === "24h" ? 8 : 6;
 
-  const timeline = useMemo(() => {
-    const points = normalizePoints(samples, alignedStartMs, alignedEndMs);
-    return buildTimeline(points, alignedStartMs, alignedEndMs, bucketMs);
-  }, [samples, alignedStartMs, alignedEndMs, bucketMs]);
+  const points = useMemo(() => {
+    const now = Date.now();
+    const start = now - rangeMs;
 
-  const hasTrend = timeline.filledBuckets > 1;
-  const xAxisTickNumber = range === "24h" ? 7 : 6;
+    const filtered = samples
+      .map(parsePoint)
+      .filter((point): point is PreparedPoint => point !== null)
+      .filter((point) => point.timestampMs >= start && point.timestampMs <= now)
+      .sort((a, b) => a.timestampMs - b.timestampMs);
+
+    return downsample(filtered, maxPoints);
+  }, [samples, rangeMs, maxPoints]);
+
+  const hasTrend = points.length > 1;
+
+  const xAxis = points.map((point) => point.date);
+  const networkRx = points.map((point) => point.rx);
+  const networkTx = points.map((point) => point.tx);
+  const cpu = points.map((point) => point.cpu);
+  const ram = points.map((point) => point.ram);
 
   const handleRangeChange = (_event: MouseEvent<HTMLElement>, nextRange: DashboardChartRange | null) => {
     if (nextRange) {
@@ -300,9 +229,9 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                     sx={chartStyleSx}
                     xAxis={[
                       {
-                        data: timeline.xAxis,
+                        data: xAxis,
                         scaleType: "time",
-                        tickNumber: xAxisTickNumber,
+                        tickNumber: xTicks,
                         valueFormatter: formatAxisTime,
                       },
                     ]}
@@ -318,8 +247,8 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         curve: "monotoneX",
                         showMark: false,
                         area: true,
-                        data: timeline.networkRx,
-                        valueFormatter: (value: unknown) => (value === null ? "-" : formatRate(Number(value) || 0)),
+                        data: networkRx,
+                        valueFormatter: (value: unknown) => formatRate(Number(value) || 0),
                       },
                       {
                         id: "upload",
@@ -327,8 +256,8 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         curve: "monotoneX",
                         showMark: false,
                         area: true,
-                        data: timeline.networkTx,
-                        valueFormatter: (value: unknown) => (value === null ? "-" : formatRate(Number(value) || 0)),
+                        data: networkTx,
+                        valueFormatter: (value: unknown) => formatRate(Number(value) || 0),
                       },
                     ]}
                     grid={{ horizontal: true, vertical: false }}
@@ -356,9 +285,9 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                     sx={chartStyleSx}
                     xAxis={[
                       {
-                        data: timeline.xAxis,
+                        data: xAxis,
                         scaleType: "time",
-                        tickNumber: xAxisTickNumber,
+                        tickNumber: xTicks,
                         valueFormatter: formatAxisTime,
                       },
                     ]}
@@ -376,8 +305,8 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         curve: "monotoneX",
                         showMark: false,
                         area: true,
-                        data: timeline.cpu,
-                        valueFormatter: (value: unknown) => (value === null ? "-" : `${clampPercent(Number(value) || 0).toFixed(1)}%`),
+                        data: cpu,
+                        valueFormatter: (value: unknown) => `${clampPercent(Number(value) || 0).toFixed(1)}%`,
                       },
                     ]}
                     grid={{ horizontal: true, vertical: false }}
@@ -405,9 +334,9 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                     sx={chartStyleSx}
                     xAxis={[
                       {
-                        data: timeline.xAxis,
+                        data: xAxis,
                         scaleType: "time",
-                        tickNumber: xAxisTickNumber,
+                        tickNumber: xTicks,
                         valueFormatter: formatAxisTime,
                       },
                     ]}
@@ -425,8 +354,8 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         curve: "monotoneX",
                         showMark: false,
                         area: true,
-                        data: timeline.ram,
-                        valueFormatter: (value: unknown) => (value === null ? "-" : `${clampPercent(Number(value) || 0).toFixed(1)}%`),
+                        data: ram,
+                        valueFormatter: (value: unknown) => `${clampPercent(Number(value) || 0).toFixed(1)}%`,
                       },
                     ]}
                     grid={{ horizontal: true, vertical: false }}
