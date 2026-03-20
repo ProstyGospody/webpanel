@@ -20,10 +20,12 @@ export function ConfirmDialog({
   confirmColor?: "error" | "primary" | "secondary";
 }) {
   return (
-    <Dialog open={open} onClose={() => !busy && onClose()}>
+    <Dialog open={open} onClose={() => !busy && onClose()} fullWidth maxWidth="xs">
       <DialogTitle>{title}</DialogTitle>
       <DialogContent>
-        <Typography>{description}</Typography>
+        <Typography variant="body2" color="text.secondary">
+          {description}
+        </Typography>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={busy}>Cancel</Button>

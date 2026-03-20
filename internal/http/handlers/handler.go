@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"proxy-panel/internal/config"
@@ -26,6 +27,14 @@ type Handler struct {
 	hysteriaAccess   *services.HysteriaAccessManager
 	prometheus       *services.PrometheusClient
 	systemMetrics    *services.SystemMetricsCollector
+	protocolMu       sync.Mutex
+	protocolSample   protocolPacketSample
+}
+
+type protocolPacketSample struct {
+	tcpPackets  int64
+	udpPackets  int64
+	collectedAt time.Time
 }
 
 func New(

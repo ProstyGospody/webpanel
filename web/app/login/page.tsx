@@ -1,7 +1,20 @@
 "use client";
 
-import { Alert, Box, Button, Card, CardContent, CircularProgress, Stack, TextField, Typography } from "@mui/material";
 import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
+import ShieldRoundedIcon from "@mui/icons-material/ShieldRounded";
+import {
+  Alert,
+  Box,
+  Button,
+  Chip,
+  CircularProgress,
+  Container,
+  Grid,
+  Paper,
+  Stack,
+  TextField,
+  Typography,
+} from "@mui/material";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 
@@ -52,40 +65,76 @@ export default function LoginPage() {
     return (
       <Stack sx={{ minHeight: "100vh" }} alignItems="center" justifyContent="center" spacing={2}>
         <CircularProgress />
-        <Typography color="text.secondary">Loading...</Typography>
+        <Typography color="text.secondary">Checking existing session...</Typography>
       </Stack>
     );
   }
 
   return (
-    <Box sx={{ minHeight: "100vh", display: "grid", placeItems: "center", px: 2 }}>
-      <Card sx={{ width: "100%", maxWidth: 430 }}>
-        <CardContent sx={{ p: 4 }}>
-          <Stack spacing={3}>
-            <Stack direction="row" spacing={1.5} alignItems="center">
-              <Box sx={{ width: 42, height: 42, borderRadius: 2, bgcolor: "primary.main", display: "grid", placeItems: "center", color: "primary.contrastText" }}>
-                <BoltRoundedIcon />
-              </Box>
-              <Box>
-                <Typography variant="h5" sx={{ fontWeight: 800 }}>Hysteria 2 Panel</Typography>
-                <Typography variant="body2" color="text.secondary">Admin login</Typography>
-              </Box>
+    <Container maxWidth="md" sx={{ minHeight: "100vh", display: "grid", alignItems: "center", py: 3 }}>
+      <Paper variant="outlined" sx={{ p: { xs: 2.2, md: 3 } }}>
+        <Grid container spacing={2.4}>
+          <Grid size={{ xs: 12, md: 5 }}>
+            <Stack spacing={1.5} sx={{ height: "100%", justifyContent: "center" }}>
+              <Stack direction="row" spacing={1.2} alignItems="center">
+                <Box
+                  sx={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 1.5,
+                    bgcolor: "primary.main",
+                    color: "primary.contrastText",
+                    display: "grid",
+                    placeItems: "center",
+                  }}
+                >
+                  <BoltRoundedIcon fontSize="small" />
+                </Box>
+                <Stack spacing={0.2}>
+                  <Typography variant="h5" sx={{ fontWeight: 700 }}>
+                    Hysteria Control
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Administrative panel
+                  </Typography>
+                </Stack>
+              </Stack>
+              <Typography variant="body2" color="text.secondary">
+                Secure sign-in for server management, client lifecycle operations, and runtime monitoring.
+              </Typography>
+              <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                <Chip icon={<ShieldRoundedIcon />} label="Session security" size="small" variant="outlined" />
+                <Chip label="Live operations" size="small" variant="outlined" />
+              </Stack>
             </Stack>
+          </Grid>
 
-            {error ? <Alert severity="error">{error}</Alert> : null}
-
+          <Grid size={{ xs: 12, md: 7 }}>
             <Box component="form" onSubmit={submit}>
-              <Stack spacing={2}>
-                <TextField label="Admin email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required fullWidth />
-                <TextField label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required fullWidth />
-                <Button type="submit" variant="contained" size="large" disabled={busy}>{busy ? "Signing in..." : "Sign in"}</Button>
+              <Stack spacing={1.5}>
+                {error ? <Alert severity="error">{error}</Alert> : null}
+                <TextField
+                  label="Admin email"
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  required
+                />
+                <TextField
+                  label="Password"
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  required
+                />
+                <Button type="submit" variant="contained" size="large" disabled={busy}>
+                  {busy ? "Signing in..." : "Sign in"}
+                </Button>
               </Stack>
             </Box>
-          </Stack>
-        </CardContent>
-      </Card>
-    </Box>
+          </Grid>
+        </Grid>
+      </Paper>
+    </Container>
   );
 }
-
-

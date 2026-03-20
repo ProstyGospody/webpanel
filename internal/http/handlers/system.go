@@ -19,6 +19,13 @@ type liveSystemMetrics struct {
 	UptimeSeconds     int64     `json:"uptime_seconds"`
 	NetworkRxBps      float64   `json:"network_rx_bps"`
 	NetworkTxBps      float64   `json:"network_tx_bps"`
+	TCPPackets        int64     `json:"tcp_packets"`
+	UDPPackets        int64     `json:"udp_packets"`
+	TCPPacketsPerSec  float64   `json:"tcp_packets_per_sec"`
+	UDPPacketsPerSec  float64   `json:"udp_packets_per_sec"`
+	PacketsCollectedAt time.Time `json:"packets_collected_at"`
+	PacketsSource     string    `json:"packets_source"`
+	PacketsIsStale    bool      `json:"packets_is_stale"`
 	CollectedAt       time.Time `json:"collected_at"`
 	Source            string    `json:"source"`
 	IsStale           bool      `json:"is_stale"`
@@ -58,6 +65,13 @@ func (h *Handler) GetSystemLive(w http.ResponseWriter, r *http.Request) {
 		source = "unavailable"
 	}
 
+	tcpPackets, udpPackets, packetCollectedAt, packetSource, packetErr := h.collectProtocolPacketMetrics(ctx)
+	if packetErr != nil {
+		h.logger.Warn("failed to collect protocol packet metrics", "error", packetErr)
+		errors = append(errors, "protocol packet metrics unavailable")
+	}
+	tcpPacketsPerSec, udpPacketsPerSec := h.calculateProtocolPacketRates(tcpPackets, udpPackets, packetCollectedAt)
+
 	hy2, hy2Err := h.collectHy2Live(ctx)
 	if hy2Err != "" {
 		errors = append(errors, hy2Err)
@@ -80,6 +94,13 @@ func (h *Handler) GetSystemLive(w http.ResponseWriter, r *http.Request) {
 			UptimeSeconds:     snapshot.UptimeSeconds,
 			NetworkRxBps:      networkRx,
 			NetworkTxBps:      networkTx,
+			TCPPackets:        tcpPackets,
+			UDPPackets:        udpPackets,
+			TCPPacketsPerSec:  tcpPacketsPerSec,
+			UDPPacketsPerSec:  udpPacketsPerSec,
+			PacketsCollectedAt: packetCollectedAt,
+			PacketsSource:     packetSource,
+			PacketsIsStale:    packetSource == "unavailable" || time.Since(packetCollectedAt) > 15*time.Second,
 			CollectedAt:       snapshot.CollectedAt,
 			Source:            source,
 			IsStale:           time.Since(snapshot.CollectedAt) > 15*time.Second,
@@ -108,6 +129,72 @@ func (h *Handler) collectSystemMetrics(ctx context.Context) (services.SystemMetr
 		return services.SystemMetrics{}, 0, 0, "procfs", err
 	}
 	return snapshot, 0, 0, "procfs", nil
+}
+
+func (h *Handler) collectProtocolPacketMetrics(ctx context.Context) (int64, int64, time.Time, string, error) {
+	if h.prometheus != nil {
+		tcpPackets, tcpAt, tcpErr := h.prometheus.QueryFloat(ctx, `(sum(node_netstat_Tcp_InSegs) + sum(node_netstat_Tcp_OutSegs))`)
+		if tcpErr == nil {
+			udpPackets, udpAt, udpErr := h.prometheus.QueryFloat(ctx, `(sum(node_netstat_Udp_InDatagrams) + sum(node_netstat_Udp_OutDatagrams))`)
+			if udpErr == nil {
+				tcp := int64(tcpPackets)
+				udp := int64(udpPackets)
+				if tcp < 0 {
+					tcp = 0
+				}
+				if udp < 0 {
+					udp = 0
+				}
+				return tcp, udp, latestTime(tcpAt, udpAt), "prometheus", nil
+			}
+			h.logger.Warn("prometheus udp packet metrics failed, falling back to procfs", "error", udpErr)
+		} else {
+			h.logger.Warn("prometheus tcp packet metrics failed, falling back to procfs", "error", tcpErr)
+		}
+	}
+
+	snapshot, err := services.ReadProtocolPacketSnapshot()
+	if err != nil {
+		return 0, 0, time.Now().UTC(), "unavailable", err
+	}
+	return snapshot.TCPPackets, snapshot.UDPPackets, snapshot.CollectedAt, "procfs", nil
+}
+
+func (h *Handler) calculateProtocolPacketRates(tcpPackets int64, udpPackets int64, collectedAt time.Time) (float64, float64) {
+	if collectedAt.IsZero() {
+		collectedAt = time.Now().UTC()
+	}
+
+	h.protocolMu.Lock()
+	defer h.protocolMu.Unlock()
+
+	prev := h.protocolSample
+	h.protocolSample = protocolPacketSample{
+		tcpPackets:  tcpPackets,
+		udpPackets:  udpPackets,
+		collectedAt: collectedAt,
+	}
+
+	if prev.collectedAt.IsZero() || !collectedAt.After(prev.collectedAt) {
+		return 0, 0
+	}
+
+	seconds := collectedAt.Sub(prev.collectedAt).Seconds()
+	if seconds <= 0 {
+		return 0, 0
+	}
+
+	tcpDelta := tcpPackets - prev.tcpPackets
+	if tcpDelta < 0 {
+		tcpDelta = 0
+	}
+
+	udpDelta := udpPackets - prev.udpPackets
+	if udpDelta < 0 {
+		udpDelta = 0
+	}
+
+	return float64(tcpDelta) / seconds, float64(udpDelta) / seconds
 }
 
 func (h *Handler) collectPrometheusMetrics(ctx context.Context) (services.SystemMetrics, float64, float64, error) {

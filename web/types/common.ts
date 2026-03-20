@@ -49,6 +49,13 @@ export type SystemLiveResponse = {
     uptime_seconds: number;
     network_rx_bps: number;
     network_tx_bps: number;
+    tcp_packets: number;
+    udp_packets: number;
+    tcp_packets_per_sec: number;
+    udp_packets_per_sec: number;
+    packets_collected_at: string;
+    packets_source: string;
+    packets_is_stale: boolean;
     collected_at: string;
     source: string;
     is_stale: boolean;

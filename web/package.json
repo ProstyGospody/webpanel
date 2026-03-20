@@ -12,6 +12,7 @@
     "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "^7.3.5",
     "@mui/material": "^7.3.5",
+    "@mui/x-charts": "^7.29.1",
     "next": "15.3.0",
     "react": "19.0.0",
     "react-dom": "19.0.0"
