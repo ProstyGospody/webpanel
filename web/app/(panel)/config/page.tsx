@@ -24,6 +24,26 @@ import { applyHysteriaSettings, getHysteriaSettings, saveHysteriaSettings, valid
 import { Hy2ConfigValidation, Hy2Settings } from "@/domain/settings/types";
 import { APIError } from "@/services/api";
 
+function extractValidationError(err: unknown, fallback: string): string {
+  if (!(err instanceof APIError)) {
+    return fallback;
+  }
+
+  const details = err.details;
+  if (!details || typeof details !== "object") {
+    return err.message;
+  }
+
+  const maybeErrors = (details as { errors?: unknown }).errors;
+  if (Array.isArray(maybeErrors)) {
+    const errors = maybeErrors.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+    if (errors.length > 0) {
+      return `${err.message}: ${errors.join(" | ")}`;
+    }
+  }
+  return err.message;
+}
+
 export default function ConfigPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -64,7 +84,7 @@ export default function ConfigPage() {
       setValidation(payload.config_validation || null);
       setSnack(payload.config_validation.valid ? "Configuration is valid" : "Validation returned issues");
     } catch (err) {
-      setError(err instanceof APIError ? err.message : "Validation failed");
+      setError(extractValidationError(err, "Validation failed"));
     } finally {
       setBusy(false);
     }
@@ -80,7 +100,7 @@ export default function ConfigPage() {
       setValidation(payload.config_validation || null);
       setSnack(payload.backup_path ? `Saved. Backup: ${payload.backup_path}` : "Settings saved");
     } catch (err) {
-      setError(err instanceof APIError ? err.message : "Save failed");
+      setError(extractValidationError(err, "Save failed"));
     } finally {
       setBusy(false);
     }
@@ -95,7 +115,7 @@ export default function ConfigPage() {
       setSnack("Hysteria restarted");
       await load();
     } catch (err) {
-      setError(err instanceof APIError ? err.message : "Apply failed");
+      setError(extractValidationError(err, "Apply failed"));
     } finally {
       setApplying(false);
     }
