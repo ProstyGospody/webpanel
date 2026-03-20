@@ -35,6 +35,7 @@ import { apiFetch } from "@/services/api";
 type NavItem = { href: string; label: string; icon: ReactNode };
 
 const drawerWidth = 280;
+const collapsedDrawerWidth = 86;
 const navItems: NavItem[] = [
   { href: "/", label: "Overview", icon: <DashboardRoundedIcon /> },
   { href: "/users", label: "Clients", icon: <GroupRoundedIcon /> },
@@ -54,11 +55,10 @@ export function PanelShell({ children }: { children: ReactNode }) {
   const theme = useTheme();
   const desktop = useMediaQuery(theme.breakpoints.up("lg"));
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [desktopNavHidden, setDesktopNavHidden] = useState(false);
+  const [desktopNavCollapsed, setDesktopNavCollapsed] = useState(false);
   const activeTitle = useMemo(() => resolveTitle(pathname), [pathname]);
   const topBarHeight = { xs: 54, sm: 58 };
-  const desktopDrawerVisible = desktop && !desktopNavHidden;
-  const layoutDrawerWidth = desktopDrawerVisible ? drawerWidth : 0;
+  const layoutDrawerWidth = desktop ? (desktopNavCollapsed ? collapsedDrawerWidth : drawerWidth) : 0;
 
   async function logout() {
     try {
@@ -69,10 +69,16 @@ export function PanelShell({ children }: { children: ReactNode }) {
     router.replace("/login");
   }
 
-  const drawerContent = (
+  const drawerContent = (collapsed: boolean) => (
     <Stack sx={{ height: "100%" }}>
-      <Toolbar sx={{ px: 2.25, minHeight: "76px !important" }}>
-        <Stack direction="row" spacing={1.25} alignItems="center">
+      <Toolbar
+        sx={{
+          px: collapsed ? 1.1 : 2.25,
+          minHeight: "76px !important",
+          justifyContent: collapsed ? "center" : "flex-start",
+        }}
+      >
+        <Stack direction="row" spacing={collapsed ? 0 : 1.25} alignItems="center">
           <Avatar
             sx={(theme) => ({
               width: 38,
@@ -83,16 +89,18 @@ export function PanelShell({ children }: { children: ReactNode }) {
           >
             <BoltRoundedIcon fontSize="small" />
           </Avatar>
-          <Box>
-            <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>Hysteria 2</Typography>
-            <Typography variant="caption" color="text.secondary">Admin Panel</Typography>
-          </Box>
+          {collapsed ? null : (
+            <Box>
+              <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>Hysteria 2</Typography>
+              <Typography variant="caption" color="text.secondary">Admin Panel</Typography>
+            </Box>
+          )}
         </Stack>
       </Toolbar>
-      <List sx={{ px: 1.5, py: 1.5, flexGrow: 1 }}>
+      <List sx={{ px: collapsed ? 0.8 : 1.5, py: 1.5, flexGrow: 1 }}>
         {navItems.map((item) => {
           const selected = pathname === item.href;
-          return (
+          const itemButton = (
             <ListItemButton
               key={item.href}
               selected={selected}
@@ -104,7 +112,8 @@ export function PanelShell({ children }: { children: ReactNode }) {
                 mb: 0.4,
                 borderRadius: 2.25,
                 minHeight: 44,
-                px: 1.35,
+                px: collapsed ? 0 : 1.35,
+                justifyContent: collapsed ? "center" : "flex-start",
                 color: selected ? theme.palette.text.primary : theme.palette.text.secondary,
                 "&.Mui-selected": {
                   backgroundColor: alpha(theme.palette.primary.main, 0.18),
@@ -116,33 +125,70 @@ export function PanelShell({ children }: { children: ReactNode }) {
                 },
               })}
             >
-              <ListItemIcon sx={{ minWidth: 36, color: selected ? "primary.light" : "text.secondary" }}>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: selected ? 700 : 500 }} />
+              <ListItemIcon
+                sx={{
+                  minWidth: collapsed ? 0 : 36,
+                  color: selected ? "primary.light" : "text.secondary",
+                  justifyContent: "center",
+                }}
+              >
+                {item.icon}
+              </ListItemIcon>
+              {collapsed ? null : <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: selected ? 700 : 500 }} />}
             </ListItemButton>
           );
+
+          if (collapsed) {
+            return (
+              <Tooltip key={item.href} title={item.label} placement="right">
+                {itemButton}
+              </Tooltip>
+            );
+          }
+
+          return itemButton;
         })}
       </List>
-      <Box sx={{ p: 1.5, pt: 0.5 }}>
-        <Button
-          variant="text"
-          color="inherit"
-          fullWidth
-          onClick={logout}
-          startIcon={<LogoutRoundedIcon />}
-          sx={(theme) => ({
-            justifyContent: "flex-start",
-            borderRadius: 2.25,
-            color: theme.palette.text.secondary,
-            px: 1.35,
-            py: 1,
-            "&:hover": {
-              backgroundColor: alpha(theme.palette.primary.main, 0.08),
-              color: theme.palette.text.primary,
-            },
-          })}
-        >
-          Sign out
-        </Button>
+      <Box sx={{ p: collapsed ? 1 : 1.5, pt: 0.5, display: "flex", justifyContent: "center" }}>
+        {collapsed ? (
+          <Tooltip title="Sign out" placement="right">
+            <IconButton
+              color="inherit"
+              onClick={logout}
+              sx={(theme) => ({
+                color: theme.palette.text.secondary,
+                borderRadius: 2.25,
+                "&:hover": {
+                  color: theme.palette.text.primary,
+                  backgroundColor: alpha(theme.palette.primary.main, 0.08),
+                },
+              })}
+            >
+              <LogoutRoundedIcon />
+            </IconButton>
+          </Tooltip>
+        ) : (
+          <Button
+            variant="text"
+            color="inherit"
+            fullWidth
+            onClick={logout}
+            startIcon={<LogoutRoundedIcon />}
+            sx={(theme) => ({
+              justifyContent: "flex-start",
+              borderRadius: 2.25,
+              color: theme.palette.text.secondary,
+              px: 1.35,
+              py: 1,
+              "&:hover": {
+                backgroundColor: alpha(theme.palette.primary.main, 0.08),
+                color: theme.palette.text.primary,
+              },
+            })}
+          >
+            Sign out
+          </Button>
+        )}
       </Box>
     </Stack>
   );
@@ -172,17 +218,17 @@ export function PanelShell({ children }: { children: ReactNode }) {
       >
         <Toolbar sx={{ gap: 1, minHeight: `${topBarHeight.xs}px`, px: { xs: 1.25, sm: 2.5 }, "@media (min-width:600px)": { minHeight: `${topBarHeight.sm}px` } }}>
           {desktop ? (
-            <Tooltip title={desktopDrawerVisible ? "Hide menu" : "Show menu"}>
+            <Tooltip title={desktopNavCollapsed ? "Expand menu" : "Collapse menu"}>
               <IconButton
                 color="inherit"
                 edge="start"
-                onClick={() => setDesktopNavHidden((value) => !value)}
+                onClick={() => setDesktopNavCollapsed((value) => !value)}
                 sx={(theme) => ({
                   color: theme.palette.text.secondary,
                   "&:hover": { color: theme.palette.text.primary, backgroundColor: alpha(theme.palette.primary.main, 0.08) },
                 })}
               >
-                {desktopDrawerVisible ? <MenuOpenRoundedIcon /> : <MenuRoundedIcon />}
+                {desktopNavCollapsed ? <MenuRoundedIcon /> : <MenuOpenRoundedIcon />}
               </IconButton>
             </Tooltip>
           ) : (
@@ -199,15 +245,15 @@ export function PanelShell({ children }: { children: ReactNode }) {
         </Toolbar>
       </AppBar>
 
-      {desktopDrawerVisible ? (
+      {desktop ? (
         <Drawer
           variant="permanent"
           open
           sx={(theme) => ({
-            width: drawerWidth,
+            width: layoutDrawerWidth,
             flexShrink: 0,
             "& .MuiDrawer-paper": {
-              width: drawerWidth,
+              width: layoutDrawerWidth,
               boxSizing: "border-box",
               border: 0,
               borderRight: 0,
@@ -215,10 +261,13 @@ export function PanelShell({ children }: { children: ReactNode }) {
               boxShadow: `inset -1px 0 0 ${alpha(theme.palette.primary.main, 0.16)}`,
               backgroundImage: "none",
               backgroundColor: alpha(theme.palette.background.paper, 0.96),
+              transition: theme.transitions.create("width", {
+                duration: theme.transitions.duration.shortest,
+              }),
             },
           })}
         >
-          {drawerContent}
+          {drawerContent(desktopNavCollapsed)}
         </Drawer>
       ) : null}
 
@@ -243,7 +292,7 @@ export function PanelShell({ children }: { children: ReactNode }) {
             },
           })}
         >
-          {drawerContent}
+          {drawerContent(false)}
         </Drawer>
       ) : null}
 

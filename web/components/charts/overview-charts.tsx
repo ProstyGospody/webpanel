@@ -101,7 +101,16 @@ function chartStyleSx(theme: Theme) {
       strokeWidth: 2.2,
     },
     "& .MuiAreaElement-root": {
+      fillOpacity: 0.14,
+    },
+    "& .MuiAreaElement-series-download": {
       fillOpacity: 0.18,
+    },
+    "& .MuiAreaElement-series-upload": {
+      fillOpacity: 0.12,
+    },
+    "& .MuiLineElement-series-upload": {
+      strokeDasharray: "5 4",
     },
     "& .MuiMarkElement-root": {
       strokeWidth: 2.1,
@@ -147,7 +156,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
 
   const hasTrend = points.length > 1;
   const xAxisData = points.map((point) => point.date);
-  const xAxisTickNumber = range === "24h" ? 8 : 7;
+  const xAxisTickNumber = range === "24h" ? 6 : 5;
 
   const handleRangeChange = (_event: MouseEvent<HTMLElement>, nextRange: DashboardChartRange | null) => {
     if (nextRange) {
@@ -205,7 +214,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                   <LineChart
                     height={320}
                     margin={{ top: 34, right: 16, bottom: 44, left: 66 }}
-                    colors={["#00C9D8", "#59B8FF"]}
+                    colors={["#2ED8C3", "#FFB02E"]}
                     sx={chartStyleSx}
                     xAxis={[
                       {
@@ -261,7 +270,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                   <LineChart
                     height={290}
                     margin={{ top: 30, right: 16, bottom: 44, left: 54 }}
-                    colors={["#65D8FF"]}
+                    colors={["#4DA3FF"]}
                     sx={chartStyleSx}
                     xAxis={[
                       {
@@ -310,7 +319,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                   <LineChart
                     height={290}
                     margin={{ top: 30, right: 16, bottom: 44, left: 54 }}
-                    colors={["#67E0B5"]}
+                    colors={["#58D68D"]}
                     sx={chartStyleSx}
                     xAxis={[
                       {
