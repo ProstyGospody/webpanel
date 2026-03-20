@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -95,15 +97,15 @@ func (h *Handler) CreateHysteriaUser(w http.ResponseWriter, r *http.Request) {
 		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to create hysteria user", nil)
 		return
 	}
-	if _, err := h.hysteriaAccess.Sync(r.Context()); err != nil {
-		details := map[string]any{}
+	if err := h.syncManagedHysteria(r.Context()); err != nil {
+		details := map[string]any{"sync_error": err.Error()}
 		if rollbackErr := h.repo.DeleteHysteriaUser(r.Context(), user.ID); rollbackErr != nil {
 			details["rollback_error"] = rollbackErr.Error()
 		}
-		if len(details) == 0 {
-			details = nil
+		if rollbackSyncErr := h.syncManagedHysteria(r.Context()); rollbackSyncErr != nil {
+			details["rollback_sync_error"] = rollbackSyncErr.Error()
 		}
-		h.renderError(w, http.StatusInternalServerError, "sync", "failed to sync hysteria config; user creation was rolled back", details)
+		h.renderError(w, http.StatusInternalServerError, "sync", "failed to sync/restart hysteria config; user creation was rolled back", details)
 		return
 	}
 
@@ -194,15 +196,15 @@ func (h *Handler) UpdateHysteriaUser(w http.ResponseWriter, r *http.Request) {
 		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to update hysteria user", nil)
 		return
 	}
-	if _, err := h.hysteriaAccess.Sync(r.Context()); err != nil {
-		details := map[string]any{}
+	if err := h.syncManagedHysteria(r.Context()); err != nil {
+		details := map[string]any{"sync_error": err.Error()}
 		if _, rollbackErr := h.repo.UpdateHysteriaUser(r.Context(), id, current.Username, current.Password, current.Note, current.ClientOverrides); rollbackErr != nil {
 			details["rollback_error"] = rollbackErr.Error()
 		}
-		if len(details) == 0 {
-			details = nil
+		if rollbackSyncErr := h.syncManagedHysteria(r.Context()); rollbackSyncErr != nil {
+			details["rollback_sync_error"] = rollbackSyncErr.Error()
 		}
-		h.renderError(w, http.StatusInternalServerError, "sync", "failed to sync hysteria config; user update was rolled back", details)
+		h.renderError(w, http.StatusInternalServerError, "sync", "failed to sync/restart hysteria config; user update was rolled back", details)
 		return
 	}
 
@@ -235,14 +237,20 @@ func (h *Handler) deleteHysteriaUser(w http.ResponseWriter, r *http.Request, act
 			h.renderError(w, http.StatusInternalServerError, "runtime", "failed to revoke hysteria user", nil)
 			return
 		}
-		if _, err := h.hysteriaAccess.Sync(r.Context()); err != nil {
+		if err := h.syncManagedHysteria(r.Context()); err != nil {
 			_ = h.repo.SetHysteriaUserEnabled(r.Context(), id, true)
-			h.renderError(w, http.StatusInternalServerError, "sync", "failed to sync hysteria config; revoke was rolled back", nil)
+			details := map[string]any{"sync_error": err.Error()}
+			if rollbackSyncErr := h.syncManagedHysteria(r.Context()); rollbackSyncErr != nil {
+				details["rollback_sync_error"] = rollbackSyncErr.Error()
+				h.renderError(w, http.StatusInternalServerError, "sync", "failed to sync/restart hysteria config; revoke rollback failed to apply runtime state", details)
+				return
+			}
+			h.renderError(w, http.StatusInternalServerError, "sync", "failed to sync/restart hysteria config; revoke was rolled back", details)
 			return
 		}
 	} else {
-		if _, err := h.hysteriaAccess.Sync(r.Context()); err != nil {
-			h.renderError(w, http.StatusInternalServerError, "sync", "failed to synchronize managed hysteria config before delete", nil)
+		if err := h.syncManagedHysteria(r.Context()); err != nil {
+			h.renderError(w, http.StatusInternalServerError, "sync", "failed to synchronize/restart managed hysteria config before delete", map[string]any{"sync_error": err.Error()})
 			return
 		}
 	}
@@ -287,9 +295,15 @@ func (h *Handler) setHysteriaUserState(w http.ResponseWriter, r *http.Request, e
 		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to update hysteria user status", nil)
 		return
 	}
-	if _, err := h.hysteriaAccess.Sync(r.Context()); err != nil {
+	if err := h.syncManagedHysteria(r.Context()); err != nil {
 		_ = h.repo.SetHysteriaUserEnabled(r.Context(), id, current.Enabled)
-		h.renderError(w, http.StatusInternalServerError, "sync", "failed to sync hysteria config; state change was rolled back", nil)
+		details := map[string]any{"sync_error": err.Error()}
+		if rollbackSyncErr := h.syncManagedHysteria(r.Context()); rollbackSyncErr != nil {
+			details["rollback_sync_error"] = rollbackSyncErr.Error()
+			h.renderError(w, http.StatusInternalServerError, "sync", "failed to sync/restart hysteria config; state rollback failed to apply runtime state", details)
+			return
+		}
+		h.renderError(w, http.StatusInternalServerError, "sync", "failed to sync/restart hysteria config; state change was rolled back", details)
 		return
 	}
 	action := "hysteria.user.disable"
@@ -418,6 +432,27 @@ func coalesceClientOverrides(next *hysteriadomain.ClientOverrides, current *hyst
 		return next
 	}
 	return current
+}
+
+func (h *Handler) syncManagedHysteria(ctx context.Context) error {
+	if h.hysteriaAccess == nil {
+		return fmt.Errorf("hysteria access manager is not configured")
+	}
+	if _, err := h.hysteriaAccess.Sync(ctx); err != nil {
+		return err
+	}
+	if h.serviceManager == nil {
+		return fmt.Errorf("service manager is not configured")
+	}
+	if err := h.serviceManager.Restart(ctx, "hysteria-server"); err != nil {
+		return err
+	}
+	if h.repo != nil {
+		if status, statusErr := h.serviceManager.Status(ctx, "hysteria-server"); statusErr == nil {
+			_ = h.repo.UpsertServiceState(ctx, "hysteria-server", status.StatusText, nil, h.serviceManager.ToJSON(status))
+		}
+	}
+	return nil
 }
 
 func (h *Handler) renderHysteriaUserPayload(w http.ResponseWriter, status int, item repository.HysteriaUserView) {

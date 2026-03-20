@@ -23,6 +23,7 @@ type Server struct {
 	httpServer     *http.Server
 	jobs           *scheduler.Jobs
 	hysteriaAccess *services.HysteriaAccessManager
+	serviceManager *services.ServiceManager
 	cancelJobs     context.CancelFunc
 }
 
@@ -52,12 +53,26 @@ func NewServer(cfg config.Config, logger *slog.Logger, repo *repository.Reposito
 	}
 
 	jobs := scheduler.NewJobs(logger, cfg, repo, hy2Client, serviceManager)
-	return &Server{cfg: cfg, logger: logger, repo: repo, httpServer: httpSrv, jobs: jobs, hysteriaAccess: hysteriaAccess}
+	return &Server{
+		cfg:            cfg,
+		logger:         logger,
+		repo:           repo,
+		httpServer:     httpSrv,
+		jobs:           jobs,
+		hysteriaAccess: hysteriaAccess,
+		serviceManager: serviceManager,
+	}
 }
 
 func (s *Server) Run(ctx context.Context) error {
-	if _, err := s.hysteriaAccess.Sync(ctx); err != nil {
+	if syncResult, err := s.hysteriaAccess.Sync(ctx); err != nil {
 		s.logger.Warn("failed to sync hysteria config on startup", "error", err)
+	} else if syncResult.Changed && s.serviceManager != nil {
+		if err := s.serviceManager.Restart(ctx, "hysteria-server"); err != nil {
+			s.logger.Warn("failed to restart hysteria-server after startup sync", "error", err)
+		} else if status, statusErr := s.serviceManager.Status(ctx, "hysteria-server"); statusErr == nil {
+			_ = s.repo.UpsertServiceState(ctx, "hysteria-server", status.StatusText, nil, s.serviceManager.ToJSON(status))
+		}
 	}
 	jobsCtx, cancel := context.WithCancel(ctx)
 	s.cancelJobs = cancel
