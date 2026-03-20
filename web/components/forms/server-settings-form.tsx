@@ -8,7 +8,6 @@ import {
   Grid,
   InputLabel,
   MenuItem,
-  Paper,
   Select,
   Stack,
   Switch,
@@ -33,131 +32,124 @@ export function ServerSettingsForm({
 
   return (
     <Stack spacing={2}>
-      <Paper variant="outlined" sx={{ p: 2 }}>
-        <Stack spacing={1.5}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-            Core Connection
-          </Typography>
-          <Grid container spacing={1.5}>
-            <Grid size={{ xs: 12, md: 4 }}>
-              <TextField
-                label="Listen"
-                value={draft.listen}
-                onChange={(event) => onDraftChange({ ...draft, listen: event.target.value })}
-                helperText="Bind address and port"
-              />
-            </Grid>
-            <Grid size={{ xs: 12, md: 4 }}>
-              <FormControl fullWidth>
-                <InputLabel id="tls-mode-label">TLS Mode</InputLabel>
-                <Select
-                  labelId="tls-mode-label"
-                  label="TLS Mode"
-                  value={draft.tlsMode || "acme"}
-                  onChange={(event) => onDraftChange({ ...draft, tlsMode: event.target.value, tlsEnabled: true })}
-                >
-                  <MenuItem value="acme">ACME</MenuItem>
-                  <MenuItem value="tls">Manual TLS</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid size={{ xs: 12, md: 4 }}>
-              <FormControl fullWidth>
-                <InputLabel id="obfs-label">OBFS</InputLabel>
-                <Select
-                  labelId="obfs-label"
-                  label="OBFS"
-                  value={obfsType}
-                  onChange={(event) => {
-                    if (event.target.value === "salamander") {
-                      onDraftChange({
-                        ...draft,
-                        obfs: { type: "salamander", salamander: { password: draft.obfs?.salamander?.password || "" } },
-                      });
-                      return;
-                    }
-                    onDraftChange({ ...draft, obfs: undefined });
-                  }}
-                >
-                  <MenuItem value="none">Disabled</MenuItem>
-                  <MenuItem value="salamander">Salamander</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-          </Grid>
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, md: 4 }}>
+          <TextField
+            label="Listen"
+            value={draft.listen}
+            onChange={(event) => onDraftChange({ ...draft, listen: event.target.value })}
+            fullWidth
+          />
+        </Grid>
+        <Grid size={{ xs: 12, md: 4 }}>
+          <FormControl fullWidth>
+            <InputLabel id="tls-mode-label">TLS Mode</InputLabel>
+            <Select
+              labelId="tls-mode-label"
+              label="TLS Mode"
+              value={draft.tlsMode || "acme"}
+              onChange={(event) => onDraftChange({ ...draft, tlsMode: event.target.value, tlsEnabled: true })}
+            >
+              <MenuItem value="acme">ACME</MenuItem>
+              <MenuItem value="tls">Manual TLS</MenuItem>
+            </Select>
+          </FormControl>
+        </Grid>
+        <Grid size={{ xs: 12, md: 4 }}>
+          <FormControl fullWidth>
+            <InputLabel id="obfs-label">OBFS</InputLabel>
+            <Select
+              labelId="obfs-label"
+              label="OBFS"
+              value={obfsType}
+              onChange={(event) => {
+                if (event.target.value === "salamander") {
+                  onDraftChange({ ...draft, obfs: { type: "salamander", salamander: { password: draft.obfs?.salamander?.password || "" } } });
+                  return;
+                }
+                onDraftChange({ ...draft, obfs: undefined });
+              }}
+            >
+              <MenuItem value="none">Disabled</MenuItem>
+              <MenuItem value="salamander">Salamander</MenuItem>
+            </Select>
+          </FormControl>
+        </Grid>
+      </Grid>
 
-          {draft.tlsMode === "acme" ? (
-            <Grid container spacing={1.5}>
-              <Grid size={{ xs: 12, md: 8 }}>
-                <TextField
-                  label="ACME Domains"
-                  value={acmeDomains}
-                  onChange={(event) =>
-                    onDraftChange({
-                      ...draft,
-                      acme: {
-                        domains: event.target.value
-                          .split(",")
-                          .map((item) => item.trim())
-                          .filter(Boolean),
-                        email: draft.acme?.email || "",
-                      },
-                    })
-                  }
-                  helperText="Comma-separated domain list"
-                />
-              </Grid>
-              <Grid size={{ xs: 12, md: 4 }}>
-                <TextField
-                  label="ACME Email"
-                  value={draft.acme?.email || ""}
-                  onChange={(event) =>
-                    onDraftChange({ ...draft, acme: { domains: draft.acme?.domains || [], email: event.target.value } })
-                  }
-                />
-              </Grid>
-            </Grid>
-          ) : (
-            <Grid container spacing={1.5}>
-              <Grid size={{ xs: 12, md: 6 }}>
-                <TextField
-                  label="TLS Cert Path"
-                  value={draft.tls?.cert || ""}
-                  onChange={(event) => onDraftChange({ ...draft, tls: { cert: event.target.value, key: draft.tls?.key || "" } })}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, md: 6 }}>
-                <TextField
-                  label="TLS Key Path"
-                  value={draft.tls?.key || ""}
-                  onChange={(event) => onDraftChange({ ...draft, tls: { cert: draft.tls?.cert || "", key: event.target.value } })}
-                />
-              </Grid>
-            </Grid>
-          )}
-
-          {obfsType === "salamander" ? (
+      {draft.tlsMode === "acme" ? (
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, md: 8 }}>
             <TextField
-              label="OBFS Password"
-              value={draft.obfs?.salamander?.password || ""}
+              label="ACME Domains"
+              value={acmeDomains}
               onChange={(event) =>
                 onDraftChange({
                   ...draft,
-                  obfs: { type: "salamander", salamander: { password: event.target.value } },
+                  acme: {
+                    domains: event.target.value
+                      .split(",")
+                      .map((item) => item.trim())
+                      .filter(Boolean),
+                    email: draft.acme?.email || "",
+                  },
                 })
               }
+              fullWidth
+              helperText="Comma-separated domains"
             />
-          ) : null}
-        </Stack>
-      </Paper>
+          </Grid>
+          <Grid size={{ xs: 12, md: 4 }}>
+            <TextField
+              label="ACME Email"
+              value={draft.acme?.email || ""}
+              onChange={(event) => onDraftChange({ ...draft, acme: { domains: draft.acme?.domains || [], email: event.target.value } })}
+              fullWidth
+            />
+          </Grid>
+        </Grid>
+      ) : (
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <TextField
+              label="TLS Cert Path"
+              value={draft.tls?.cert || ""}
+              onChange={(event) => onDraftChange({ ...draft, tls: { cert: event.target.value, key: draft.tls?.key || "" } })}
+              fullWidth
+            />
+          </Grid>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <TextField
+              label="TLS Key Path"
+              value={draft.tls?.key || ""}
+              onChange={(event) => onDraftChange({ ...draft, tls: { cert: draft.tls?.cert || "", key: event.target.value } })}
+              fullWidth
+            />
+          </Grid>
+        </Grid>
+      )}
+
+      {obfsType === "salamander" ? (
+        <TextField
+          label="OBFS Password"
+          value={draft.obfs?.salamander?.password || ""}
+          onChange={(event) =>
+            onDraftChange({
+              ...draft,
+              obfs: { type: "salamander", salamander: { password: event.target.value } },
+            })
+          }
+          fullWidth
+        />
+      ) : null}
 
       <Accordion>
         <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
-          <Typography variant="subtitle2">Advanced Server Options</Typography>
+          <Typography>Advanced Server Options</Typography>
         </AccordionSummary>
         <AccordionDetails>
-          <Stack spacing={1.6}>
-            <Grid container spacing={1.5}>
+          <Stack spacing={2}>
+            <Grid container spacing={2}>
               <Grid size={{ xs: 12, md: 4 }}>
                 <FormControl fullWidth>
                   <InputLabel id="masq-label">Masquerade</InputLabel>
@@ -185,9 +177,8 @@ export function ServerSettingsForm({
                 <TextField
                   label="Bandwidth Up"
                   value={draft.bandwidth?.up || ""}
-                  onChange={(event) =>
-                    onDraftChange({ ...draft, bandwidth: { up: event.target.value, down: draft.bandwidth?.down || "" } })
-                  }
+                  onChange={(event) => onDraftChange({ ...draft, bandwidth: { up: event.target.value, down: draft.bandwidth?.down || "" } })}
+                  fullWidth
                   placeholder="100 mbps"
                 />
               </Grid>
@@ -195,9 +186,8 @@ export function ServerSettingsForm({
                 <TextField
                   label="Bandwidth Down"
                   value={draft.bandwidth?.down || ""}
-                  onChange={(event) =>
-                    onDraftChange({ ...draft, bandwidth: { up: draft.bandwidth?.up || "", down: event.target.value } })
-                  }
+                  onChange={(event) => onDraftChange({ ...draft, bandwidth: { up: draft.bandwidth?.up || "", down: event.target.value } })}
+                  fullWidth
                   placeholder="200 mbps"
                 />
               </Grid>
@@ -220,6 +210,7 @@ export function ServerSettingsForm({
                     },
                   })
                 }
+                fullWidth
               />
             ) : null}
 
@@ -233,6 +224,7 @@ export function ServerSettingsForm({
                     masquerade: { type: "file", file: { dir: event.target.value } },
                   })
                 }
+                fullWidth
               />
             ) : null}
 
@@ -249,12 +241,13 @@ export function ServerSettingsForm({
                     },
                   })
                 }
+                fullWidth
                 multiline
                 minRows={3}
               />
             ) : null}
 
-            <Grid container spacing={1.5}>
+            <Grid container spacing={2}>
               <Grid size={{ xs: 12, md: 4 }}>
                 <FormControlLabel
                   control={
@@ -277,12 +270,13 @@ export function ServerSettingsForm({
                   label="UDP Idle Timeout"
                   value={draft.udpIdleTimeout || ""}
                   onChange={(event) => onDraftChange({ ...draft, udpIdleTimeout: event.target.value })}
+                  fullWidth
                   placeholder="90s"
                 />
               </Grid>
             </Grid>
 
-            <Grid container spacing={1.5}>
+            <Grid container spacing={2}>
               <Grid size={{ xs: 12, md: 4 }}>
                 <FormControlLabel
                   control={<Switch checked={draft.quicEnabled} onChange={(event) => onDraftChange({ ...draft, quicEnabled: event.target.checked })} />}
@@ -295,7 +289,10 @@ export function ServerSettingsForm({
                     <TextField
                       label="QUIC Max Idle"
                       value={draft.quic?.maxIdleTimeout || ""}
-                      onChange={(event) => onDraftChange({ ...draft, quic: { ...(draft.quic || {}), maxIdleTimeout: event.target.value } })}
+                      onChange={(event) =>
+                        onDraftChange({ ...draft, quic: { ...(draft.quic || {}), maxIdleTimeout: event.target.value } })
+                      }
+                      fullWidth
                       placeholder="30s"
                     />
                   </Grid>
@@ -321,12 +318,13 @@ export function ServerSettingsForm({
 
       <Accordion>
         <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
-          <Typography variant="subtitle2">Generated YAML Preview</Typography>
+          <Typography>Advanced YAML</Typography>
         </AccordionSummary>
         <AccordionDetails>
           <TextField
             multiline
             minRows={18}
+            fullWidth
             value={rawYaml}
             InputProps={{
               readOnly: true,
@@ -336,7 +334,7 @@ export function ServerSettingsForm({
                 lineHeight: 1.45,
               },
             }}
-            helperText="Read-only output generated from the current draft"
+            helperText="Generated preview"
           />
         </AccordionDetails>
       </Accordion>

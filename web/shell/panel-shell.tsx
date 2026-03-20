@@ -1,19 +1,9 @@
 "use client";
 
-import DashboardRoundedIcon from "@mui/icons-material/DashboardRounded";
-import GroupRoundedIcon from "@mui/icons-material/GroupRounded";
-import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
-import MenuRoundedIcon from "@mui/icons-material/MenuRounded";
-import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
-import SettingsEthernetRoundedIcon from "@mui/icons-material/SettingsEthernetRounded";
-import TuneRoundedIcon from "@mui/icons-material/TuneRounded";
-import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
 import {
   AppBar,
   Avatar,
   Box,
-  Button,
-  Chip,
   Divider,
   Drawer,
   IconButton,
@@ -21,45 +11,40 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
-  Paper,
   Stack,
   Toolbar,
+  Tooltip,
   Typography,
   useMediaQuery,
 } from "@mui/material";
-import { alpha, useTheme } from "@mui/material/styles";
+import { useTheme } from "@mui/material/styles";
+import DashboardRoundedIcon from "@mui/icons-material/DashboardRounded";
+import GroupRoundedIcon from "@mui/icons-material/GroupRounded";
+import SettingsEthernetRoundedIcon from "@mui/icons-material/SettingsEthernetRounded";
+import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
+import TuneRoundedIcon from "@mui/icons-material/TuneRounded";
+import MenuRoundedIcon from "@mui/icons-material/MenuRounded";
+import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
+import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
 import { ReactNode, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { apiFetch } from "@/services/api";
 
-type NavItem = {
-  href: string;
-  label: string;
-  description: string;
-  icon: ReactNode;
-};
+type NavItem = { href: string; label: string; icon: ReactNode };
 
-type PageMeta = { title: string; subtitle: string };
-
-const drawerWidth = 292;
+const drawerWidth = 280;
 const navItems: NavItem[] = [
-  { href: "/", label: "Overview", description: "Runtime health and traffic", icon: <DashboardRoundedIcon /> },
-  { href: "/users", label: "Clients", description: "Access lifecycle and artifacts", icon: <GroupRoundedIcon /> },
-  { href: "/config", label: "Server", description: "Hysteria configuration", icon: <TuneRoundedIcon /> },
-  { href: "/services", label: "Services", description: "Systemd process operations", icon: <SettingsEthernetRoundedIcon /> },
-  { href: "/audit", label: "Audit", description: "Administrative activity trail", icon: <ReceiptLongRoundedIcon /> },
+  { href: "/", label: "Overview", icon: <DashboardRoundedIcon /> },
+  { href: "/users", label: "Clients", icon: <GroupRoundedIcon /> },
+  { href: "/config", label: "Server", icon: <TuneRoundedIcon /> },
+  { href: "/services", label: "Services", icon: <SettingsEthernetRoundedIcon /> },
+  { href: "/audit", label: "Audit", icon: <ReceiptLongRoundedIcon /> },
 ];
 
-function pageMeta(pathname: string): PageMeta {
-  if (pathname === "/") {
-    return { title: "Server Overview", subtitle: "Live network and service operations" };
-  }
-  const active = navItems.find((item) => item.href === pathname);
-  if (!active) {
-    return { title: "Panel", subtitle: "Operations workspace" };
-  }
-  return { title: active.label, subtitle: active.description };
+function resolveTitle(pathname: string): string {
+  if (pathname === "/") return "Hysteria 2";
+  return navItems.find((x) => x.href === pathname)?.label || "Panel";
 }
 
 export function PanelShell({ children }: { children: ReactNode }) {
@@ -68,7 +53,7 @@ export function PanelShell({ children }: { children: ReactNode }) {
   const theme = useTheme();
   const desktop = useMediaQuery(theme.breakpoints.up("lg"));
   const [mobileOpen, setMobileOpen] = useState(false);
-  const meta = useMemo(() => pageMeta(pathname), [pathname]);
+  const activeTitle = useMemo(() => resolveTitle(pathname), [pathname]);
 
   async function logout() {
     try {
@@ -81,107 +66,49 @@ export function PanelShell({ children }: { children: ReactNode }) {
 
   const drawerContent = (
     <Stack sx={{ height: "100%" }}>
-      <Box sx={{ px: 2.5, py: 2.5 }}>
-        <Stack direction="row" alignItems="center" spacing={1.4}>
-          <Avatar
-            variant="rounded"
-            sx={{
-              width: 38,
-              height: 38,
-              bgcolor: alpha(theme.palette.primary.main, 0.2),
-              color: "primary.light",
-              borderRadius: 1.5,
-            }}
-          >
+      <Box sx={{ p: 2.5 }}>
+        <Stack direction="row" spacing={1.5} alignItems="center">
+          <Avatar sx={{ bgcolor: "primary.main", color: "primary.contrastText", width: 38, height: 38 }}>
             <BoltRoundedIcon fontSize="small" />
           </Avatar>
-          <Stack spacing={0.1}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-              Hysteria Control
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              Operational panel
-            </Typography>
-          </Stack>
+          <Box>
+            <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>Hysteria 2</Typography>
+            <Typography variant="caption" color="text.secondary">Admin Panel</Typography>
+          </Box>
         </Stack>
       </Box>
-
       <Divider />
-
-      <Box sx={{ px: 1.5, py: 1.5, flexGrow: 1 }}>
-        <Typography
-          variant="caption"
-          color="text.secondary"
-          sx={{ px: 1.5, pb: 1, display: "block", textTransform: "uppercase", letterSpacing: "0.08em" }}
-        >
-          Navigation
-        </Typography>
-        <List disablePadding>
-          {navItems.map((item) => {
-            const selected = pathname === item.href;
-            return (
-              <ListItemButton
-                key={item.href}
-                selected={selected}
-                onClick={() => {
-                  router.push(item.href);
-                  setMobileOpen(false);
-                }}
-                sx={{
-                  borderRadius: 1.5,
-                  mb: 0.5,
-                  alignItems: "flex-start",
-                  border: `1px solid ${selected ? alpha(theme.palette.primary.main, 0.5) : "transparent"}`,
-                  backgroundColor: selected ? alpha(theme.palette.primary.main, 0.12) : "transparent",
-                }}
-              >
-                <ListItemIcon
-                  sx={{
-                    minWidth: 34,
-                    mt: 0.2,
-                    color: selected ? "primary.light" : "text.secondary",
-                  }}
-                >
-                  {item.icon}
-                </ListItemIcon>
-                <ListItemText
-                  primary={item.label}
-                  secondary={item.description}
-                  primaryTypographyProps={{ fontWeight: selected ? 700 : 600, fontSize: "0.92rem" }}
-                  secondaryTypographyProps={{ fontSize: "0.76rem", lineHeight: 1.3 }}
-                />
-              </ListItemButton>
-            );
-          })}
-        </List>
-      </Box>
-
-      <Box sx={{ px: 2, py: 2 }}>
-        <Paper
-          variant="outlined"
-          sx={{
-            p: 1.5,
-            backgroundColor: alpha(theme.palette.background.default, 0.44),
-            borderColor: alpha(theme.palette.divider, 0.9),
-          }}
-        >
-          <Stack spacing={1.2}>
-            <Chip size="small" label="Session active" color="success" variant="outlined" sx={{ width: "fit-content" }} />
-            <Button
-              onClick={logout}
-              color="inherit"
-              startIcon={<LogoutRoundedIcon fontSize="small" />}
+      <List sx={{ px: 1.25, py: 1.5, flexGrow: 1 }}>
+        {navItems.map((item) => {
+          const selected = pathname === item.href;
+          return (
+            <ListItemButton
+              key={item.href}
+              selected={selected}
+              onClick={() => {
+                router.push(item.href);
+                setMobileOpen(false);
+              }}
               sx={{
-                justifyContent: "flex-start",
-                borderRadius: 1.5,
-                px: 1.25,
-                border: `1px solid ${theme.palette.divider}`,
+                mb: 0.5,
+                borderRadius: 2,
+                "&.Mui-selected": {
+                  backgroundColor: "rgba(41,198,255,0.18)",
+                  border: "1px solid rgba(41,198,255,0.35)",
+                },
               }}
             >
-              Sign out
-            </Button>
-          </Stack>
-        </Paper>
+              <ListItemIcon sx={{ minWidth: 38, color: selected ? "primary.light" : "text.secondary" }}>{item.icon}</ListItemIcon>
+              <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: selected ? 700 : 500 }} />
+            </ListItemButton>
+          );
+        })}
+      </List>
+      <Box sx={{ p: 1.5 }}>
+        <ListItemButton onClick={logout} sx={{ borderRadius: 2 }}>
+          <ListItemIcon sx={{ minWidth: 38 }}><LogoutRoundedIcon /></ListItemIcon>
+          <ListItemText primary="Sign out" />
+        </ListItemButton>
       </Box>
     </Stack>
   );
@@ -190,40 +117,29 @@ export function PanelShell({ children }: { children: ReactNode }) {
     <Box sx={{ display: "flex", minHeight: "100vh" }}>
       <AppBar
         position="fixed"
+        elevation={0}
         sx={{
+          backdropFilter: "blur(10px)",
+          bgcolor: "rgba(8,16,34,0.84)",
+          borderBottom: "1px solid rgba(77,119,176,0.32)",
           width: desktop ? `calc(100% - ${drawerWidth}px)` : "100%",
           ml: desktop ? `${drawerWidth}px` : 0,
         }}
       >
-        <Toolbar sx={{ minHeight: 68, gap: 1.5 }}>
+        <Toolbar sx={{ gap: 1 }}>
           {!desktop ? (
-            <IconButton color="inherit" edge="start" onClick={() => setMobileOpen(true)}>
-              <MenuRoundedIcon />
-            </IconButton>
+            <IconButton color="inherit" edge="start" onClick={() => setMobileOpen(true)}><MenuRoundedIcon /></IconButton>
           ) : null}
-          <Box sx={{ minWidth: 0 }}>
-            <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.1 }}>
-              {meta.title}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              {meta.subtitle}
-            </Typography>
-          </Box>
-          <Box sx={{ flexGrow: 1 }} />
-          <Chip
-            size="small"
-            color="primary"
-            variant="outlined"
-            icon={<BoltRoundedIcon />}
-            label="Live control"
-            sx={{ display: { xs: "none", md: "inline-flex" } }}
-          />
+          <Typography variant="h6" sx={{ fontWeight: 700, flexGrow: 1 }}>{activeTitle}</Typography>
+          <Tooltip title="Sign out">
+            <IconButton color="inherit" onClick={logout}><LogoutRoundedIcon /></IconButton>
+          </Tooltip>
         </Toolbar>
       </AppBar>
 
       <Drawer
         variant={desktop ? "permanent" : "temporary"}
-        open={desktop || mobileOpen}
+        open={desktop ? true : mobileOpen}
         onClose={() => setMobileOpen(false)}
         ModalProps={{ keepMounted: true }}
         sx={{
@@ -232,15 +148,17 @@ export function PanelShell({ children }: { children: ReactNode }) {
           "& .MuiDrawer-paper": {
             width: drawerWidth,
             boxSizing: "border-box",
+            borderRight: "1px solid rgba(77,119,176,0.28)",
+            background: "linear-gradient(180deg, rgba(16,28,49,0.98) 0%, rgba(10,20,36,0.98) 100%)",
           },
         }}
       >
         {drawerContent}
       </Drawer>
 
-      <Box component="main" sx={{ flexGrow: 1, minWidth: 0 }}>
-        <Toolbar sx={{ minHeight: 68 }} />
-        <Box sx={{ p: { xs: 2, md: 3 } }}>{children}</Box>
+      <Box component="main" sx={{ flexGrow: 1, p: { xs: 2, md: 3 }, width: "100%" }}>
+        <Toolbar />
+        {children}
       </Box>
     </Box>
   );

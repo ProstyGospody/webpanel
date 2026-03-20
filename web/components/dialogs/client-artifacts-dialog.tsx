@@ -8,7 +8,6 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  Paper,
   Stack,
   Typography,
 } from "@mui/material";
@@ -37,7 +36,7 @@ export function ClientArtifactsDialog({
   const qrSrc = currentClient ? `${qrURL(currentClient.id, 380)}&v=${encodeURIComponent(shareURI)}` : "";
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
       <DialogTitle>{currentClient?.username || "Client"}</DialogTitle>
       <DialogContent>
         {loading ? (
@@ -46,25 +45,13 @@ export function ClientArtifactsDialog({
             <Typography color="text.secondary">Loading connection artifacts...</Typography>
           </Stack>
         ) : artifacts && currentClient ? (
-          <Stack spacing={1.5}>
-            <Paper variant="outlined" sx={{ p: 1.25, display: "grid", placeItems: "center", bgcolor: "common.white" }}>
-              <Box component="img" alt="Hysteria QR" src={qrSrc} sx={{ width: 250, maxWidth: "100%", aspectRatio: "1 / 1" }} />
-            </Paper>
-            <Typography variant="body2" color="text.secondary">
-              Share URI
-            </Typography>
-            <Paper variant="outlined" sx={{ p: 1.1, bgcolor: "background.default" }}>
-              <Typography
-                sx={{
-                  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-                  fontSize: "0.74rem",
-                  lineHeight: 1.45,
-                  wordBreak: "break-all",
-                }}
-              >
-                {shareURI || "-"}
-              </Typography>
-            </Paper>
+          <Stack spacing={2} alignItems="center">
+            <Box
+              component="img"
+              alt="Hysteria QR"
+              src={qrSrc}
+              sx={{ width: 240, height: 240, borderRadius: 2, bgcolor: "common.white", p: 1 }}
+            />
             <Button variant="outlined" fullWidth startIcon={<ContentCopyRoundedIcon />} onClick={() => onCopy(shareURI)} disabled={!shareURI}>
               Copy Link
             </Button>

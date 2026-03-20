@@ -6,7 +6,6 @@ import {
   Alert,
   Box,
   Button,
-  Chip,
   Dialog,
   DialogActions,
   DialogContent,
@@ -63,10 +62,7 @@ export function ClientFormDialog({
       <Box component="form" onSubmit={submit}>
         <DialogContent>
           <Stack spacing={2}>
-            <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-              <Chip size="small" variant="outlined" label={mode === "create" ? "New client" : "Edit mode"} />
-              <Chip size="small" variant="outlined" label={`Inherited: ${defaultsSummary(defaults)}`} />
-            </Stack>
+            <Typography variant="body2" color="text.secondary">Inherited: {defaultsSummary(defaults)}</Typography>
 
             {error ? <Alert severity="error">{error}</Alert> : null}
 
