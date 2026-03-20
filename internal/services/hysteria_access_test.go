@@ -2,15 +2,70 @@ package services
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/hex"
+	"encoding/pem"
+	"fmt"
+	"math/big"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"proxy-panel/internal/config"
 	hysteriadomain "proxy-panel/internal/domain/hysteria"
 	"proxy-panel/internal/repository"
 )
+
+func writeTestTLSCertificate(t *testing.T, dir string) (certPath string, keyPath string, pinSHA256 string) {
+	t.Helper()
+
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("generate rsa key: %v", err)
+	}
+
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		NotBefore:    time.Now().Add(-1 * time.Hour).UTC(),
+		NotAfter:     time.Now().Add(24 * time.Hour).UTC(),
+		KeyUsage:     x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		DNSNames:     []string{"hy2.example.com"},
+	}
+
+	der, err := x509.CreateCertificate(rand.Reader, template, template, &privateKey.PublicKey, privateKey)
+	if err != nil {
+		t.Fatalf("create certificate: %v", err)
+	}
+
+	certPath = filepath.Join(dir, "server.crt")
+	keyPath = filepath.Join(dir, "server.key")
+
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
+	if err := os.WriteFile(certPath, certPEM, 0o600); err != nil {
+		t.Fatalf("write certificate: %v", err)
+	}
+
+	keyDER := x509.MarshalPKCS1PrivateKey(privateKey)
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: keyDER})
+	if err := os.WriteFile(keyPath, keyPEM, 0o600); err != nil {
+		t.Fatalf("write private key: %v", err)
+	}
+
+	publicKeyDER, err := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
+	if err != nil {
+		t.Fatalf("marshal public key: %v", err)
+	}
+
+	hash := sha256.Sum256(publicKeyDER)
+	pinSHA256 = hex.EncodeToString(hash[:])
+	return certPath, keyPath, pinSHA256
+}
 
 func TestHysteriaAccessManagerSyncInjectsManagedUserpassAuth(t *testing.T) {
 	ctx := context.Background()
@@ -307,6 +362,55 @@ obfs:
 		t.Fatalf("expected inherited obfs password in URI: %s", artifacts.URI)
 	}
 }
+
+func TestHysteriaAccessManagerBuildUserArtifactsInheritsPinSHA256FromServerTLSCert(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+	certPath, keyPath, expectedPin := writeTestTLSCertificate(t, tmpDir)
+
+	configPath := filepath.Join(tmpDir, "server.yaml")
+	content := fmt.Sprintf(`listen: :443
+tls:
+  cert: %s
+  key: %s
+auth:
+  type: userpass
+  userpass: {}`, certPath, keyPath)
+	if err := os.WriteFile(configPath, []byte(content), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	repo, err := repository.New(filepath.Join(tmpDir, "storage"), filepath.Join(tmpDir, "audit"), filepath.Join(tmpDir, "run"))
+	if err != nil {
+		t.Fatalf("open repository: %v", err)
+	}
+	t.Cleanup(func() { _ = repo.Close() })
+
+	created, err := repo.CreateHysteriaUser(ctx, "demo-user", "supersecret88", nil, nil)
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	view, err := repo.GetHysteriaUser(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
+
+	manager := NewHysteriaAccessManager(repo, config.Config{Hy2ConfigPath: configPath, Hy2Domain: "hy2.example.com", Hy2Port: 443}, NewHysteriaConfigManager(configPath))
+	artifacts, validation, err := manager.BuildUserArtifacts(view)
+	if err != nil {
+		t.Fatalf("build artifacts: %v", err)
+	}
+	if !validation.Valid {
+		t.Fatalf("expected valid artifacts, got errors: %#v", validation.Errors)
+	}
+	if artifacts.ClientParams.PinSHA256 != expectedPin {
+		t.Fatalf("expected inherited pinSHA256 %s, got %s", expectedPin, artifacts.ClientParams.PinSHA256)
+	}
+	if !strings.Contains(artifacts.URI, "pinSHA256="+expectedPin) {
+		t.Fatalf("expected inherited pinSHA256 in URI, got: %s", artifacts.URI)
+	}
+}
+
 func TestHysteriaAccessManagerBuildUserArtifactsSupportsURIServerDomain(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()

@@ -1,8 +1,11 @@
 package services
 
 import (
+	"crypto/sha256"
+	"crypto/x509"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"net"
@@ -456,6 +459,9 @@ func (m *HysteriaConfigManager) DefaultClientProfileFromSettings(settings Hy2Set
 		TLS:      Hy2ClientTLS{SNI: sni},
 		Socks5:   &Hy2ClientSocks5Mode{Listen: "127.0.0.1:1080"},
 	}
+	if settings.TLSEnabled {
+		profile.TLS.PinSHA256 = m.defaultTLSPinSHA256(settings)
+	}
 
 	if settings.Obfs != nil && strings.EqualFold(strings.TrimSpace(settings.Obfs.Type), "salamander") {
 		password := ""
@@ -477,6 +483,84 @@ func (m *HysteriaConfigManager) DefaultClientProfileFromSettings(settings Hy2Set
 	}
 
 	return normalizeClientProfile(profile)
+}
+
+func (m *HysteriaConfigManager) defaultTLSPinSHA256(settings Hy2Settings) string {
+	if settings.TLS == nil {
+		return ""
+	}
+
+	certPath := strings.TrimSpace(settings.TLS.Cert)
+	if certPath == "" {
+		return ""
+	}
+
+	certPEM, err := m.readManagedFile(certPath)
+	if err != nil {
+		return ""
+	}
+
+	cert, err := parseFirstCertificate(certPEM)
+	if err != nil {
+		return ""
+	}
+
+	publicKey, err := x509.MarshalPKIXPublicKey(cert.PublicKey)
+	if err != nil {
+		return ""
+	}
+
+	sum := sha256.Sum256(publicKey)
+	return hex.EncodeToString(sum[:])
+}
+
+func (m *HysteriaConfigManager) readManagedFile(pathValue string) ([]byte, error) {
+	pathValue = strings.TrimSpace(pathValue)
+	if pathValue == "" {
+		return nil, fmt.Errorf("path is empty")
+	}
+
+	if filepath.IsAbs(pathValue) {
+		return os.ReadFile(pathValue)
+	}
+
+	// Try direct relative path first.
+	content, directErr := os.ReadFile(pathValue)
+	if directErr == nil {
+		return content, nil
+	}
+
+	// Then resolve relative to the managed config directory.
+	configPath := strings.TrimSpace(m.Path)
+	if configPath == "" {
+		return nil, directErr
+	}
+	return os.ReadFile(filepath.Join(filepath.Dir(configPath), pathValue))
+}
+
+func parseFirstCertificate(content []byte) (*x509.Certificate, error) {
+	remaining := content
+	for len(remaining) > 0 {
+		block, rest := pem.Decode(remaining)
+		if block == nil {
+			break
+		}
+		remaining = rest
+		if !strings.EqualFold(strings.TrimSpace(block.Type), "CERTIFICATE") {
+			continue
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err == nil {
+			return cert, nil
+		}
+	}
+
+	// Also support raw DER files.
+	if cert, err := x509.ParseCertificate(content); err == nil {
+		return cert, nil
+	}
+
+	return nil, fmt.Errorf("certificate not found")
 }
 
 func (m *HysteriaConfigManager) ValidateClientProfile(profile Hy2ClientProfile) Hy2ClientValidation {
