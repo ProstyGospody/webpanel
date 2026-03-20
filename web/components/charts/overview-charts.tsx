@@ -94,6 +94,8 @@ function chartStyleSx(theme: Theme) {
       fill: theme.palette.background.paper,
     },
     "& .MuiChartsLegend-root": {
+      display: "flex",
+      justifyContent: "center",
       "& .MuiChartsLegend-series": {
         gap: 8,
       },
@@ -190,12 +192,6 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                     margin={{ top: 34, right: 16, bottom: 30, left: 66 }}
                     colors={["#00C9D8", "#59B8FF"]}
                     sx={chartStyleSx}
-                    slotProps={{
-                      legend: {
-                        direction: "horizontal",
-                        position: { vertical: "top", horizontal: "middle" },
-                      },
-                    }}
                     xAxis={[
                       {
                         data: xAxisData,
@@ -251,12 +247,6 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                     margin={{ top: 30, right: 16, bottom: 30, left: 54 }}
                     colors={["#65D8FF"]}
                     sx={chartStyleSx}
-                    slotProps={{
-                      legend: {
-                        direction: "horizontal",
-                        position: { vertical: "top", horizontal: "middle" },
-                      },
-                    }}
                     xAxis={[
                       {
                         data: xAxisData,
@@ -305,12 +295,6 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                     margin={{ top: 30, right: 16, bottom: 30, left: 54 }}
                     colors={["#67E0B5"]}
                     sx={chartStyleSx}
-                    slotProps={{
-                      legend: {
-                        direction: "horizontal",
-                        position: { vertical: "top", horizontal: "middle" },
-                      },
-                    }}
                     xAxis={[
                       {
                         data: xAxisData,

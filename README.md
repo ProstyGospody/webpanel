@@ -5,7 +5,7 @@ Production-oriented control plane for managing a native Hysteria 2 service on Ub
 Control plane stack:
 
 - `panel-api`: Go
-- `panel-web`: Next.js 15 + TypeScript + MUI
+- `panel-web`: Next.js 16 + TypeScript + MUI
 - Local filesystem storage under `/var/lib/proxy-panel`
 - Caddy (TLS reverse proxy and certificate issuer)
 - Prometheus + node_exporter (live host metrics)
