@@ -12,13 +12,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DashboardChartRange, OverviewCharts, SystemTrendSample } from "@/components/charts/overview-charts";
 import { PageHeader } from "@/components/ui/page-header";
 import { APIError, apiFetch } from "@/services/api";
-import { SystemLiveResponse } from "@/types/common";
+import { SystemHistoryResponse, SystemLiveResponse } from "@/types/common";
 import { formatBytes, formatRate, formatUptime } from "@/utils/format";
 
 const LIVE_POLL_MS = 6000;
 const TREND_RETENTION_MS = 24 * 60 * 60 * 1000;
 const MAX_TREND_SAMPLES = 16000;
-const TREND_CACHE_KEY = "proxy-panel:system-trend-cache:v1";
 
 function clampPercent(value: number): number {
   if (!Number.isFinite(value)) {
@@ -38,6 +37,36 @@ function toTrendSample(live: SystemLiveResponse): SystemTrendSample {
     memory_used_percent: clampPercent(live.system.memory_used_percent),
     network_rx_bps: Math.max(0, live.system.network_rx_bps || 0),
     network_tx_bps: Math.max(0, live.system.network_tx_bps || 0),
+  };
+}
+
+function normalizeTrendSample(sample: {
+  timestamp: string;
+  cpu_usage_percent: number;
+  memory_used_percent: number;
+  network_rx_bps: number;
+  network_tx_bps: number;
+}): SystemTrendSample | null {
+  const timestampMs = Date.parse(sample.timestamp || "");
+  if (Number.isNaN(timestampMs)) {
+    return null;
+  }
+
+  const cpu = Number(sample.cpu_usage_percent);
+  const ram = Number(sample.memory_used_percent);
+  const rx = Number(sample.network_rx_bps);
+  const tx = Number(sample.network_tx_bps);
+
+  if (!Number.isFinite(cpu) || !Number.isFinite(ram) || !Number.isFinite(rx) || !Number.isFinite(tx)) {
+    return null;
+  }
+
+  return {
+    timestamp: new Date(timestampMs).toISOString(),
+    cpu_usage_percent: clampPercent(cpu),
+    memory_used_percent: clampPercent(ram),
+    network_rx_bps: Math.max(0, rx),
+    network_tx_bps: Math.max(0, tx),
   };
 }
 
@@ -61,57 +90,13 @@ function appendTrendSample(current: SystemTrendSample[], sample: SystemTrendSamp
   return retained;
 }
 
-function readTrendCache(): SystemTrendSample[] {
-  try {
-    const raw = window.localStorage.getItem(TREND_CACHE_KEY);
-    if (!raw) {
-      return [];
-    }
-
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-
-    const cutoff = Date.now() - TREND_RETENTION_MS;
-    const points: SystemTrendSample[] = [];
-
-    for (const item of parsed) {
-      if (!item || typeof item !== "object") {
-        continue;
-      }
-
-      const timestamp = typeof item.timestamp === "string" ? item.timestamp : "";
-      const timestampMs = Date.parse(timestamp);
-      if (!timestamp || Number.isNaN(timestampMs) || timestampMs < cutoff) {
-        continue;
-      }
-
-      const cpu = Number(item.cpu_usage_percent);
-      const ram = Number(item.memory_used_percent);
-      const rx = Number(item.network_rx_bps);
-      const tx = Number(item.network_tx_bps);
-
-      if (!Number.isFinite(cpu) || !Number.isFinite(ram) || !Number.isFinite(rx) || !Number.isFinite(tx)) {
-        continue;
-      }
-
-      points.push({
-        timestamp: new Date(timestampMs).toISOString(),
-        cpu_usage_percent: clampPercent(cpu),
-        memory_used_percent: clampPercent(ram),
-        network_rx_bps: Math.max(0, rx),
-        network_tx_bps: Math.max(0, tx),
-      });
-    }
-
-    if (points.length > MAX_TREND_SAMPLES) {
-      return points.slice(points.length - MAX_TREND_SAMPLES);
-    }
-    return points;
-  } catch {
-    return [];
+function mergeTrendSamples(current: SystemTrendSample[], incoming: SystemTrendSample[]): SystemTrendSample[] {
+  const sorted = [...incoming].sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
+  let merged = current;
+  for (const item of sorted) {
+    merged = appendTrendSample(merged, item);
   }
+  return merged;
 }
 
 export default function DashboardPage() {
@@ -120,24 +105,26 @@ export default function DashboardPage() {
   const [chartRange, setChartRange] = useState<DashboardChartRange>("1h");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [cacheReady, setCacheReady] = useState(false);
+  const historyLoadedRef = useRef(false);
   const loadingRef = useRef(false);
 
-  useEffect(() => {
-    setTrendSamples(readTrendCache());
-    setCacheReady(true);
-  }, []);
-
-  useEffect(() => {
-    if (!cacheReady) {
+  const loadHistory = useCallback(async () => {
+    if (historyLoadedRef.current) {
       return;
     }
+
     try {
-      window.localStorage.setItem(TREND_CACHE_KEY, JSON.stringify(trendSamples.slice(-MAX_TREND_SAMPLES)));
+      const payload = await apiFetch<SystemHistoryResponse>("/api/system/history?limit=20000", { method: "GET" });
+      const items = (payload.items || [])
+        .map((item) => normalizeTrendSample(item))
+        .filter((item): item is SystemTrendSample => item !== null);
+      setTrendSamples((current) => mergeTrendSamples(current, items));
     } catch {
-      // Ignore storage quota and privacy errors.
+      // Keep dashboard functional even if history endpoint is temporarily unavailable.
+    } finally {
+      historyLoadedRef.current = true;
     }
-  }, [cacheReady, trendSamples]);
+  }, []);
 
   const load = useCallback(async () => {
     if (loadingRef.current) {
@@ -157,6 +144,10 @@ export default function DashboardPage() {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    void loadHistory();
+  }, [loadHistory]);
 
   useEffect(() => {
     void load();

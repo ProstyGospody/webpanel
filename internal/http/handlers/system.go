@@ -4,11 +4,20 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"sort"
+	"strings"
 	"time"
 
 	"proxy-panel/internal/http/render"
 	"proxy-panel/internal/services"
+)
+
+const (
+	systemTrendRetention        = 24 * time.Hour
+	systemTrendMaxPoints        = 20000
+	systemTrendDefaultLimit     = 15000
+	systemTrendCollectorInterval = 6 * time.Second
 )
 
 type liveSystemMetrics struct {
@@ -111,6 +120,14 @@ func (h *Handler) GetSystemLive(w http.ResponseWriter, r *http.Request) {
 		"hysteria": hy2,
 		"services": serviceStatuses,
 		"errors":   errors,
+	})
+}
+
+func (h *Handler) GetSystemHistory(w http.ResponseWriter, r *http.Request) {
+	limit := parseSystemHistoryLimit(r.URL.Query().Get("limit"))
+	items := h.snapshotSystemTrend(limit)
+	render.JSON(w, http.StatusOK, map[string]any{
+		"items": items,
 	})
 }
 
@@ -376,4 +393,157 @@ func latestTime(values ...time.Time) time.Time {
 		return time.Now().UTC()
 	}
 	return latest
+}
+
+func parseSystemHistoryLimit(raw string) int {
+	limit := systemTrendDefaultLimit
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return limit
+	}
+
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return limit
+	}
+	if parsed <= 0 {
+		return limit
+	}
+	if parsed > systemTrendMaxPoints {
+		return systemTrendMaxPoints
+	}
+	return parsed
+}
+
+func (h *Handler) snapshotSystemTrend(limit int) []systemTrendSample {
+	if limit <= 0 {
+		limit = systemTrendDefaultLimit
+	}
+	if limit > systemTrendMaxPoints {
+		limit = systemTrendMaxPoints
+	}
+
+	cutoff := time.Now().UTC().Add(-systemTrendRetention)
+
+	h.systemTrendMu.Lock()
+	defer h.systemTrendMu.Unlock()
+
+	retained := h.systemTrend[:0]
+	for _, item := range h.systemTrend {
+		if item.Timestamp.IsZero() || item.Timestamp.Before(cutoff) {
+			continue
+		}
+		retained = append(retained, item)
+	}
+	h.systemTrend = retained
+
+	if len(h.systemTrend) == 0 {
+		return []systemTrendSample{}
+	}
+
+	start := 0
+	if len(h.systemTrend) > limit {
+		start = len(h.systemTrend) - limit
+	}
+
+	out := make([]systemTrendSample, len(h.systemTrend)-start)
+	copy(out, h.systemTrend[start:])
+	return out
+}
+
+func (h *Handler) appendSystemTrend(item systemTrendSample) {
+	now := time.Now().UTC()
+	if item.Timestamp.IsZero() {
+		item.Timestamp = now
+	} else {
+		item.Timestamp = item.Timestamp.UTC()
+		if item.Timestamp.After(now.Add(1 * time.Minute)) {
+			item.Timestamp = now
+		}
+	}
+
+	if item.CPUUsagePercent < 0 {
+		item.CPUUsagePercent = 0
+	} else if item.CPUUsagePercent > 100 {
+		item.CPUUsagePercent = 100
+	}
+	if item.MemoryUsedPercent < 0 {
+		item.MemoryUsedPercent = 0
+	} else if item.MemoryUsedPercent > 100 {
+		item.MemoryUsedPercent = 100
+	}
+	if item.NetworkRxBps < 0 {
+		item.NetworkRxBps = 0
+	}
+	if item.NetworkTxBps < 0 {
+		item.NetworkTxBps = 0
+	}
+
+	cutoff := now.Add(-systemTrendRetention)
+
+	h.systemTrendMu.Lock()
+	defer h.systemTrendMu.Unlock()
+
+	retained := h.systemTrend[:0]
+	for _, sample := range h.systemTrend {
+		if sample.Timestamp.IsZero() || sample.Timestamp.Before(cutoff) {
+			continue
+		}
+		retained = append(retained, sample)
+	}
+	h.systemTrend = retained
+
+	n := len(h.systemTrend)
+	if n > 0 {
+		last := h.systemTrend[n-1]
+		if !item.Timestamp.After(last.Timestamp) {
+			item.Timestamp = last.Timestamp.Add(time.Millisecond)
+		}
+		if item.Timestamp.Sub(last.Timestamp) < time.Second {
+			h.systemTrend[n-1] = item
+			return
+		}
+	}
+
+	h.systemTrend = append(h.systemTrend, item)
+	if len(h.systemTrend) > systemTrendMaxPoints {
+		h.systemTrend = h.systemTrend[len(h.systemTrend)-systemTrendMaxPoints:]
+	}
+}
+
+func (h *Handler) StartSystemTrendCollector(ctx context.Context) {
+	go func() {
+		h.collectSystemTrendPoint(ctx)
+
+		ticker := time.NewTicker(systemTrendCollectorInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				h.collectSystemTrendPoint(ctx)
+			}
+		}
+	}()
+}
+
+func (h *Handler) collectSystemTrendPoint(parent context.Context) {
+	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
+	defer cancel()
+
+	snapshot, networkRx, networkTx, _, err := h.collectSystemMetrics(ctx)
+	if err != nil {
+		h.logger.Debug("system trend collection failed", "error", err)
+		return
+	}
+
+	h.appendSystemTrend(systemTrendSample{
+		Timestamp:         snapshot.CollectedAt,
+		CPUUsagePercent:   snapshot.CPUUsagePercent,
+		MemoryUsedPercent: snapshot.MemoryUsedPercent,
+		NetworkRxBps:      networkRx,
+		NetworkTxBps:      networkTx,
+	})
 }

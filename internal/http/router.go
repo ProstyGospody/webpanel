@@ -70,6 +70,7 @@ func NewRouter(
 			secured.Post("/services/{name}/reload", h.ReloadService)
 
 			secured.Get("/system/live", h.GetSystemLive)
+			secured.Get("/system/history", h.GetSystemHistory)
 
 			secured.Get("/audit", h.ListAudit)
 		})
@@ -77,5 +78,4 @@ func NewRouter(
 
 	return r
 }
-
 

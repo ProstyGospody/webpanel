@@ -82,3 +82,15 @@ export type SystemLiveResponse = {
   }>;
   errors: string[];
 };
+
+export type SystemHistorySample = {
+  timestamp: string;
+  cpu_usage_percent: number;
+  memory_used_percent: number;
+  network_rx_bps: number;
+  network_tx_bps: number;
+};
+
+export type SystemHistoryResponse = {
+  items: SystemHistorySample[];
+};

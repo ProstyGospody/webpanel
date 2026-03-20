@@ -29,12 +29,22 @@ type Handler struct {
 	systemMetrics    *services.SystemMetricsCollector
 	protocolMu       sync.Mutex
 	protocolSample   protocolPacketSample
+	systemTrendMu    sync.RWMutex
+	systemTrend      []systemTrendSample
 }
 
 type protocolPacketSample struct {
 	tcpPackets  int64
 	udpPackets  int64
 	collectedAt time.Time
+}
+
+type systemTrendSample struct {
+	Timestamp         time.Time `json:"timestamp"`
+	CPUUsagePercent   float64   `json:"cpu_usage_percent"`
+	MemoryUsedPercent float64   `json:"memory_used_percent"`
+	NetworkRxBps      float64   `json:"network_rx_bps"`
+	NetworkTxBps      float64   `json:"network_tx_bps"`
 }
 
 func New(

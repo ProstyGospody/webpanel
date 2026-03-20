@@ -20,6 +20,7 @@ type Server struct {
 	cfg            config.Config
 	logger         *slog.Logger
 	repo           *repository.Repository
+	handler        *handlers.Handler
 	httpServer     *http.Server
 	jobs           *scheduler.Jobs
 	hysteriaAccess *services.HysteriaAccessManager
@@ -57,6 +58,7 @@ func NewServer(cfg config.Config, logger *slog.Logger, repo *repository.Reposito
 		cfg:            cfg,
 		logger:         logger,
 		repo:           repo,
+		handler:        h,
 		httpServer:     httpSrv,
 		jobs:           jobs,
 		hysteriaAccess: hysteriaAccess,
@@ -77,6 +79,9 @@ func (s *Server) Run(ctx context.Context) error {
 	jobsCtx, cancel := context.WithCancel(ctx)
 	s.cancelJobs = cancel
 	s.jobs.Start(jobsCtx)
+	if s.handler != nil {
+		s.handler.StartSystemTrendCollector(jobsCtx)
+	}
 
 	s.logger.Info("starting panel api", "listen_addr", s.cfg.ListenAddr)
 	if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
