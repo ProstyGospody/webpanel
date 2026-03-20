@@ -37,9 +37,8 @@ export function ServerSettingsForm({
           <TextField
             label="Listen"
             value={draft.listen}
-            onChange={(event) => onDraftChange({ ...draft, listen: event.target.value })}
+            onChange={(event) => onDraftChange({ ...draft, listen: event.target.value.replace(/^:/, "") })}
             fullWidth
-            helperText="You can enter just 443 (auto: :443)"
           />
         </Grid>
         <Grid size={{ xs: 12, md: 4 }}>

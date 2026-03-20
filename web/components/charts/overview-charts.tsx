@@ -71,11 +71,14 @@ function asTimeLabel(value: unknown): string {
 
 function chartStyleSx(theme: Theme) {
   return {
-    "& .MuiChartsAxis-line, & .MuiChartsAxis-tick, & .MuiChartsGrid-line": {
-      stroke: alpha(theme.palette.primary.main, 0.22),
+    "& .MuiChartsAxis-line, & .MuiChartsAxis-tick": {
+      stroke: alpha(theme.palette.primary.main, 0.28),
+    },
+    "& .MuiChartsGrid-line": {
+      stroke: alpha(theme.palette.primary.main, 0.18),
     },
     "& .MuiChartsAxis-tickLabel": {
-      fill: alpha(theme.palette.text.secondary, 0.95),
+      fill: alpha(theme.palette.text.primary, 0.94),
       fontSize: 11,
     },
     "& .MuiChartsLegend-label": {
@@ -84,11 +87,16 @@ function chartStyleSx(theme: Theme) {
       fontSize: 12,
     },
     "& .MuiLineElement-root": {
-      strokeWidth: 2.4,
+      strokeWidth: 2.2,
     },
     "& .MuiMarkElement-root": {
-      strokeWidth: 2,
+      strokeWidth: 2.1,
       fill: theme.palette.background.paper,
+    },
+    "& .MuiChartsLegend-root": {
+      "& .MuiChartsLegend-series": {
+        gap: 8,
+      },
     },
   };
 }
@@ -179,9 +187,15 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                 ) : (
                   <LineChart
                     height={320}
-                    margin={{ top: 24, right: 16, bottom: 30, left: 66 }}
+                    margin={{ top: 34, right: 16, bottom: 30, left: 66 }}
                     colors={["#00C9D8", "#59B8FF"]}
                     sx={chartStyleSx}
+                    slotProps={{
+                      legend: {
+                        direction: "horizontal",
+                        position: { vertical: "top", horizontal: "middle" },
+                      },
+                    }}
                     xAxis={[
                       {
                         data: xAxisData,
@@ -199,7 +213,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         id: "download",
                         label: "Download",
                         curve: "monotoneX",
-                        showMark: true,
+                        showMark: false,
                         area: false,
                         data: points.map((point) => point.networkRxBps),
                         valueFormatter: (value) => formatRate(Number(value) || 0),
@@ -208,13 +222,13 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         id: "upload",
                         label: "Upload",
                         curve: "monotoneX",
-                        showMark: true,
+                        showMark: false,
                         area: false,
                         data: points.map((point) => point.networkTxBps),
                         valueFormatter: (value) => formatRate(Number(value) || 0),
                       },
                     ]}
-                    grid={{ horizontal: true }}
+                    grid={{ horizontal: true, vertical: false }}
                   />
                 )}
               </Stack>
@@ -234,9 +248,15 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                 ) : (
                   <LineChart
                     height={290}
-                    margin={{ top: 18, right: 16, bottom: 30, left: 54 }}
+                    margin={{ top: 30, right: 16, bottom: 30, left: 54 }}
                     colors={["#65D8FF"]}
                     sx={chartStyleSx}
+                    slotProps={{
+                      legend: {
+                        direction: "horizontal",
+                        position: { vertical: "top", horizontal: "middle" },
+                      },
+                    }}
                     xAxis={[
                       {
                         data: xAxisData,
@@ -256,13 +276,13 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         id: "cpu",
                         label: "CPU",
                         curve: "monotoneX",
-                        showMark: true,
+                        showMark: false,
                         area: false,
                         data: points.map((point) => point.cpuUsagePercent),
                         valueFormatter: (value) => `${clampPercent(Number(value) || 0).toFixed(1)}%`,
                       },
                     ]}
-                    grid={{ horizontal: true }}
+                    grid={{ horizontal: true, vertical: false }}
                   />
                 )}
               </Stack>
@@ -282,9 +302,15 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                 ) : (
                   <LineChart
                     height={290}
-                    margin={{ top: 18, right: 16, bottom: 30, left: 54 }}
+                    margin={{ top: 30, right: 16, bottom: 30, left: 54 }}
                     colors={["#67E0B5"]}
                     sx={chartStyleSx}
+                    slotProps={{
+                      legend: {
+                        direction: "horizontal",
+                        position: { vertical: "top", horizontal: "middle" },
+                      },
+                    }}
                     xAxis={[
                       {
                         data: xAxisData,
@@ -304,13 +330,13 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         id: "ram",
                         label: "RAM",
                         curve: "monotoneX",
-                        showMark: true,
+                        showMark: false,
                         area: false,
                         data: points.map((point) => point.memoryUsedPercent),
                         valueFormatter: (value) => `${clampPercent(Number(value) || 0).toFixed(1)}%`,
                       },
                     ]}
-                    grid={{ horizontal: true }}
+                    grid={{ horizontal: true, vertical: false }}
                   />
                 )}
               </Stack>

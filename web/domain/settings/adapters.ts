@@ -1,8 +1,19 @@
 import { Hy2Settings } from "@/domain/settings/types";
 
+function normalizeListenForDraft(value: string | undefined): string {
+  const listen = (value || "").trim();
+  if (!listen) {
+    return "443";
+  }
+  if (listen.startsWith(":")) {
+    return listen.slice(1);
+  }
+  return listen;
+}
+
 export function toSettingsDraft(settings: Hy2Settings): Hy2Settings {
   return {
-    listen: settings.listen || ":443",
+    listen: normalizeListenForDraft(settings.listen),
     tlsEnabled: settings.tlsEnabled,
     tlsMode: settings.tlsMode || "acme",
     tls: settings.tls || { cert: "", key: "" },
