@@ -364,7 +364,7 @@ export const panelLightTheme = createTheme(panelTheme, {
     },
     MuiCard: {
       styleOverrides: {
-        root: ({ theme }) => ({
+        root: ({ theme }: { theme: Theme }) => ({
           borderColor: theme.palette.divider,
           backgroundColor: alpha(theme.palette.background.paper, 0.98),
         }),
@@ -372,7 +372,7 @@ export const panelLightTheme = createTheme(panelTheme, {
     },
     MuiAppBar: {
       styleOverrides: {
-        root: ({ theme }) => ({
+        root: ({ theme }: { theme: Theme }) => ({
           borderBottom: `1px solid ${theme.palette.divider}`,
           backgroundColor: alpha(theme.palette.background.paper, 0.98),
           backdropFilter: "blur(8px)",
@@ -381,7 +381,7 @@ export const panelLightTheme = createTheme(panelTheme, {
     },
     MuiDrawer: {
       styleOverrides: {
-        paper: ({ theme }) => ({
+        paper: ({ theme }: { theme: Theme }) => ({
           borderRight: `1px solid ${theme.palette.divider}`,
           backgroundColor: alpha(theme.palette.background.paper, 0.98),
           backdropFilter: "none",
