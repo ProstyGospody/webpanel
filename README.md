@@ -13,6 +13,14 @@ Control plane stack:
 
 ## One-command deploy (Ubuntu 24.04 host)
 
+Remote bootstrap (same style as other panels):
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/ProstyGospody/webpanel/main/install.sh)
+```
+
+From cloned repository:
+
 ```bash
 sudo bash ./deploy/install.sh
 ```

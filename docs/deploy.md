@@ -15,6 +15,12 @@
 
 ## One-command install
 
+Remote bootstrap:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/ProstyGospody/webpanel/main/install.sh)
+```
+
 From repository root:
 
 ```bash
