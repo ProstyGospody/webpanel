@@ -1,4 +1,4 @@
-import { alpha, createTheme, type Shadows } from "@mui/material/styles";
+import { alpha, createTheme, type Shadows, type Theme } from "@mui/material/styles";
 import type { CSSProperties } from "react";
 
 const noShadows = Array(25).fill("none") as Shadows;
@@ -59,7 +59,7 @@ export const panelTheme = createTheme({
   },
   components: {
     MuiCssBaseline: {
-      styleOverrides: (theme) => ({
+      styleOverrides: (theme: Theme) => ({
         ":root": {
           colorScheme: theme.palette.mode,
         },
@@ -345,7 +345,7 @@ export const panelLightTheme = createTheme(panelTheme, {
   },
   components: {
     MuiCssBaseline: {
-      styleOverrides: (theme) => ({
+      styleOverrides: (theme: Theme) => ({
         ":root": {
           colorScheme: "light",
         },
