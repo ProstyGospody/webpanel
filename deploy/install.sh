@@ -40,6 +40,7 @@ ENV_OVERRIDE_KEYS=(
   PANEL_ACME_EMAIL
   HY2_DOMAIN
   HY2_PORT
+  HY2_OBFS_PASSWORD
   HY2_STATS_PORT
   INITIAL_ADMIN_EMAIL
   INITIAL_ADMIN_PASSWORD
@@ -398,6 +399,7 @@ collect_configuration() {
 
   generate_if_empty INTERNAL_AUTH_TOKEN 32
   generate_if_empty HY2_STATS_SECRET 32
+  generate_if_empty HY2_OBFS_PASSWORD 16
 
   APP_ENV="${APP_ENV:-production}"
   PANEL_API_LISTEN_ADDR="127.0.0.1:${PANEL_API_PORT}"
@@ -471,6 +473,7 @@ HY2_CERT_PATH=${HY2_CERT_PATH}
 HY2_KEY_PATH=${HY2_KEY_PATH}
 HY2_STATS_URL=${HY2_STATS_URL}
 HY2_STATS_SECRET=${HY2_STATS_SECRET}
+HY2_OBFS_PASSWORD=${HY2_OBFS_PASSWORD}
 HY2_POLL_INTERVAL=${HY2_POLL_INTERVAL}
 
 PROMETHEUS_ENABLED=${PROMETHEUS_ENABLED}
@@ -558,11 +561,10 @@ trafficStats:
   listen: 127.0.0.1:${HY2_STATS_PORT}
   secret: ${HY2_STATS_SECRET}
 
-masquerade:
-  type: proxy
-  proxy:
-    url: https://www.cloudflare.com
-    rewriteHost: true
+obfs:
+  type: salamander
+  salamander:
+    password: ${HY2_OBFS_PASSWORD}
 EOF
 
   chown root:proxy-panel "${HY2_DIR}/server.yaml"
