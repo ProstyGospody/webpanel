@@ -1,226 +1,248 @@
 "use client";
 
-import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
-import {
-  Alert,
-  Button,
-  Card,
-  CardContent,
-  Chip,
-  CircularProgress,
-  Grid,
-  LinearProgress,
-  Stack,
-  Typography,
-} from "@mui/material";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import AccessTimeRoundedIcon from "@mui/icons-material/AccessTimeRounded";
+import DataUsageRoundedIcon from "@mui/icons-material/DataUsageRounded";
+import MemoryRoundedIcon from "@mui/icons-material/MemoryRounded";
+import PeopleAltRoundedIcon from "@mui/icons-material/PeopleAltRounded";
+import RouterRoundedIcon from "@mui/icons-material/RouterRounded";
+import StorageRoundedIcon from "@mui/icons-material/StorageRounded";
+import { Alert, Chip, CircularProgress, Stack, Typography } from "@mui/material";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { OverviewCharts } from "@/components/charts/overview-charts";
-import { MetricCard } from "@/components/ui/metric-card";
+import { DashboardChartRange, OverviewCharts, SystemTrendSample } from "@/components/charts/overview-charts";
 import { PageHeader } from "@/components/ui/page-header";
-import { StatusChip } from "@/components/ui/status-chip";
-import { buildOverviewTrends } from "@/domain/overview/adapters";
-import { getHysteriaStatsHistory } from "@/domain/overview/services";
-import { HysteriaStatsSnapshot } from "@/domain/overview/types";
 import { APIError, apiFetch } from "@/services/api";
-import { HysteriaOverview, SystemLiveResponse } from "@/types/common";
-import { formatBytes, formatDateTime, formatRate, formatUptime } from "@/utils/format";
+import { SystemLiveResponse } from "@/types/common";
+import { formatBytes, formatRate, formatUptime } from "@/utils/format";
+
+const LIVE_POLL_MS = 6000;
+const TREND_RETENTION_MS = 24 * 60 * 60 * 1000;
+const MAX_TREND_SAMPLES = 16000;
+const TREND_CACHE_KEY = "proxy-panel:system-trend-cache:v1";
+
+function clampPercent(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.max(0, Math.min(100, value));
+}
+
+function toTrendSample(live: SystemLiveResponse): SystemTrendSample {
+  const sourceTimestamp = live.system.collected_at || live.collected_at;
+  const timestampMs = Date.parse(sourceTimestamp || "");
+  const timestamp = Number.isNaN(timestampMs) ? new Date().toISOString() : new Date(timestampMs).toISOString();
+
+  return {
+    timestamp,
+    cpu_usage_percent: clampPercent(live.system.cpu_usage_percent),
+    memory_used_percent: clampPercent(live.system.memory_used_percent),
+    network_rx_bps: Math.max(0, live.system.network_rx_bps || 0),
+    network_tx_bps: Math.max(0, live.system.network_tx_bps || 0),
+  };
+}
+
+function appendTrendSample(current: SystemTrendSample[], sample: SystemTrendSample): SystemTrendSample[] {
+  const cutoff = Date.now() - TREND_RETENTION_MS;
+  const retained = current.filter((point) => {
+    const timestampMs = Date.parse(point.timestamp);
+    return !Number.isNaN(timestampMs) && timestampMs >= cutoff;
+  });
+
+  const last = retained.length ? retained[retained.length - 1] : null;
+  if (last && last.timestamp === sample.timestamp) {
+    retained[retained.length - 1] = sample;
+  } else {
+    retained.push(sample);
+  }
+
+  if (retained.length > MAX_TREND_SAMPLES) {
+    return retained.slice(retained.length - MAX_TREND_SAMPLES);
+  }
+  return retained;
+}
+
+function readTrendCache(): SystemTrendSample[] {
+  try {
+    const raw = window.localStorage.getItem(TREND_CACHE_KEY);
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    const cutoff = Date.now() - TREND_RETENTION_MS;
+    const points: SystemTrendSample[] = [];
+
+    for (const item of parsed) {
+      if (!item || typeof item !== "object") {
+        continue;
+      }
+
+      const timestamp = typeof item.timestamp === "string" ? item.timestamp : "";
+      const timestampMs = Date.parse(timestamp);
+      if (!timestamp || Number.isNaN(timestampMs) || timestampMs < cutoff) {
+        continue;
+      }
+
+      const cpu = Number(item.cpu_usage_percent);
+      const ram = Number(item.memory_used_percent);
+      const rx = Number(item.network_rx_bps);
+      const tx = Number(item.network_tx_bps);
+
+      if (!Number.isFinite(cpu) || !Number.isFinite(ram) || !Number.isFinite(rx) || !Number.isFinite(tx)) {
+        continue;
+      }
+
+      points.push({
+        timestamp: new Date(timestampMs).toISOString(),
+        cpu_usage_percent: clampPercent(cpu),
+        memory_used_percent: clampPercent(ram),
+        network_rx_bps: Math.max(0, rx),
+        network_tx_bps: Math.max(0, tx),
+      });
+    }
+
+    if (points.length > MAX_TREND_SAMPLES) {
+      return points.slice(points.length - MAX_TREND_SAMPLES);
+    }
+    return points;
+  } catch {
+    return [];
+  }
+}
 
 export default function DashboardPage() {
   const [live, setLive] = useState<SystemLiveResponse | null>(null);
-  const [overview, setOverview] = useState<HysteriaOverview | null>(null);
-  const [historySnapshots, setHistorySnapshots] = useState<HysteriaStatsSnapshot[]>([]);
+  const [trendSamples, setTrendSamples] = useState<SystemTrendSample[]>([]);
+  const [chartRange, setChartRange] = useState<DashboardChartRange>("1h");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [cacheReady, setCacheReady] = useState(false);
+  const loadingRef = useRef(false);
+
+  useEffect(() => {
+    setTrendSamples(readTrendCache());
+    setCacheReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!cacheReady) {
+      return;
+    }
+    try {
+      window.localStorage.setItem(TREND_CACHE_KEY, JSON.stringify(trendSamples.slice(-MAX_TREND_SAMPLES)));
+    } catch {
+      // Ignore storage quota and privacy errors.
+    }
+  }, [cacheReady, trendSamples]);
 
   const load = useCallback(async () => {
+    if (loadingRef.current) {
+      return;
+    }
+
+    loadingRef.current = true;
     setError("");
     try {
-      const [livePayload, overviewPayload, historyPayload] = await Promise.all([
-        apiFetch<SystemLiveResponse>("/api/system/live", { method: "GET" }),
-        apiFetch<HysteriaOverview>("/api/hysteria/stats/overview", { method: "GET" }),
-        getHysteriaStatsHistory(),
-      ]);
+      const livePayload = await apiFetch<SystemLiveResponse>("/api/system/live", { method: "GET" });
       setLive(livePayload);
-      setOverview(overviewPayload);
-      setHistorySnapshots(historyPayload.items || []);
+      setTrendSamples((current) => appendTrendSample(current, toTrendSample(livePayload)));
     } catch (err) {
       setError(err instanceof APIError ? err.message : "Failed to load dashboard data");
     } finally {
+      loadingRef.current = false;
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     void load();
-    const timer = setInterval(() => void load(), 15000);
+    const timer = setInterval(() => void load(), LIVE_POLL_MS);
     return () => clearInterval(timer);
   }, [load]);
 
-  const trendPoints = useMemo(() => buildOverviewTrends(historySnapshots), [historySnapshots]);
-  const tcpConnections = live?.hysteria.connections_tcp ?? 0;
-  const udpConnections = live?.hysteria.connections_udp ?? 0;
-  const hasConnectionBreakdown = Boolean(live?.hysteria.connections_breakdown_available);
+  const warningMessages = useMemo(() => {
+    return (live?.errors || []).filter((item) => !/tcp|udp|packet/i.test(item));
+  }, [live]);
 
-  if (loading) {
+  if (loading && !live) {
     return (
       <Stack alignItems="center" justifyContent="center" sx={{ minHeight: 360 }} spacing={2}>
         <CircularProgress />
-        <Typography color="text.secondary">Loading operational overview...</Typography>
+        <Typography color="text.secondary">Loading dashboard...</Typography>
       </Stack>
     );
   }
 
+  const cpuPercent = clampPercent(live?.system.cpu_usage_percent ?? 0);
+  const ramPercent = clampPercent(live?.system.memory_used_percent ?? 0);
+  const onlineUsers = Math.max(0, live?.hysteria.online_count ?? 0);
+  const networkRx = Math.max(0, live?.system.network_rx_bps ?? 0);
+  const networkTx = Math.max(0, live?.system.network_tx_bps ?? 0);
+  const uptime = formatUptime(live?.system.uptime_seconds ?? 0);
+  const totalTraffic = Math.max(0, (live?.hysteria.total_rx_bytes ?? 0) + (live?.hysteria.total_tx_bytes ?? 0));
+
   return (
     <Stack spacing={3}>
-      <PageHeader
-        title="Overview"
-        actions={<Button variant="contained" startIcon={<RefreshRoundedIcon />} onClick={() => void load()}>Refresh</Button>}
-      />
+      <PageHeader title="Overview" />
 
       {error ? <Alert severity="error">{error}</Alert> : null}
-      {live?.errors?.length ? <Alert severity="warning">{live.errors.join(" | ")}</Alert> : null}
+      {warningMessages.length ? <Alert severity="warning">{warningMessages.join(" | ")}</Alert> : null}
 
-      <Grid container spacing={2}>
-        <Grid size={{ xs: 12, sm: 6, lg: 2 }}>
-          <MetricCard
-            label="Enabled Clients"
-            value={String(overview?.enabled_users ?? live?.hysteria.enabled_users ?? 0)}
-            caption="Configured access entries"
-            tone="primary"
-          />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, lg: 2 }}>
-          <MetricCard
-            label="Online Sessions"
-            value={String(overview?.online_count ?? live?.hysteria.online_count ?? 0)}
-            caption="Current Hysteria online count"
-            tone="success"
-          />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, lg: 2 }}>
-          <MetricCard
-            label="Total Upload"
-            value={formatBytes(overview?.total_tx_bytes ?? live?.hysteria.total_tx_bytes ?? 0)}
-            caption="Accumulated transmitted traffic"
-            tone="primary"
-          />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, lg: 2 }}>
-          <MetricCard
-            label="Total Download"
-            value={formatBytes(overview?.total_rx_bytes ?? live?.hysteria.total_rx_bytes ?? 0)}
-            caption="Accumulated received traffic"
-            tone="primary"
-          />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, lg: 2 }}>
-          <MetricCard
-            label="Connections TCP"
-            value={hasConnectionBreakdown ? String(tcpConnections) : "Unavailable"}
-            caption={hasConnectionBreakdown ? "Current Hysteria TCP connections" : "Protocol breakdown not published by live API"}
-            tone="secondary"
-          />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, lg: 2 }}>
-          <MetricCard
-            label="Connections UDP"
-            value={hasConnectionBreakdown ? String(udpConnections) : "Unavailable"}
-            caption={hasConnectionBreakdown ? "Current Hysteria UDP connections" : "Protocol breakdown not published by live API"}
-            tone="secondary"
-          />
-        </Grid>
-      </Grid>
+      <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+        <Chip
+          color="primary"
+          variant="outlined"
+          icon={<MemoryRoundedIcon />}
+          label={`CPU ${cpuPercent.toFixed(1)}%`}
+          sx={{ "& .MuiChip-label": { fontWeight: 600 } }}
+        />
+        <Chip
+          color="secondary"
+          variant="outlined"
+          icon={<StorageRoundedIcon />}
+          label={`RAM ${ramPercent.toFixed(1)}%`}
+          sx={{ "& .MuiChip-label": { fontWeight: 600 } }}
+        />
+        <Chip
+          color="success"
+          variant="outlined"
+          icon={<PeopleAltRoundedIcon />}
+          label={`Online ${onlineUsers}`}
+          sx={{ "& .MuiChip-label": { fontWeight: 600 } }}
+        />
+        <Chip
+          color="info"
+          variant="outlined"
+          icon={<RouterRoundedIcon />}
+          label={`Network in ${formatRate(networkRx)} | out ${formatRate(networkTx)}`}
+          sx={{ "& .MuiChip-label": { fontWeight: 600 } }}
+        />
+        <Chip
+          color="warning"
+          variant="outlined"
+          icon={<AccessTimeRoundedIcon />}
+          label={`Uptime ${uptime}`}
+          sx={{ "& .MuiChip-label": { fontWeight: 600 } }}
+        />
+        <Chip
+          color="primary"
+          variant="outlined"
+          icon={<DataUsageRoundedIcon />}
+          label={`Total Traffic ${formatBytes(totalTraffic)}`}
+          sx={{ "& .MuiChip-label": { fontWeight: 600 } }}
+        />
+      </Stack>
 
       <OverviewCharts
-        loading={loading}
-        trendPoints={trendPoints}
-        connectionsTCP={tcpConnections}
-        connectionsUDP={udpConnections}
-        connectionsBreakdownAvailable={hasConnectionBreakdown}
+        loading={loading && trendSamples.length <= 1}
+        samples={trendSamples}
+        range={chartRange}
+        onRangeChange={setChartRange}
       />
-
-      {live ? (
-        <Grid container spacing={2}>
-          <Grid size={{ xs: 12, lg: 7 }}>
-            <Card>
-              <CardContent>
-                <Stack spacing={2.25}>
-                  <Typography variant="h5">Host Runtime</Typography>
-
-                  <Stack spacing={0.8}>
-                    <Stack direction="row" justifyContent="space-between" alignItems="center">
-                      <Typography variant="body2" color="text.secondary">CPU utilization</Typography>
-                      <Typography variant="body2">{live.system.cpu_usage_percent.toFixed(1)}%</Typography>
-                    </Stack>
-                    <LinearProgress variant="determinate" value={Math.max(0, Math.min(100, live.system.cpu_usage_percent))} />
-                  </Stack>
-
-                  <Stack spacing={0.8}>
-                    <Stack direction="row" justifyContent="space-between" alignItems="center">
-                      <Typography variant="body2" color="text.secondary">Memory utilization</Typography>
-                      <Typography variant="body2">{live.system.memory_used_percent.toFixed(1)}%</Typography>
-                    </Stack>
-                    <LinearProgress color="secondary" variant="determinate" value={Math.max(0, Math.min(100, live.system.memory_used_percent))} />
-                  </Stack>
-
-                  <Grid container spacing={2}>
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <Typography variant="body2" color="text.secondary">Memory Used</Typography>
-                      <Typography variant="h6">{formatBytes(live.system.memory_used_bytes)}</Typography>
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <Typography variant="body2" color="text.secondary">Uptime</Typography>
-                      <Typography variant="h6">{formatUptime(live.system.uptime_seconds)}</Typography>
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <Typography variant="body2" color="text.secondary">Network In</Typography>
-                      <Typography variant="h6">{formatRate(live.system.network_rx_bps)}</Typography>
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <Typography variant="body2" color="text.secondary">Network Out</Typography>
-                      <Typography variant="h6">{formatRate(live.system.network_tx_bps)}</Typography>
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <Typography variant="body2" color="text.secondary">Connections TCP</Typography>
-                      <Typography variant="h6">{hasConnectionBreakdown ? String(tcpConnections) : "Unavailable"}</Typography>
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <Typography variant="body2" color="text.secondary">Connections UDP</Typography>
-                      <Typography variant="h6">{hasConnectionBreakdown ? String(udpConnections) : "Unavailable"}</Typography>
-                    </Grid>
-                  </Grid>
-
-                  <Typography variant="caption" color="text.secondary">Collected {formatDateTime(live.system.collected_at)} via {live.system.source}</Typography>
-                </Stack>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          <Grid size={{ xs: 12, lg: 5 }}>
-            <Card sx={{ height: "100%" }}>
-              <CardContent>
-                <Stack spacing={2}>
-                  <Typography variant="h5">Managed Services</Typography>
-                  {live.services.map((service) => (
-                    <Stack key={service.service_name} direction="row" justifyContent="space-between" alignItems="center">
-                      <Stack>
-                        <Typography sx={{ fontWeight: 600 }}>{service.service_name}</Typography>
-                        <Typography variant="caption" color="text.secondary">{formatDateTime(service.last_check_at)}</Typography>
-                      </Stack>
-                      <StatusChip status={service.status} />
-                    </Stack>
-                  ))}
-                  <Stack direction="row" spacing={1} sx={{ pt: 1 }}>
-                    <Chip label={`Source: ${live.hysteria.source}`} size="small" variant="outlined" />
-                    <Chip label={live.hysteria.is_stale ? "Snapshot" : "Live"} size="small" color={live.hysteria.is_stale ? "warning" : "success"} />
-                  </Stack>
-                </Stack>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-      ) : null}
     </Stack>
   );
 }
