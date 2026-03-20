@@ -34,7 +34,7 @@ export function SectionCard({
         </Stack>
         {actions}
       </Stack>
-      <Stack sx={[{ p: 2.25 }, contentSx]}>{children}</Stack>
+      <Stack sx={contentSx ? [{ p: 2.25 }, contentSx] : { p: 2.25 }}>{children}</Stack>
     </Paper>
   );
 }
