@@ -4,6 +4,7 @@ import {
   AppBar,
   Avatar,
   Box,
+  Button,
   Divider,
   Drawer,
   IconButton,
@@ -66,9 +67,16 @@ export function PanelShell({ children }: { children: ReactNode }) {
 
   const drawerContent = (
     <Stack sx={{ height: "100%" }}>
-      <Box sx={{ p: 2.5 }}>
-        <Stack direction="row" spacing={1.5} alignItems="center">
-          <Avatar sx={{ bgcolor: "primary.main", color: "primary.contrastText", width: 38, height: 38 }}>
+      <Toolbar sx={{ px: 2.25, minHeight: "76px !important" }}>
+        <Stack direction="row" spacing={1.25} alignItems="center">
+          <Avatar
+            sx={(theme) => ({
+              width: 38,
+              height: 38,
+              bgcolor: alpha(theme.palette.primary.main, 0.2),
+              color: theme.palette.primary.light,
+            })}
+          >
             <BoltRoundedIcon fontSize="small" />
           </Avatar>
           <Box>
@@ -76,9 +84,9 @@ export function PanelShell({ children }: { children: ReactNode }) {
             <Typography variant="caption" color="text.secondary">Admin Panel</Typography>
           </Box>
         </Stack>
-      </Box>
-      <Divider />
-      <List sx={{ px: 1.25, py: 1.5, flexGrow: 1 }}>
+      </Toolbar>
+      <Divider sx={{ borderColor: (theme) => alpha(theme.palette.divider, 0.6) }} />
+      <List sx={{ px: 1.5, py: 1.5, flexGrow: 1 }}>
         {navItems.map((item) => {
           const selected = pathname === item.href;
           return (
@@ -90,28 +98,48 @@ export function PanelShell({ children }: { children: ReactNode }) {
                 setMobileOpen(false);
               }}
               sx={(theme) => ({
-                mb: 0.5,
-                borderRadius: 2,
+                mb: 0.4,
+                borderRadius: 2.25,
+                minHeight: 44,
+                px: 1.35,
+                color: selected ? theme.palette.text.primary : theme.palette.text.secondary,
                 "&.Mui-selected": {
-                  backgroundColor: alpha(theme.palette.primary.main, 0.16),
-                  border: `1px solid ${alpha(theme.palette.primary.main, 0.4)}`,
+                  backgroundColor: alpha(theme.palette.primary.main, 0.18),
+                  boxShadow: `inset 0 0 0 1px ${alpha(theme.palette.primary.main, 0.45)}`,
+                  color: theme.palette.text.primary,
                 },
                 "&:hover": {
                   backgroundColor: alpha(theme.palette.primary.main, 0.1),
                 },
               })}
             >
-              <ListItemIcon sx={{ minWidth: 38, color: selected ? "primary.light" : "text.secondary" }}>{item.icon}</ListItemIcon>
+              <ListItemIcon sx={{ minWidth: 36, color: selected ? "primary.light" : "text.secondary" }}>{item.icon}</ListItemIcon>
               <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: selected ? 700 : 500 }} />
             </ListItemButton>
           );
         })}
       </List>
-      <Box sx={{ p: 1.5 }}>
-        <ListItemButton onClick={logout} sx={{ borderRadius: 2 }}>
-          <ListItemIcon sx={{ minWidth: 38 }}><LogoutRoundedIcon /></ListItemIcon>
-          <ListItemText primary="Sign out" />
-        </ListItemButton>
+      <Box sx={{ p: 1.5, pt: 0.5 }}>
+        <Button
+          variant="text"
+          color="inherit"
+          fullWidth
+          onClick={logout}
+          startIcon={<LogoutRoundedIcon />}
+          sx={(theme) => ({
+            justifyContent: "flex-start",
+            borderRadius: 2.25,
+            color: theme.palette.text.secondary,
+            px: 1.35,
+            py: 1,
+            "&:hover": {
+              backgroundColor: alpha(theme.palette.primary.main, 0.08),
+              color: theme.palette.text.primary,
+            },
+          })}
+        >
+          Sign out
+        </Button>
       </Box>
     </Stack>
   );
@@ -122,18 +150,24 @@ export function PanelShell({ children }: { children: ReactNode }) {
         position="fixed"
         elevation={0}
         sx={(theme) => ({
-          backdropFilter: "blur(10px)",
-          bgcolor: alpha(theme.palette.background.default, 0.9),
-          borderBottom: `1px solid ${alpha(theme.palette.divider, 0.9)}`,
+          backdropFilter: "blur(14px)",
+          backgroundImage: "none",
+          bgcolor: alpha(theme.palette.background.default, 0.84),
+          border: 0,
+          borderBottom: 0,
+          borderRadius: 0,
+          boxShadow: `inset 0 -1px 0 ${alpha(theme.palette.primary.main, 0.2)}`,
           width: desktop ? `calc(100% - ${drawerWidth}px)` : "100%",
           ml: desktop ? `${drawerWidth}px` : 0,
         })}
       >
-        <Toolbar sx={{ gap: 1 }}>
+        <Toolbar sx={{ gap: 1, minHeight: "76px !important", px: { xs: 1.25, sm: 2.5 } }}>
           {!desktop ? (
             <IconButton color="inherit" edge="start" onClick={() => setMobileOpen(true)}><MenuRoundedIcon /></IconButton>
           ) : null}
-          <Typography variant="h6" sx={{ fontWeight: 700, flexGrow: 1 }}>{activeTitle}</Typography>
+          <Box sx={{ flexGrow: 1 }}>
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>{activeTitle}</Typography>
+          </Box>
           <Tooltip title="Sign out">
             <IconButton color="inherit" onClick={logout}><LogoutRoundedIcon /></IconButton>
           </Tooltip>
@@ -151,8 +185,12 @@ export function PanelShell({ children }: { children: ReactNode }) {
           "& .MuiDrawer-paper": {
             width: drawerWidth,
             boxSizing: "border-box",
-            borderRight: `1px solid ${alpha(theme.palette.divider, 0.95)}`,
-            background: `linear-gradient(180deg, ${alpha(theme.palette.background.paper, 0.98)} 0%, ${alpha(theme.palette.background.default, 0.98)} 100%)`,
+            border: 0,
+            borderRight: 0,
+            borderRadius: 0,
+            boxShadow: `inset -1px 0 0 ${alpha(theme.palette.primary.main, 0.2)}`,
+            backgroundImage: "none",
+            backgroundColor: alpha(theme.palette.background.paper, 0.96),
           },
         })}
       >
