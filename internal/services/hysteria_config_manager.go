@@ -776,7 +776,7 @@ func parseServerMasquerade(m map[string]any) *Hy2ServerMasquerade {
 
 func normalizeSettings(input Hy2Settings) Hy2Settings {
 	settings := input
-	settings.Listen = strings.TrimSpace(settings.Listen)
+	settings.Listen = normalizeListenInput(settings.Listen)
 	settings.TLSMode = strings.ToLower(strings.TrimSpace(settings.TLSMode))
 
 	if settings.TLS != nil {
@@ -922,8 +922,8 @@ func normalizeSettings(input Hy2Settings) Hy2Settings {
 
 	settings.UDPIdleTimeout = strings.TrimSpace(settings.UDPIdleTimeout)
 	if settings.Bandwidth != nil {
-		settings.Bandwidth.Up = strings.TrimSpace(settings.Bandwidth.Up)
-		settings.Bandwidth.Down = strings.TrimSpace(settings.Bandwidth.Down)
+		settings.Bandwidth.Up = normalizeBandwidthInput(settings.Bandwidth.Up)
+		settings.Bandwidth.Down = normalizeBandwidthInput(settings.Bandwidth.Down)
 		if settings.Bandwidth.Up == "" && settings.Bandwidth.Down == "" {
 			settings.Bandwidth = nil
 		}
@@ -1078,10 +1078,10 @@ func validateSettings(input Hy2Settings) Hy2SettingsValidation {
 
 	if settings.Bandwidth != nil {
 		if settings.Bandwidth.Up != "" && !validBandwidthValue(settings.Bandwidth.Up) {
-			v.Errors = append(v.Errors, "bandwidth.up must use Hysteria bandwidth format (for example, 100 mbps)")
+			v.Errors = append(v.Errors, "bandwidth.up must be a positive value (for example, 100 or 100 mbps)")
 		}
 		if settings.Bandwidth.Down != "" && !validBandwidthValue(settings.Bandwidth.Down) {
-			v.Errors = append(v.Errors, "bandwidth.down must use Hysteria bandwidth format (for example, 200 mbps)")
+			v.Errors = append(v.Errors, "bandwidth.down must be a positive value (for example, 200 or 200 mbps)")
 		}
 	}
 	if settings.IgnoreClientBandwidth && settings.Bandwidth == nil {
@@ -1390,8 +1390,8 @@ func normalizeClientProfile(input Hy2ClientProfile) Hy2ClientProfile {
 	}
 
 	if profile.Bandwidth != nil {
-		profile.Bandwidth.Up = strings.TrimSpace(profile.Bandwidth.Up)
-		profile.Bandwidth.Down = strings.TrimSpace(profile.Bandwidth.Down)
+		profile.Bandwidth.Up = normalizeBandwidthInput(profile.Bandwidth.Up)
+		profile.Bandwidth.Down = normalizeBandwidthInput(profile.Bandwidth.Down)
 		if profile.Bandwidth.Up == "" && profile.Bandwidth.Down == "" {
 			profile.Bandwidth = nil
 		}
@@ -1547,10 +1547,10 @@ func resolveClientProfile(profile Hy2ClientProfile) (hy2ResolvedClientProfile, H
 
 	if resolved.Bandwidth != nil {
 		if resolved.Bandwidth.Up != "" && !validBandwidthValue(resolved.Bandwidth.Up) {
-			v.Errors = append(v.Errors, "profile.bandwidth.up must use Hysteria bandwidth format")
+			v.Errors = append(v.Errors, "profile.bandwidth.up must be a positive value (for example, 100 or 100 mbps)")
 		}
 		if resolved.Bandwidth.Down != "" && !validBandwidthValue(resolved.Bandwidth.Down) {
-			v.Errors = append(v.Errors, "profile.bandwidth.down must use Hysteria bandwidth format")
+			v.Errors = append(v.Errors, "profile.bandwidth.down must be a positive value (for example, 200 or 200 mbps)")
 		}
 	}
 
@@ -2204,6 +2204,20 @@ func trimStringStringMap(input map[string]string) map[string]string {
 	return out
 }
 
+func normalizeListenInput(raw string) string {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return ""
+	}
+	if strings.HasPrefix(value, ":") {
+		return value
+	}
+	if validPortUnion(value) {
+		return ":" + value
+	}
+	return value
+}
+
 func parseListen(listen string) (string, string, bool) {
 	value := strings.TrimSpace(listen)
 	if value == "" {
@@ -2430,6 +2444,49 @@ func validBandwidthValue(raw string) bool {
 		return false
 	}
 }
+
+func normalizeBandwidthInput(raw string) string {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return ""
+	}
+
+	compact := strings.ToLower(strings.ReplaceAll(value, " ", ""))
+	idx := 0
+	dotSeen := false
+	for idx < len(compact) {
+		ch := compact[idx]
+		if ch >= '0' && ch <= '9' {
+			idx++
+			continue
+		}
+		if ch == '.' && !dotSeen {
+			dotSeen = true
+			idx++
+			continue
+		}
+		break
+	}
+	if idx == 0 {
+		return value
+	}
+
+	number := compact[:idx]
+	unit := compact[idx:]
+	if unit == "" {
+		return number + " mbps"
+	}
+
+	switch unit {
+	case "b", "kb", "mb", "gb", "tb":
+		return number + " " + unit + "ps"
+	case "bps", "kbps", "mbps", "gbps", "tbps":
+		return number + " " + unit
+	default:
+		return value
+	}
+}
+
 func isValidAbsURL(raw string) bool {
 	parsed, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil {

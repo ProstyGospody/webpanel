@@ -204,6 +204,23 @@ auth:
 	}
 }
 
+func TestValidateSettingsAllowsBarePortListen(t *testing.T) {
+	manager := NewHysteriaConfigManager("/tmp/unused")
+	validation := manager.Validate(`listen: 443
+acme:
+  domains:
+    - hy2.example.com
+auth:
+  type: userpass
+  userpass: {}`)
+	if !validation.Valid {
+		t.Fatalf("expected bare listen port to be valid, got errors: %#v", validation.Errors)
+	}
+	if validation.Summary.Listen != ":443" {
+		t.Fatalf("expected normalized listen :443, got: %s", validation.Summary.Listen)
+	}
+}
+
 func TestValidateSettingsSupportsCommandAuth(t *testing.T) {
 	manager := NewHysteriaConfigManager("/tmp/unused")
 	validation := manager.Validate(`listen: :443
@@ -235,7 +252,7 @@ auth:
 		TLSMode:               "acme",
 		ACME:                  &Hy2ServerACME{Domains: []string{"hy2.example.com"}, Email: "admin@example.com"},
 		Auth:                  Hy2ServerAuth{Type: "password", Password: "new-secret"},
-		Bandwidth:             &Hy2ServerBandwidth{Up: "100 mbps", Down: "200 mbps"},
+		Bandwidth:             &Hy2ServerBandwidth{Up: "100", Down: "200"},
 		IgnoreClientBandwidth: true,
 		DisableUDP:            false,
 		UDPIdleTimeout:        "90s",

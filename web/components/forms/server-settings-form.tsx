@@ -39,6 +39,7 @@ export function ServerSettingsForm({
             value={draft.listen}
             onChange={(event) => onDraftChange({ ...draft, listen: event.target.value })}
             fullWidth
+            helperText="You can enter just 443 (auto: :443)"
           />
         </Grid>
         <Grid size={{ xs: 12, md: 4 }}>
@@ -180,7 +181,6 @@ export function ServerSettingsForm({
                   onChange={(event) => onDraftChange({ ...draft, bandwidth: { up: event.target.value, down: draft.bandwidth?.down || "" } })}
                   fullWidth
                   placeholder="100 mbps"
-                  helperText="Hysteria format: 100 mbps / 1 gbps"
                 />
               </Grid>
               <Grid size={{ xs: 12, md: 4 }}>
@@ -190,7 +190,6 @@ export function ServerSettingsForm({
                   onChange={(event) => onDraftChange({ ...draft, bandwidth: { up: draft.bandwidth?.up || "", down: event.target.value } })}
                   fullWidth
                   placeholder="200 mbps"
-                  helperText="Hysteria format: 200 mbps / 2 gbps"
                 />
               </Grid>
             </Grid>
