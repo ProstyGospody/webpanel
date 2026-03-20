@@ -90,20 +90,6 @@ func (r *Repository) UpsertServiceState(ctx context.Context, serviceName string,
 	})
 }
 
-func (r *Repository) ListServiceStates(ctx context.Context) ([]ServiceState, error) {
-	var out []ServiceState
-	err := r.withLock(ctx, func() error {
-		states, err := r.loadServiceStatesNoLock()
-		if err != nil {
-			return err
-		}
-		sort.Slice(states, func(i, j int) bool { return states[i].ServiceName < states[j].ServiceName })
-		out = states
-		return nil
-	})
-	return out, err
-}
-
 func (r *Repository) GetServiceState(ctx context.Context, serviceName string) (ServiceState, error) {
 	var out ServiceState
 	err := r.withLock(ctx, func() error {

@@ -1,5 +1,3 @@
-import { ValidationError } from "@/types/common";
-
 export type ClientOverrides = {
   sni?: string;
   insecure?: boolean;
@@ -82,9 +80,4 @@ export type HysteriaClientUpdateRequest = {
   note?: string;
   auth_secret?: string;
   client_overrides?: ClientOverrides;
-};
-
-export type APIValidationErrorPayload = {
-  error: string;
-  details?: ValidationError[];
 };

@@ -29,19 +29,6 @@ func (r *Repository) GetAdminByEmail(ctx context.Context, email string) (Admin, 
 	return out, err
 }
 
-func (r *Repository) GetAdminByID(ctx context.Context, id string) (Admin, error) {
-	var out Admin
-	err := r.withLock(ctx, func() error {
-		admin, err := r.loadAdminNoLock(id)
-		if err != nil {
-			return err
-		}
-		out = admin
-		return nil
-	})
-	return out, err
-}
-
 func (r *Repository) UpsertAdmin(ctx context.Context, email string, passwordHash string, isActive bool) (Admin, error) {
 	var out Admin
 	err := r.withLock(ctx, func() error {

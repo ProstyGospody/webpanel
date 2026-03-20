@@ -50,13 +50,6 @@ export function setClientEnabled(clientID: string, enabled: boolean): Promise<{ 
   });
 }
 
-export function kickClient(clientID: string): Promise<{ ok: boolean }> {
-  return apiFetch<{ ok: boolean }>(`/api/hysteria/users/${clientID}/kick`, {
-    method: "POST",
-    body: JSON.stringify({}),
-  });
-}
-
 export function qrURL(clientID: string, size = 360): string {
   return `/api/hysteria/users/${clientID}/qr?size=${size}`;
 }

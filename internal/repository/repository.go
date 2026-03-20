@@ -37,8 +37,6 @@ type Repository struct {
 	runDir               string
 	lockPath             string
 	metaPath             string
-	legacyClientsDir     string
-	legacyHy2AccountsDir string
 }
 
 type metaState struct {
@@ -77,8 +75,6 @@ func New(storageRoot string, auditDir string, runDir string) (*Repository, error
 		runDir:               runDir,
 		lockPath:             filepath.Join(runDir, "locks", "repository.lock"),
 		metaPath:             filepath.Join(storageRoot, "state", "meta.json"),
-		legacyClientsDir:     filepath.Join(storageRoot, "state", "clients"),
-		legacyHy2AccountsDir: filepath.Join(storageRoot, "state", "hy2-accounts"),
 	}
 	if err := r.ensureLayout(); err != nil {
 		return nil, err
@@ -265,8 +261,6 @@ func cleanOptional(value *string) *string {
 
 func adminPath(dir string, id string) string { return filepath.Join(dir, strings.TrimSpace(id)+".json") }
 func sessionPath(dir string, id string) string { return filepath.Join(dir, strings.TrimSpace(id)+".json") }
-func legacyClientPath(dir string, id string) string { return filepath.Join(dir, strings.TrimSpace(id)+".json") }
-func legacyHy2AccountPath(dir string, id string) string { return filepath.Join(dir, strings.TrimSpace(id)+".json") }
 func hysteriaUserPath(dir string, id string) string { return filepath.Join(dir, strings.TrimSpace(id)+".json") }
 
 func serviceStatePath(dir string, serviceName string) string {
@@ -280,18 +274,3 @@ func numericJSONFile(id int64) string {
 
 func IsNotFound(err error) bool { return errors.Is(err, ErrNotFound) }
 func IsUniqueViolation(err error) bool { return errors.Is(err, ErrUniqueViolation) }
-
-func normalizeJSONDocument(raw string) string {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return "{}"
-	}
-	if json.Valid([]byte(trimmed)) {
-		return trimmed
-	}
-	encoded, err := json.Marshal(map[string]any{"format": "text/plain", "raw": trimmed})
-	if err != nil {
-		return "{}"
-	}
-	return string(encoded)
-}

@@ -30,7 +30,6 @@ func RequireAuth(cfg config.Config, repo *repository.Repository, logger *slog.Lo
 			}
 
 			ctx := WithAdmin(r.Context(), admin)
-			ctx = WithSession(ctx, session)
 			r = r.WithContext(ctx)
 
 			go touchSessionAsync(context.Background(), repo, logger, session.ID)

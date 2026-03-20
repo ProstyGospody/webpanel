@@ -145,24 +145,6 @@ func (r *Repository) UpdateHysteriaUser(ctx context.Context, id string, username
 	})
 	return out, err
 }
-func (r *Repository) RestoreHysteriaUser(ctx context.Context, user HysteriaUser) error {
-	return r.withLock(ctx, func() error {
-		users, err := r.loadHysteriaUsersNoLock()
-		if err != nil {
-			return err
-		}
-		for _, candidate := range users {
-			if candidate.ID == user.ID {
-				continue
-			}
-			if candidate.UsernameNormalized == user.UsernameNormalized {
-				return ErrUniqueViolation
-			}
-		}
-		return r.writeHysteriaUserNoLock(user)
-	})
-}
-
 func (r *Repository) DeleteHysteriaUser(ctx context.Context, id string) error {
 	return r.withLock(ctx, func() error {
 		if _, err := r.loadHysteriaUserNoLock(id); err != nil {

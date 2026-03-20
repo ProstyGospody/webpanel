@@ -59,10 +59,6 @@ func NewRouter(
 			secured.Post("/hysteria/users/{id}/kick", h.KickHysteriaUser)
 			secured.Get("/hysteria/stats/overview", h.HysteriaStatsOverview)
 			secured.Get("/hysteria/stats/history", h.HysteriaStatsHistory)
-			secured.Get("/hysteria/config", h.GetHysteriaConfig)
-			secured.Post("/hysteria/config/validate", h.ValidateHysteriaConfig)
-			secured.Put("/hysteria/config", h.SaveHysteriaConfig)
-			secured.Post("/hysteria/config/apply", h.ApplyHysteriaConfig)
 			secured.Get("/hysteria/settings", h.GetHysteriaSettings)
 			secured.Post("/hysteria/settings/validate", h.ValidateHysteriaSettings)
 			secured.Put("/hysteria/settings", h.SaveHysteriaSettings)
@@ -73,7 +69,6 @@ func NewRouter(
 			secured.Post("/services/{name}/restart", h.RestartService)
 			secured.Post("/services/{name}/reload", h.ReloadService)
 
-			secured.Get("/system/metrics", h.GetSystemMetrics)
 			secured.Get("/system/live", h.GetSystemLive)
 
 			secured.Get("/audit", h.ListAudit)

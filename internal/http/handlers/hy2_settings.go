@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strings"
 
 	auditdomain "proxy-panel/internal/domain/audit"
 	"proxy-panel/internal/http/render"
@@ -147,5 +148,36 @@ func (h *Handler) SaveHysteriaSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ApplyHysteriaSettings(w http.ResponseWriter, r *http.Request) {
-	h.ApplyHysteriaConfig(w, r)
+	if h.hy2ConfigManager == nil {
+		h.renderError(w, http.StatusInternalServerError, "runtime", "hysteria config manager is not configured", nil)
+		return
+	}
+	if _, err := h.hysteriaAccess.Sync(r.Context()); err != nil {
+		h.renderError(w, http.StatusBadRequest, "sync", "failed to synchronize hysteria config", nil)
+		return
+	}
+	content, err := h.hy2ConfigManager.Read()
+	if err != nil {
+		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to read hysteria config", nil)
+		return
+	}
+	configValidation := h.hy2ConfigManager.Validate(content)
+	if !configValidation.Valid {
+		h.renderError(w, http.StatusBadRequest, "validation", "current hysteria config is invalid", configValidation)
+		return
+	}
+	if err := h.serviceManager.Restart(r.Context(), "hysteria-server"); err != nil {
+		h.renderError(w, http.StatusBadRequest, "service", "failed to restart hysteria-server: "+strings.TrimSpace(err.Error()), nil)
+		return
+	}
+	status, statusErr := h.serviceManager.Status(r.Context(), "hysteria-server")
+	if statusErr == nil {
+		_ = h.repo.UpsertServiceState(r.Context(), "hysteria-server", status.StatusText, nil, h.serviceManager.ToJSON(status))
+	}
+	h.audit(r, "hysteria.settings.apply", auditdomain.EntityService, nil, map[string]any{"service": "hysteria-server"})
+	if statusErr != nil {
+		render.JSON(w, http.StatusOK, map[string]any{"ok": true, "config_validation": configValidation})
+		return
+	}
+	render.JSON(w, http.StatusOK, map[string]any{"ok": true, "config_validation": configValidation, "service": status})
 }

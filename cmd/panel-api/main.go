@@ -67,7 +67,7 @@ func run() int {
 }
 
 func runServe(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
-	repo, err := app.OpenRepository(ctx, cfg)
+	repo, err := app.OpenRepository(cfg)
 	if err != nil {
 		return err
 	}

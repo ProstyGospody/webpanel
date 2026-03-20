@@ -43,20 +43,6 @@ type liveHy2Overview struct {
 	IsStale      bool      `json:"is_stale"`
 }
 
-func (h *Handler) GetSystemMetrics(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 4*time.Second)
-	defer cancel()
-
-	snapshot, _, _, _, err := h.collectSystemMetrics(ctx)
-	if err != nil {
-		h.logger.Warn("failed to collect system metrics", "error", err)
-		render.Error(w, http.StatusServiceUnavailable, "failed to collect system metrics")
-		return
-	}
-
-	render.JSON(w, http.StatusOK, snapshot)
-}
-
 func (h *Handler) GetSystemLive(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 6*time.Second)
 	defer cancel()

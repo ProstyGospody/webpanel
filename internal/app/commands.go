@@ -10,20 +10,16 @@ import (
 	"proxy-panel/internal/security"
 )
 
-func OpenRepository(ctx context.Context, cfg config.Config) (*repository.Repository, error) {
+func OpenRepository(cfg config.Config) (*repository.Repository, error) {
 	repo, err := repository.New(cfg.StorageRoot, cfg.AuditDir, cfg.RuntimeDir)
 	if err != nil {
-		return nil, err
-	}
-	if err := repo.MigrateAccessModel(ctx); err != nil {
-		_ = repo.Close()
 		return nil, err
 	}
 	return repo, nil
 }
 
 func BootstrapAdmin(ctx context.Context, cfg config.Config, email string, password string) error {
-	repo, err := OpenRepository(ctx, cfg)
+	repo, err := OpenRepository(cfg)
 	if err != nil {
 		return err
 	}

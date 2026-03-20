@@ -142,20 +142,6 @@ func (h *Handler) parsePagination(r *http.Request) (limit int, offset int) {
 	return
 }
 
-func (h *Handler) parseBool(raw string) *bool {
-	raw = strings.TrimSpace(strings.ToLower(raw))
-	switch raw {
-	case "1", "true", "yes", "on":
-		v := true
-		return &v
-	case "0", "false", "no", "off":
-		v := false
-		return &v
-	default:
-		return nil
-	}
-}
-
 func (h *Handler) audit(r *http.Request, action string, entityType string, entityID *string, payload any) {
 	admin, ok := middleware.AdminFromContext(r.Context())
 	var adminID *string

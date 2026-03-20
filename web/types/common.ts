@@ -1,5 +1,3 @@
-export type ValidationError = { field: string; message: string };
-
 export type ServiceSummary = {
   id?: number;
   service_name: string;
