@@ -25,13 +25,17 @@ type OverviewChartsProps = {
   onRangeChange: (range: DashboardChartRange) => void;
 };
 
-type PreparedPoint = {
+type ChartPoint = {
   timestampMs: number;
-  date: Date;
   cpuUsagePercent: number;
   memoryUsedPercent: number;
   networkRxBps: number;
   networkTxBps: number;
+};
+
+type AxisValueFormatterContext = {
+  location?: "tick" | "tooltip";
+  defaultTickLabel?: string;
 };
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -44,6 +48,42 @@ function clampPercent(value: number): number {
   return Math.max(0, Math.min(100, value));
 }
 
+function parseTimestamp(raw: string): number | null {
+  const ms = Date.parse(raw || "");
+  if (Number.isNaN(ms)) {
+    return null;
+  }
+  return ms;
+}
+
+function parseAxisValue(value: unknown): number | null {
+  if (value instanceof Date) {
+    const ms = value.getTime();
+    return Number.isNaN(ms) ? null : ms;
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === "string") {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric) && /^\d+$/.test(value.trim())) {
+      return numeric;
+    }
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+  if (typeof value === "object" && value !== null && "valueOf" in value) {
+    const primitive = (value as { valueOf: () => unknown }).valueOf();
+    if (typeof primitive === "number" && Number.isFinite(primitive)) {
+      return primitive;
+    }
+    if (typeof primitive === "string") {
+      return parseAxisValue(primitive);
+    }
+  }
+  return null;
+}
+
 function formatClock(date: Date): string {
   return date.toLocaleTimeString([], {
     hour: "2-digit",
@@ -52,44 +92,95 @@ function formatClock(date: Date): string {
   });
 }
 
+function formatTooltipClock(date: Date): string {
+  return date.toLocaleString([], {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+function formatAxisTime(value: unknown, context?: AxisValueFormatterContext): string {
+  const timestampMs = parseAxisValue(value);
+  if (timestampMs === null) {
+    return typeof context?.defaultTickLabel === "string" ? context.defaultTickLabel : "";
+  }
+
+  const date = new Date(timestampMs);
+  if (Number.isNaN(date.getTime())) {
+    return typeof context?.defaultTickLabel === "string" ? context.defaultTickLabel : "";
+  }
+
+  if (context?.location === "tooltip") {
+    return formatTooltipClock(date);
+  }
+  return formatClock(date);
+}
+
 function downsample<T>(items: T[], maxPoints: number): T[] {
   if (items.length <= maxPoints) {
     return items;
   }
-
   const step = Math.ceil(items.length / maxPoints);
   return items.filter((_, index) => index % step === 0 || index === items.length - 1);
 }
 
-function asTimeLabel(value: unknown): string {
-  let date: Date;
-  if (value instanceof Date) {
-    date = value;
-  } else if (typeof value === "number") {
-    date = new Date(value);
-  } else if (typeof value === "string") {
-    const asNumber = Number(value);
-    date = Number.isFinite(asNumber) && /^\d+$/.test(value.trim()) ? new Date(asNumber) : new Date(value);
-  } else {
-    date = new Date(Number.NaN);
+function buildRangePoints(samples: SystemTrendSample[], rangeStartMs: number, rangeEndMs: number): ChartPoint[] {
+  const prepared = samples
+    .map((sample) => {
+      const timestampMs = parseTimestamp(sample.timestamp);
+      if (timestampMs === null || timestampMs < rangeStartMs || timestampMs > rangeEndMs) {
+        return null;
+      }
+
+      return {
+        timestampMs,
+        cpuUsagePercent: clampPercent(sample.cpu_usage_percent),
+        memoryUsedPercent: clampPercent(sample.memory_used_percent),
+        networkRxBps: Math.max(0, sample.network_rx_bps || 0),
+        networkTxBps: Math.max(0, sample.network_tx_bps || 0),
+      } as ChartPoint;
+    })
+    .filter((point): point is ChartPoint => point !== null)
+    .sort((a, b) => a.timestampMs - b.timestampMs);
+
+  if (prepared.length === 0) {
+    return [];
   }
 
-  if (Number.isNaN(date.getTime())) {
-    return "";
+  const output = [...prepared];
+  const first = output[0];
+  const last = output[output.length - 1];
+
+  if (first.timestampMs > rangeStartMs) {
+    output.unshift({
+      ...first,
+      timestampMs: rangeStartMs,
+    });
   }
-  return formatClock(date);
+
+  if (last.timestampMs < rangeEndMs) {
+    output.push({
+      ...last,
+      timestampMs: rangeEndMs,
+    });
+  }
+
+  return output;
 }
 
 function chartStyleSx(theme: Theme) {
   return {
     "& .MuiChartsAxis-line, & .MuiChartsAxis-tick": {
-      stroke: alpha(theme.palette.primary.main, 0.28),
+      stroke: alpha(theme.palette.primary.main, 0.3),
     },
     "& .MuiChartsGrid-line": {
-      stroke: alpha(theme.palette.primary.main, 0.18),
+      stroke: alpha(theme.palette.primary.main, 0.16),
     },
     "& .MuiChartsAxis-tickLabel": {
-      fill: alpha(theme.palette.text.primary, 0.94),
+      fill: alpha(theme.palette.text.primary, 0.92),
       fontSize: 11,
     },
     "& .MuiChartsLegend-label": {
@@ -98,65 +189,40 @@ function chartStyleSx(theme: Theme) {
       fontSize: 12,
     },
     "& .MuiLineElement-root": {
-      strokeWidth: 2.2,
+      strokeWidth: 2.15,
     },
     "& .MuiAreaElement-root": {
-      fillOpacity: 0.14,
+      fillOpacity: 0.13,
     },
     "& .MuiAreaElement-series-download": {
-      fillOpacity: 0.18,
+      fillOpacity: 0.19,
     },
     "& .MuiAreaElement-series-upload": {
       fillOpacity: 0.12,
     },
     "& .MuiLineElement-series-upload": {
-      strokeDasharray: "5 4",
-    },
-    "& .MuiMarkElement-root": {
-      strokeWidth: 2.1,
-      fill: theme.palette.background.paper,
+      strokeDasharray: "6 4",
     },
     "& .MuiChartsLegend-root": {
       display: "flex",
       justifyContent: "center",
-      "& .MuiChartsLegend-series": {
-        gap: 8,
-      },
     },
   };
 }
 
 export function OverviewCharts({ loading, samples, range, onRangeChange }: OverviewChartsProps) {
+  const rangeMs = range === "24h" ? DAY_MS : HOUR_MS;
+  const rangeEndMs = Date.now();
+  const rangeStartMs = rangeEndMs - rangeMs;
+
   const points = useMemo(() => {
-    const rangeMs = range === "24h" ? DAY_MS : HOUR_MS;
-    const cutoff = Date.now() - rangeMs;
-
-    const prepared = samples
-      .map((sample) => {
-        const timestampMs = Date.parse(sample.timestamp);
-        if (Number.isNaN(timestampMs)) {
-          return null;
-        }
-
-        return {
-          timestampMs,
-          date: new Date(timestampMs),
-          cpuUsagePercent: clampPercent(sample.cpu_usage_percent),
-          memoryUsedPercent: clampPercent(sample.memory_used_percent),
-          networkRxBps: Math.max(0, sample.network_rx_bps || 0),
-          networkTxBps: Math.max(0, sample.network_tx_bps || 0),
-        } as PreparedPoint;
-      })
-      .filter((point): point is PreparedPoint => point !== null)
-      .filter((point) => point.timestampMs >= cutoff)
-      .sort((a, b) => a.timestampMs - b.timestampMs);
-
-    return downsample(prepared, range === "24h" ? 960 : 720);
-  }, [samples, range]);
+    const prepared = buildRangePoints(samples, rangeStartMs, rangeEndMs);
+    return downsample(prepared, range === "24h" ? 1200 : 900);
+  }, [samples, range, rangeStartMs, rangeEndMs]);
 
   const hasTrend = points.length > 1;
-  const xAxisData = points.map((point) => point.date);
-  const xAxisTickNumber = range === "24h" ? 6 : 5;
+  const xAxisData = points.map((point) => point.timestampMs);
+  const xAxisTickNumber = range === "24h" ? 7 : 6;
 
   const handleRangeChange = (_event: MouseEvent<HTMLElement>, nextRange: DashboardChartRange | null) => {
     if (nextRange) {
@@ -213,15 +279,15 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                 ) : (
                   <LineChart
                     height={320}
-                    margin={{ top: 34, right: 16, bottom: 44, left: 66 }}
-                    colors={["#2ED8C3", "#FFB02E"]}
+                    margin={{ top: 34, right: 16, bottom: 40, left: 66 }}
+                    colors={["#2EE2CD", "#FFC24D"]}
                     sx={chartStyleSx}
                     xAxis={[
                       {
                         data: xAxisData,
                         scaleType: "time",
                         tickNumber: xAxisTickNumber,
-                        valueFormatter: asTimeLabel,
+                        valueFormatter: formatAxisTime,
                       },
                     ]}
                     yAxis={[
@@ -269,15 +335,15 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                 ) : (
                   <LineChart
                     height={290}
-                    margin={{ top: 30, right: 16, bottom: 44, left: 54 }}
-                    colors={["#4DA3FF"]}
+                    margin={{ top: 30, right: 16, bottom: 40, left: 54 }}
+                    colors={["#4FA3FF"]}
                     sx={chartStyleSx}
                     xAxis={[
                       {
                         data: xAxisData,
                         scaleType: "time",
                         tickNumber: xAxisTickNumber,
-                        valueFormatter: asTimeLabel,
+                        valueFormatter: formatAxisTime,
                       },
                     ]}
                     yAxis={[
@@ -318,15 +384,15 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                 ) : (
                   <LineChart
                     height={290}
-                    margin={{ top: 30, right: 16, bottom: 44, left: 54 }}
-                    colors={["#58D68D"]}
+                    margin={{ top: 30, right: 16, bottom: 40, left: 54 }}
+                    colors={["#58D98C"]}
                     sx={chartStyleSx}
                     xAxis={[
                       {
                         data: xAxisData,
                         scaleType: "time",
                         tickNumber: xAxisTickNumber,
-                        valueFormatter: asTimeLabel,
+                        valueFormatter: formatAxisTime,
                       },
                     ]}
                     yAxis={[

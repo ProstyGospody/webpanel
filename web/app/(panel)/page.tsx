@@ -108,8 +108,8 @@ export default function DashboardPage() {
   const historyLoadedRef = useRef(false);
   const loadingRef = useRef(false);
 
-  const loadHistory = useCallback(async () => {
-    if (historyLoadedRef.current) {
+  const loadHistory = useCallback(async (force?: boolean) => {
+    if (historyLoadedRef.current && !force) {
       return;
     }
 
@@ -119,10 +119,10 @@ export default function DashboardPage() {
         .map((item) => normalizeTrendSample(item))
         .filter((item): item is SystemTrendSample => item !== null);
       setTrendSamples((current) => mergeTrendSamples(current, items));
+      historyLoadedRef.current = true;
     } catch {
       // Keep dashboard functional even if history endpoint is temporarily unavailable.
-    } finally {
-      historyLoadedRef.current = true;
+      historyLoadedRef.current = false;
     }
   }, []);
 
@@ -147,7 +147,19 @@ export default function DashboardPage() {
 
   useEffect(() => {
     void loadHistory();
+    const retryTimer = setInterval(() => {
+      if (!historyLoadedRef.current) {
+        void loadHistory(true);
+      }
+    }, 20000);
+    return () => clearInterval(retryTimer);
   }, [loadHistory]);
+
+  useEffect(() => {
+    if (chartRange === "24h" && !historyLoadedRef.current) {
+      void loadHistory(true);
+    }
+  }, [chartRange, loadHistory]);
 
   useEffect(() => {
     void load();
