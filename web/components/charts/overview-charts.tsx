@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { MouseEvent } from "react";
 
-import { Card, CardContent, FormControl, Grid, MenuItem, Select, Stack, ToggleButton, ToggleButtonGroup, Typography } from "@mui/material";
-import { alpha, type Theme } from "@mui/material/styles";
+import { Card, CardContent, Grid, Stack, ToggleButton, ToggleButtonGroup, Typography } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import { LineChart } from "@mui/x-charts/LineChart";
 
 import { EmptyState, LoadingState } from "@/components/ui/state-message";
@@ -37,52 +37,6 @@ type PreparedPoint = {
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 
-type NetworkScaleMode = "absolute" | "percent";
-type NetworkPaletteMode = "mui-material" | "mui-system" | "mui-x";
-
-const NETWORK_PALETTES: Record<NetworkPaletteMode, { rx: string; tx: string; total: string }> = {
-  "mui-material": { rx: "#4f63ff", tx: "#ffc531", total: "#ff5f78" },
-  "mui-system": { rx: "#3bb6ff", tx: "#74da8f", total: "#ff9f47" },
-  "mui-x": { rx: "#8268ff", tx: "#3dd9c0", total: "#ff6ca7" },
-};
-
-const chartCardSx = (theme: Theme) => ({
-  position: "relative",
-  overflow: "hidden",
-  borderColor: alpha(theme.palette.primary.light, 0.32),
-  backgroundColor: alpha(theme.palette.background.paper, 0.78),
-  backgroundImage: [
-    `radial-gradient(circle at 14% 10%, ${alpha("#1f7fff", 0.18)} 0%, transparent 52%)`,
-    `radial-gradient(circle at 88% 2%, ${alpha("#54b9ff", 0.14)} 0%, transparent 42%)`,
-    `linear-gradient(180deg, ${alpha("#071428", 0.96)} 0%, ${alpha("#050f1f", 0.98)} 100%)`,
-  ].join(","),
-  "&::before": {
-    content: "\"\"",
-    position: "absolute",
-    inset: 0,
-    borderRadius: "inherit",
-    pointerEvents: "none",
-    boxShadow: `inset 0 1px 0 ${alpha(theme.palette.common.white, 0.06)}`,
-  },
-});
-
-const chartCanvasSx = {
-  "& .MuiLineElement-root": {
-    strokeWidth: 2.2,
-  },
-  "& .MuiAreaElement-root": {
-    fillOpacity: 0.17,
-  },
-};
-
-const selectSx = (theme: Theme) => ({
-  minWidth: 180,
-  "& .MuiOutlinedInput-root": {
-    borderRadius: 12,
-    backgroundColor: alpha(theme.palette.background.default, 0.62),
-  },
-});
-
 function clampPercent(value: number): number {
   if (!Number.isFinite(value)) {
     return 0;
@@ -116,9 +70,6 @@ function asTimeLabel(value: unknown): string {
 }
 
 export function OverviewCharts({ loading, samples, range, onRangeChange }: OverviewChartsProps) {
-  const [networkScaleMode, setNetworkScaleMode] = useState<NetworkScaleMode>("absolute");
-  const [networkPaletteMode, setNetworkPaletteMode] = useState<NetworkPaletteMode>("mui-material");
-
   const points = useMemo(() => {
     const rangeMs = range === "24h" ? DAY_MS : HOUR_MS;
     const cutoff = Date.now() - rangeMs;
@@ -148,32 +99,6 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
 
   const hasTrend = points.length > 1;
   const xAxisData = points.map((point) => point.date);
-  const networkPalette = NETWORK_PALETTES[networkPaletteMode];
-
-  const networkPeak = useMemo(() => {
-    if (points.length === 0) {
-      return 1;
-    }
-    return points.reduce((maxValue, point) => {
-      const total = point.networkRxBps + point.networkTxBps;
-      return Math.max(maxValue, point.networkRxBps, point.networkTxBps, total);
-    }, 1);
-  }, [points]);
-
-  const networkSeriesData = useMemo(() => {
-    const toScale = (value: number): number => {
-      if (networkScaleMode === "percent") {
-        return (value / networkPeak) * 100;
-      }
-      return value;
-    };
-
-    return {
-      rx: points.map((point) => toScale(point.networkRxBps)),
-      tx: points.map((point) => toScale(point.networkTxBps)),
-      total: points.map((point) => toScale(point.networkRxBps + point.networkTxBps)),
-    };
-  }, [networkPeak, networkScaleMode, points]);
 
   const handleRangeChange = (_event: MouseEvent<HTMLElement>, nextRange: DashboardChartRange | null) => {
     if (nextRange) {
@@ -219,34 +144,18 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
 
       <Grid container spacing={2}>
         <Grid size={{ xs: 12 }}>
-          <Card sx={(theme) => ({ ...chartCardSx(theme), height: "100%" })}>
-            <CardContent sx={{ p: { xs: 2, md: 2.5 } }}>
-              <Stack spacing={1.75}>
-                <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25} justifyContent="space-between" alignItems={{ xs: "stretch", sm: "center" }}>
-                  <FormControl size="small" sx={(theme) => selectSx(theme)}>
-                    <Select value={networkPaletteMode} onChange={(event) => setNetworkPaletteMode(event.target.value as NetworkPaletteMode)}>
-                      <MenuItem value="mui-material">@mui/material</MenuItem>
-                      <MenuItem value="mui-system">@mui/system</MenuItem>
-                      <MenuItem value="mui-x">@mui/x-charts</MenuItem>
-                    </Select>
-                  </FormControl>
-                  <FormControl size="small" sx={(theme) => ({ ...selectSx(theme), minWidth: 150 })}>
-                    <Select value={networkScaleMode} onChange={(event) => setNetworkScaleMode(event.target.value as NetworkScaleMode)}>
-                      <MenuItem value="absolute">Absolute</MenuItem>
-                      <MenuItem value="percent">Percent</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Stack>
+          <Card sx={{ height: "100%" }}>
+            <CardContent>
+              <Stack spacing={1.5}>
+                <Typography variant="h6">Network</Typography>
                 {loading && !hasTrend ? (
                   <LoadingState message="Loading network trend..." minHeight={300} />
                 ) : !hasTrend ? (
                   <EmptyState title="No network data yet" description="Real-time points will appear after automatic polling." minHeight={300} />
                 ) : (
                   <LineChart
-                    sx={chartCanvasSx}
-                    colors={[networkPalette.rx, networkPalette.tx, networkPalette.total]}
-                    height={420}
-                    margin={{ top: 28, right: 18, bottom: 36, left: 66 }}
+                    height={320}
+                    margin={{ top: 24, right: 16, bottom: 30, left: 66 }}
                     xAxis={[
                       {
                         data: xAxisData,
@@ -256,49 +165,27 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                     ]}
                     yAxis={[
                       {
-                        min: 0,
-                        valueFormatter: (value) =>
-                          networkScaleMode === "percent"
-                            ? `${Math.max(0, Math.round(Number(value) || 0))}%`
-                            : formatRate(Number(value) || 0),
+                        valueFormatter: (value) => formatRate(Number(value) || 0),
                       },
                     ]}
                     series={[
                       {
                         id: "download",
-                        label: "RX",
+                        label: "Download",
                         curve: "monotoneX",
                         showMark: false,
                         area: true,
-                        data: networkSeriesData.rx,
-                        valueFormatter: (value) =>
-                          networkScaleMode === "percent"
-                            ? `${clampPercent(Number(value) || 0).toFixed(1)}%`
-                            : formatRate(Number(value) || 0),
+                        data: points.map((point) => point.networkRxBps),
+                        valueFormatter: (value) => formatRate(Number(value) || 0),
                       },
                       {
                         id: "upload",
-                        label: "TX",
+                        label: "Upload",
                         curve: "monotoneX",
                         showMark: false,
                         area: true,
-                        data: networkSeriesData.tx,
-                        valueFormatter: (value) =>
-                          networkScaleMode === "percent"
-                            ? `${clampPercent(Number(value) || 0).toFixed(1)}%`
-                            : formatRate(Number(value) || 0),
-                      },
-                      {
-                        id: "total",
-                        label: "TOTAL",
-                        curve: "monotoneX",
-                        showMark: false,
-                        area: true,
-                        data: networkSeriesData.total,
-                        valueFormatter: (value) =>
-                          networkScaleMode === "percent"
-                            ? `${clampPercent(Number(value) || 0).toFixed(1)}%`
-                            : formatRate(Number(value) || 0),
+                        data: points.map((point) => point.networkTxBps),
+                        valueFormatter: (value) => formatRate(Number(value) || 0),
                       },
                     ]}
                     grid={{ horizontal: true }}
@@ -310,8 +197,8 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
         </Grid>
 
         <Grid size={{ xs: 12, lg: 6 }}>
-          <Card sx={(theme) => ({ ...chartCardSx(theme), height: "100%" })}>
-            <CardContent sx={{ p: { xs: 2, md: 2.5 } }}>
+          <Card sx={{ height: "100%" }}>
+            <CardContent>
               <Stack spacing={1.5}>
                 <Typography variant="h6">CPU</Typography>
                 {loading && !hasTrend ? (
@@ -320,8 +207,6 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                   <EmptyState title="No CPU data yet" description="Real-time points will appear after automatic polling." minHeight={270} />
                 ) : (
                   <LineChart
-                    sx={chartCanvasSx}
-                    colors={["#4f63ff"]}
                     height={290}
                     margin={{ top: 18, right: 16, bottom: 30, left: 54 }}
                     xAxis={[
@@ -358,8 +243,8 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
         </Grid>
 
         <Grid size={{ xs: 12, lg: 6 }}>
-          <Card sx={(theme) => ({ ...chartCardSx(theme), height: "100%" })}>
-            <CardContent sx={{ p: { xs: 2, md: 2.5 } }}>
+          <Card sx={{ height: "100%" }}>
+            <CardContent>
               <Stack spacing={1.5}>
                 <Typography variant="h6">RAM</Typography>
                 {loading && !hasTrend ? (
@@ -368,8 +253,6 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                   <EmptyState title="No RAM data yet" description="Real-time points will appear after automatic polling." minHeight={270} />
                 ) : (
                   <LineChart
-                    sx={chartCanvasSx}
-                    colors={["#ffc531"]}
                     height={290}
                     margin={{ top: 18, right: 16, bottom: 30, left: 54 }}
                     xAxis={[
