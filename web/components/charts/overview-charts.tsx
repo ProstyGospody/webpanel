@@ -89,6 +89,9 @@ function chartStyleSx(theme: Theme) {
     "& .MuiLineElement-root": {
       strokeWidth: 2.2,
     },
+    "& .MuiAreaElement-root": {
+      fillOpacity: 0.18,
+    },
     "& .MuiMarkElement-root": {
       strokeWidth: 2.1,
       fill: theme.palette.background.paper,
@@ -189,13 +192,14 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                 ) : (
                   <LineChart
                     height={320}
-                    margin={{ top: 34, right: 16, bottom: 30, left: 66 }}
+                    margin={{ top: 34, right: 16, bottom: 44, left: 66 }}
                     colors={["#00C9D8", "#59B8FF"]}
                     sx={chartStyleSx}
                     xAxis={[
                       {
                         data: xAxisData,
                         scaleType: "time",
+                        label: "Time",
                         valueFormatter: asTimeLabel,
                       },
                     ]}
@@ -210,7 +214,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         label: "Download",
                         curve: "monotoneX",
                         showMark: false,
-                        area: false,
+                        area: true,
                         data: points.map((point) => point.networkRxBps),
                         valueFormatter: (value: unknown) => formatRate(Number(value) || 0),
                       },
@@ -219,7 +223,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         label: "Upload",
                         curve: "monotoneX",
                         showMark: false,
-                        area: false,
+                        area: true,
                         data: points.map((point) => point.networkTxBps),
                         valueFormatter: (value: unknown) => formatRate(Number(value) || 0),
                       },
@@ -244,13 +248,14 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                 ) : (
                   <LineChart
                     height={290}
-                    margin={{ top: 30, right: 16, bottom: 30, left: 54 }}
+                    margin={{ top: 30, right: 16, bottom: 44, left: 54 }}
                     colors={["#65D8FF"]}
                     sx={chartStyleSx}
                     xAxis={[
                       {
                         data: xAxisData,
                         scaleType: "time",
+                        label: "Time",
                         valueFormatter: asTimeLabel,
                       },
                     ]}
@@ -267,7 +272,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         label: "CPU",
                         curve: "monotoneX",
                         showMark: false,
-                        area: false,
+                        area: true,
                         data: points.map((point) => point.cpuUsagePercent),
                         valueFormatter: (value: unknown) => `${clampPercent(Number(value) || 0).toFixed(1)}%`,
                       },
@@ -292,13 +297,14 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                 ) : (
                   <LineChart
                     height={290}
-                    margin={{ top: 30, right: 16, bottom: 30, left: 54 }}
+                    margin={{ top: 30, right: 16, bottom: 44, left: 54 }}
                     colors={["#67E0B5"]}
                     sx={chartStyleSx}
                     xAxis={[
                       {
                         data: xAxisData,
                         scaleType: "time",
+                        label: "Time",
                         valueFormatter: asTimeLabel,
                       },
                     ]}
@@ -315,7 +321,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         label: "RAM",
                         curve: "monotoneX",
                         showMark: false,
-                        area: false,
+                        area: true,
                         data: points.map((point) => point.memoryUsedPercent),
                         valueFormatter: (value: unknown) => `${clampPercent(Number(value) || 0).toFixed(1)}%`,
                       },
