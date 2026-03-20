@@ -44,7 +44,7 @@ export default function AuditPage() {
 
   return (
     <Stack spacing={3}>
-      <PageHeader title="Audit" subtitle="Admin actions" actions={<Button variant="contained" startIcon={<RefreshRoundedIcon />} onClick={() => void load()}>Refresh</Button>} />
+      <PageHeader title="Audit" actions={<Button variant="contained" startIcon={<RefreshRoundedIcon />} onClick={() => void load()}>Refresh</Button>} />
       {error ? <Alert severity="error">{error}</Alert> : null}
 
       <Card>

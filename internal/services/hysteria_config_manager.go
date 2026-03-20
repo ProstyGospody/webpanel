@@ -306,9 +306,6 @@ func (m *HysteriaConfigManager) Validate(content string) Hy2ConfigValidation {
 		v.Errors = append(v.Errors, "either tls or acme section is required by Hysteria 2")
 	}
 	v.RawOnlyPaths = collectUnknown(root, serverSchema)
-	if len(v.RawOnlyPaths) > 0 {
-		v.Warnings = append(v.Warnings, "raw-only fields detected; use Advanced YAML for unmanaged options")
-	}
 
 	v.Summary = configSummaryFromSettings(settings, len(v.RawOnlyPaths))
 	v.Valid = len(v.Errors) == 0

@@ -76,7 +76,6 @@ export default function DashboardPage() {
     <Stack spacing={3}>
       <PageHeader
         title="Overview"
-        subtitle="System and Hysteria status"
         actions={<Button variant="contained" startIcon={<RefreshRoundedIcon />} onClick={() => void load()}>Refresh</Button>}
       />
 

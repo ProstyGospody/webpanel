@@ -26,14 +26,14 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusChip } from "@/components/ui/status-chip";
 import { ClientArtifactsDialog } from "@/components/dialogs/client-artifacts-dialog";
 import { ConfirmDialog } from "@/components/dialogs/confirm-dialog";
 import { ClientFormDialog } from "@/components/forms/client-form-dialog";
-import { defaultsSummary, downloadClientConfig, toCreateRequest, toUpdateRequest, type ClientFormValues } from "@/domain/clients/adapters";
+import { toCreateRequest, toUpdateRequest, type ClientFormValues } from "@/domain/clients/adapters";
 import {
   createClient,
   deleteClient,
@@ -65,13 +65,10 @@ export default function UsersPage() {
 
   const [artifactOpen, setArtifactOpen] = useState(false);
   const [artifactLoading, setArtifactLoading] = useState(false);
-  const [artifactTab, setArtifactTab] = useState<"qr" | "details">("qr");
   const [artifactClient, setArtifactClient] = useState<HysteriaClient | null>(null);
   const [artifactPayload, setArtifactPayload] = useState<HysteriaUserPayload | null>(null);
 
   const notice = useNotice();
-
-  const inheritedText = useMemo(() => defaultsSummary(defaults), [defaults]);
 
   const load = useCallback(async () => {
     setError("");
@@ -149,9 +146,8 @@ export default function UsersPage() {
     }
   }
 
-  async function openArtifacts(client: HysteriaClient, tab: "qr" | "details") {
+  async function openArtifacts(client: HysteriaClient) {
     setArtifactClient(client);
-    setArtifactTab(tab);
     setArtifactOpen(true);
     setArtifactLoading(true);
     try {
@@ -174,18 +170,10 @@ export default function UsersPage() {
     }
   }
 
-  function download() {
-    const artifacts = artifactPayload?.artifacts;
-    const username = artifactPayload?.user.username;
-    if (!artifacts?.client_config || !username) return;
-    downloadClientConfig(username, artifacts.client_config);
-  }
-
   return (
     <Stack spacing={3}>
       <PageHeader
         title="Clients"
-        subtitle={inheritedText}
         actions={
           <>
             <Button variant="outlined" startIcon={<RefreshRoundedIcon />} onClick={() => void load()}>
@@ -224,7 +212,7 @@ export default function UsersPage() {
                     <TableRow key={client.id} hover>
                       <TableCell>
                         <Stack spacing={0.25}>
-                          <Box sx={{ cursor: "pointer" }} onClick={() => void openArtifacts(client, "details")}>
+                          <Box sx={{ cursor: "pointer" }} onClick={() => void openArtifacts(client)}>
                             <Typography sx={{ fontWeight: 700 }}>{client.username}</Typography>
                           </Box>
                           <Typography variant="caption" color="text.secondary">{client.note || "-"}</Typography>
@@ -242,7 +230,7 @@ export default function UsersPage() {
                         <Stack direction="row" spacing={0.5} justifyContent="flex-end">
                           <Tooltip title="Show QR">
                             <span>
-                              <IconButton size="small" onClick={() => void openArtifacts(client, "qr")} disabled={!client.enabled}>
+                              <IconButton size="small" onClick={() => void openArtifacts(client)} disabled={!client.enabled}>
                                 <QrCode2RoundedIcon fontSize="small" />
                               </IconButton>
                             </span>
@@ -291,13 +279,11 @@ export default function UsersPage() {
 
       <ClientArtifactsDialog
         open={artifactOpen}
-        tab={artifactTab}
         client={artifactClient}
         payload={artifactPayload}
         loading={artifactLoading}
         onClose={() => setArtifactOpen(false)}
         onCopy={(value) => void copy(value)}
-        onDownload={download}
       />
 
       <Snackbar open={Boolean(notice.message)} autoHideDuration={2600} onClose={notice.clear} message={notice.message} />

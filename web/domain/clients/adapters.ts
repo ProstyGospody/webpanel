@@ -113,16 +113,4 @@ function toOverrides(values: ClientFormValues): ClientOverrides | undefined {
   return Object.keys(overrides).length ? overrides : undefined;
 }
 
-export function downloadClientConfig(username: string, yaml: string) {
-  const blob = new Blob([yaml], { type: "text/plain;charset=utf-8" });
-  const href = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = href;
-  anchor.download = `${username}-hysteria2.yaml`;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(href);
-}
-
 export type { ClientFormValues };

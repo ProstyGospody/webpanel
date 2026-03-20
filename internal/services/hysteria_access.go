@@ -197,7 +197,7 @@ func (m *HysteriaAccessManager) baseClientProfileFromContent(content string) Hy2
 	profile := m.configManager.DefaultClientProfile(content, fallbackHost, m.cfg.Hy2Port, "")
 
 	if domainValue := strings.TrimSpace(m.cfg.Hy2Domain); isHy2ServerURI(domainValue) {
-		profile.Server = domainValue
+		profile.Server = mergeServerURIWithDefaults(domainValue, profile)
 		profile.Auth = ""
 		profile.Obfs = nil
 		profile.TLS.SNI = ""
@@ -221,6 +221,47 @@ func (m *HysteriaAccessManager) baseClientProfileFromContent(content string) Hy2
 		profile.Server = fmt.Sprintf("%s:%d", host, port)
 	}
 	return profile
+}
+
+func mergeServerURIWithDefaults(rawServer string, defaults Hy2ClientProfile) string {
+	value := strings.TrimSpace(rawServer)
+	u, err := url.Parse(value)
+	if err != nil {
+		return rawServer
+	}
+	query := u.Query()
+
+	defaultSNI := strings.TrimSpace(defaults.TLS.SNI)
+	normalizedSNI := strings.ToLower(NormalizeHost(defaultSNI))
+	if strings.TrimSpace(query.Get("sni")) == "" && normalizedSNI != "" && normalizedSNI != "127.0.0.1" && normalizedSNI != "::1" && normalizedSNI != "localhost" {
+		query.Set("sni", defaultSNI)
+	}
+	if strings.TrimSpace(query.Get("insecure")) == "" && defaults.TLS.Insecure {
+		query.Set("insecure", "1")
+	}
+	if strings.TrimSpace(query.Get("pinSHA256")) == "" {
+		if pin := normalizeCertHash(strings.TrimSpace(defaults.TLS.PinSHA256)); pin != "" {
+			query.Set("pinSHA256", pin)
+		}
+	}
+
+	obfsType := strings.ToLower(strings.TrimSpace(query.Get("obfs")))
+	if obfsType == "" && defaults.Obfs != nil {
+		if strings.EqualFold(strings.TrimSpace(defaults.Obfs.Type), "salamander") {
+			query.Set("obfs", "salamander")
+			obfsType = "salamander"
+		}
+	}
+	if obfsType == "salamander" && strings.TrimSpace(query.Get("obfs-password")) == "" && defaults.Obfs != nil && defaults.Obfs.Salamander != nil {
+		if password := strings.TrimSpace(defaults.Obfs.Salamander.Password); password != "" {
+			query.Set("obfs-password", password)
+		}
+	}
+
+	u.RawQuery = query.Encode()
+	u.Path = "/"
+	u.Fragment = ""
+	return u.String()
 }
 
 func (m *HysteriaAccessManager) currentClientParamsFromContent(content string) Hy2ClientParams {

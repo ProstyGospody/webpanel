@@ -87,7 +87,7 @@ export default function ServicesPage() {
 
   return (
     <Stack spacing={3}>
-      <PageHeader title="Services" subtitle="Managed systemd units" actions={<Button variant="contained" startIcon={<RefreshRoundedIcon />} onClick={() => void load()}>Refresh</Button>} />
+      <PageHeader title="Services" actions={<Button variant="contained" startIcon={<RefreshRoundedIcon />} onClick={() => void load()}>Refresh</Button>} />
       {error ? <Alert severity="error">{error}</Alert> : null}
 
       <Card>

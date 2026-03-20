@@ -32,7 +32,6 @@ export default function ConfigPage() {
   const [error, setError] = useState("");
   const [snack, setSnack] = useState("");
 
-  const [configPath, setConfigPath] = useState("");
   const [rawYaml, setRawYaml] = useState("");
   const [draft, setDraft] = useState<Hy2Settings>(toSettingsDraft({ listen: ":443", tlsEnabled: true, tlsMode: "acme", quicEnabled: false } as Hy2Settings));
   const [validation, setValidation] = useState<Hy2ConfigValidation | null>(null);
@@ -41,7 +40,6 @@ export default function ConfigPage() {
     setError("");
     try {
       const payload = await getHysteriaSettings();
-      setConfigPath(payload.path || "");
       setRawYaml(payload.raw_yaml || "");
       setDraft(toSettingsDraft(payload.settings));
       setValidation(payload.config_validation || null);
@@ -116,7 +114,6 @@ export default function ConfigPage() {
     <Stack spacing={3}>
       <PageHeader
         title="Server"
-        subtitle={`Config path: ${configPath || "-"}`}
         actions={
           <>
             <Button variant="outlined" startIcon={<RefreshRoundedIcon />} onClick={() => void load()} disabled={busy || applying}>Reload</Button>
