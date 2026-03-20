@@ -201,7 +201,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                     ]}
                     yAxis={[
                       {
-                        valueFormatter: (value) => formatRate(Number(value) || 0),
+                        valueFormatter: (value: unknown) => formatRate(Number(value) || 0),
                       },
                     ]}
                     series={[
@@ -212,7 +212,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         showMark: false,
                         area: false,
                         data: points.map((point) => point.networkRxBps),
-                        valueFormatter: (value) => formatRate(Number(value) || 0),
+                        valueFormatter: (value: unknown) => formatRate(Number(value) || 0),
                       },
                       {
                         id: "upload",
@@ -221,7 +221,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         showMark: false,
                         area: false,
                         data: points.map((point) => point.networkTxBps),
-                        valueFormatter: (value) => formatRate(Number(value) || 0),
+                        valueFormatter: (value: unknown) => formatRate(Number(value) || 0),
                       },
                     ]}
                     grid={{ horizontal: true, vertical: false }}
@@ -258,7 +258,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                       {
                         min: 0,
                         max: 100,
-                        valueFormatter: (value) => `${Math.max(0, Math.round(Number(value) || 0))}%`,
+                        valueFormatter: (value: unknown) => `${Math.max(0, Math.round(Number(value) || 0))}%`,
                       },
                     ]}
                     series={[
@@ -269,7 +269,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         showMark: false,
                         area: false,
                         data: points.map((point) => point.cpuUsagePercent),
-                        valueFormatter: (value) => `${clampPercent(Number(value) || 0).toFixed(1)}%`,
+                        valueFormatter: (value: unknown) => `${clampPercent(Number(value) || 0).toFixed(1)}%`,
                       },
                     ]}
                     grid={{ horizontal: true, vertical: false }}
@@ -306,7 +306,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                       {
                         min: 0,
                         max: 100,
-                        valueFormatter: (value) => `${Math.max(0, Math.round(Number(value) || 0))}%`,
+                        valueFormatter: (value: unknown) => `${Math.max(0, Math.round(Number(value) || 0))}%`,
                       },
                     ]}
                     series={[
@@ -317,7 +317,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         showMark: false,
                         area: false,
                         data: points.map((point) => point.memoryUsedPercent),
-                        valueFormatter: (value) => `${clampPercent(Number(value) || 0).toFixed(1)}%`,
+                        valueFormatter: (value: unknown) => `${clampPercent(Number(value) || 0).toFixed(1)}%`,
                       },
                     ]}
                     grid={{ horizontal: true, vertical: false }}
