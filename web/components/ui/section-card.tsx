@@ -1,4 +1,4 @@
-import { Paper, Stack, Typography } from "@mui/material";
+import { Box, Paper, Stack, Typography } from "@mui/material";
 import { SxProps, Theme } from "@mui/material/styles";
 import { ReactNode } from "react";
 
@@ -34,7 +34,9 @@ export function SectionCard({
         </Stack>
         {actions}
       </Stack>
-      <Stack sx={contentSx ? [{ p: 2.25 }, contentSx] : { p: 2.25 }}>{children}</Stack>
+      <Stack sx={{ p: 2.25 }}>
+        <Box sx={contentSx}>{children}</Box>
+      </Stack>
     </Paper>
   );
 }
