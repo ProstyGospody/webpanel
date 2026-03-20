@@ -290,6 +290,13 @@ load_existing_values() {
   if [[ -f "${ENV_FILE}" ]]; then
     # shellcheck disable=SC1090
     source "${ENV_FILE}"
+
+    # Backward compatibility: older generated env files may only contain HY2_STATS_URL.
+    if [[ -z "${HY2_STATS_PORT:-}" && -n "${HY2_STATS_URL:-}" ]]; then
+      if [[ "${HY2_STATS_URL}" =~ :([0-9]{1,5})$ ]]; then
+        HY2_STATS_PORT="${BASH_REMATCH[1]}"
+      fi
+    fi
   fi
   if [[ -f "${CREDENTIALS_FILE}" ]]; then
     # shellcheck disable=SC1090
@@ -468,6 +475,7 @@ INTERNAL_AUTH_TOKEN=${INTERNAL_AUTH_TOKEN}
 
 HY2_DOMAIN=${HY2_DOMAIN}
 HY2_PORT=${HY2_PORT}
+HY2_STATS_PORT=${HY2_STATS_PORT}
 HY2_CONFIG_PATH=${HY2_CONFIG_PATH}
 HY2_CERT_PATH=${HY2_CERT_PATH}
 HY2_KEY_PATH=${HY2_KEY_PATH}
