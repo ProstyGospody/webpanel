@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import type { MouseEvent } from "react";
 
 import { Card, CardContent, Grid, Stack, ToggleButton, ToggleButtonGroup, Typography } from "@mui/material";
-import { alpha } from "@mui/material/styles";
+import { alpha, type Theme } from "@mui/material/styles";
 import { LineChart } from "@mui/x-charts/LineChart";
 
 import { EmptyState, LoadingState } from "@/components/ui/state-message";
@@ -67,6 +67,30 @@ function asTimeLabel(value: unknown): string {
     return "";
   }
   return formatClock(date);
+}
+
+function chartStyleSx(theme: Theme) {
+  return {
+    "& .MuiChartsAxis-line, & .MuiChartsAxis-tick, & .MuiChartsGrid-line": {
+      stroke: alpha(theme.palette.primary.main, 0.22),
+    },
+    "& .MuiChartsAxis-tickLabel": {
+      fill: alpha(theme.palette.text.secondary, 0.95),
+      fontSize: 11,
+    },
+    "& .MuiChartsLegend-label": {
+      fill: theme.palette.text.primary,
+      fontWeight: 600,
+      fontSize: 12,
+    },
+    "& .MuiLineElement-root": {
+      strokeWidth: 2.4,
+    },
+    "& .MuiMarkElement-root": {
+      strokeWidth: 2,
+      fill: theme.palette.background.paper,
+    },
+  };
 }
 
 export function OverviewCharts({ loading, samples, range, onRangeChange }: OverviewChartsProps) {
@@ -156,6 +180,8 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                   <LineChart
                     height={320}
                     margin={{ top: 24, right: 16, bottom: 30, left: 66 }}
+                    colors={["#00C9D8", "#59B8FF"]}
+                    sx={chartStyleSx}
                     xAxis={[
                       {
                         data: xAxisData,
@@ -173,8 +199,8 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         id: "download",
                         label: "Download",
                         curve: "monotoneX",
-                        showMark: false,
-                        area: true,
+                        showMark: true,
+                        area: false,
                         data: points.map((point) => point.networkRxBps),
                         valueFormatter: (value) => formatRate(Number(value) || 0),
                       },
@@ -182,8 +208,8 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         id: "upload",
                         label: "Upload",
                         curve: "monotoneX",
-                        showMark: false,
-                        area: true,
+                        showMark: true,
+                        area: false,
                         data: points.map((point) => point.networkTxBps),
                         valueFormatter: (value) => formatRate(Number(value) || 0),
                       },
@@ -209,6 +235,8 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                   <LineChart
                     height={290}
                     margin={{ top: 18, right: 16, bottom: 30, left: 54 }}
+                    colors={["#65D8FF"]}
+                    sx={chartStyleSx}
                     xAxis={[
                       {
                         data: xAxisData,
@@ -228,8 +256,8 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         id: "cpu",
                         label: "CPU",
                         curve: "monotoneX",
-                        showMark: false,
-                        area: true,
+                        showMark: true,
+                        area: false,
                         data: points.map((point) => point.cpuUsagePercent),
                         valueFormatter: (value) => `${clampPercent(Number(value) || 0).toFixed(1)}%`,
                       },
@@ -255,6 +283,8 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                   <LineChart
                     height={290}
                     margin={{ top: 18, right: 16, bottom: 30, left: 54 }}
+                    colors={["#67E0B5"]}
+                    sx={chartStyleSx}
                     xAxis={[
                       {
                         data: xAxisData,
@@ -274,8 +304,8 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         id: "ram",
                         label: "RAM",
                         curve: "monotoneX",
-                        showMark: false,
-                        area: true,
+                        showMark: true,
+                        area: false,
                         data: points.map((point) => point.memoryUsedPercent),
                         valueFormatter: (value) => `${clampPercent(Number(value) || 0).toFixed(1)}%`,
                       },
