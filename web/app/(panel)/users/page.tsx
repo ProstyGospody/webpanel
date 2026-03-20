@@ -77,7 +77,7 @@ export default function UsersPage() {
       setClients(items);
       setDefaults(inherited);
     } catch (err) {
-      setError(err instanceof APIError ? err.message : "Failed to load clients");
+      setError(err instanceof APIError ? err.message : "Failed to load users");
     } finally {
       setLoading(false);
     }
@@ -107,15 +107,15 @@ export default function UsersPage() {
     try {
       if (formMode === "create") {
         await createClient(toCreateRequest(values));
-        notice.notify("Client created");
+        notice.notify("User created");
       } else if (editingClient) {
         await updateClient(editingClient.id, toUpdateRequest(values));
-        notice.notify("Client updated");
+        notice.notify("User updated");
       }
       setFormOpen(false);
       await load();
     } catch (err) {
-      const message = err instanceof APIError ? err.message : "Failed to save client";
+      const message = err instanceof APIError ? err.message : "Failed to save user";
       setFormError(message);
     } finally {
       setFormBusy(false);
@@ -128,10 +128,10 @@ export default function UsersPage() {
     try {
       await deleteClient(deleteTarget.id);
       setDeleteTarget(null);
-      notice.notify("Client deleted");
+      notice.notify("User deleted");
       await load();
     } catch (err) {
-      setError(err instanceof APIError ? err.message : "Failed to delete client");
+      setError(err instanceof APIError ? err.message : "Failed to delete user");
     } finally {
       setDeleteBusy(false);
     }
@@ -173,13 +173,13 @@ export default function UsersPage() {
   return (
     <Stack spacing={3}>
       <PageHeader
-        title="Clients"
+        title="Users"
         actions={
           <>
             <Button variant="outlined" startIcon={<RefreshRoundedIcon />} onClick={() => void load()}>
               Reload
             </Button>
-            <Fab color="primary" size="medium" aria-label="create client" onClick={openCreate}>
+            <Fab color="primary" size="medium" aria-label="create user" onClick={openCreate}>
               <AddRoundedIcon />
             </Fab>
           </>
@@ -193,14 +193,14 @@ export default function UsersPage() {
           {loading ? (
             <Stack alignItems="center" justifyContent="center" sx={{ py: 8 }} spacing={1.5}>
               <CircularProgress size={28} />
-              <Typography color="text.secondary">Loading clients...</Typography>
+              <Typography color="text.secondary">Loading users...</Typography>
             </Stack>
           ) : (
             <TableContainer>
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell>Client</TableCell>
+                    <TableCell>User</TableCell>
                     <TableCell>Status</TableCell>
                     <TableCell>Traffic</TableCell>
                     <TableCell>Last Seen</TableCell>
@@ -269,8 +269,8 @@ export default function UsersPage() {
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}
-        title="Delete client"
-        description={`Delete ${deleteTarget?.username || "client"} and remove access?`}
+        title="Delete user"
+        description={`Delete ${deleteTarget?.username || "user"} and remove access?`}
         busy={deleteBusy}
         confirmText="Delete"
         onClose={() => setDeleteTarget(null)}

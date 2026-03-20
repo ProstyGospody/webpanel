@@ -27,10 +27,13 @@ import MenuRoundedIcon from "@mui/icons-material/MenuRounded";
 import MenuOpenRoundedIcon from "@mui/icons-material/MenuOpenRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
+import DarkModeRoundedIcon from "@mui/icons-material/DarkModeRounded";
+import LightModeRoundedIcon from "@mui/icons-material/LightModeRounded";
 import { ReactNode, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { apiFetch } from "@/services/api";
+import { useAppThemeMode } from "@/theme/app-theme-provider";
 
 type NavItem = { href: string; label: string; icon: ReactNode };
 
@@ -38,14 +41,14 @@ const drawerWidth = 280;
 const collapsedDrawerWidth = 86;
 const navItems: NavItem[] = [
   { href: "/", label: "Overview", icon: <DashboardRoundedIcon /> },
-  { href: "/users", label: "Clients", icon: <GroupRoundedIcon /> },
+  { href: "/users", label: "Users", icon: <GroupRoundedIcon /> },
   { href: "/config", label: "Server", icon: <TuneRoundedIcon /> },
   { href: "/services", label: "Services", icon: <SettingsEthernetRoundedIcon /> },
   { href: "/audit", label: "Audit", icon: <ReceiptLongRoundedIcon /> },
 ];
 
 function resolveTitle(pathname: string): string {
-  if (pathname === "/") return "Hysteria 2";
+  if (pathname === "/") return "Overview";
   return navItems.find((x) => x.href === pathname)?.label || "Panel";
 }
 
@@ -53,6 +56,7 @@ export function PanelShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const theme = useTheme();
+  const { mode, toggleMode } = useAppThemeMode();
   const desktop = useMediaQuery(theme.breakpoints.up("lg"));
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopNavCollapsed, setDesktopNavCollapsed] = useState(false);
@@ -194,14 +198,14 @@ export function PanelShell({ children }: { children: ReactNode }) {
   );
 
   return (
-    <Box sx={{ display: "flex", minHeight: "100vh" }}>
+    <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
       <AppBar
         position="fixed"
         elevation={0}
         sx={(theme) => ({
-          backdropFilter: "blur(14px)",
+          backdropFilter: "none",
           backgroundImage: "none",
-          bgcolor: alpha(theme.palette.background.default, 0.84),
+          bgcolor: theme.palette.background.paper,
           border: 0,
           borderBottom: 0,
           borderRadius: 0,
@@ -239,6 +243,11 @@ export function PanelShell({ children }: { children: ReactNode }) {
           <Box sx={{ flexGrow: 1 }}>
             <Typography variant="h6" sx={{ fontWeight: 700 }}>{activeTitle}</Typography>
           </Box>
+          <Tooltip title={mode === "dark" ? "Light theme" : "Dark theme"}>
+            <IconButton color="inherit" onClick={toggleMode}>
+              {mode === "dark" ? <LightModeRoundedIcon /> : <DarkModeRoundedIcon />}
+            </IconButton>
+          </Tooltip>
           <Tooltip title="Sign out">
             <IconButton color="inherit" onClick={logout}><LogoutRoundedIcon /></IconButton>
           </Tooltip>
@@ -260,7 +269,7 @@ export function PanelShell({ children }: { children: ReactNode }) {
               borderRadius: 0,
               boxShadow: `inset -1px 0 0 ${alpha(theme.palette.primary.main, 0.16)}`,
               backgroundImage: "none",
-              backgroundColor: alpha(theme.palette.background.paper, 0.96),
+              backgroundColor: theme.palette.background.paper,
               transition: theme.transitions.create("width", {
                 duration: theme.transitions.duration.shortest,
               }),
@@ -288,7 +297,7 @@ export function PanelShell({ children }: { children: ReactNode }) {
               borderRadius: 0,
               boxShadow: `inset -1px 0 0 ${alpha(theme.palette.primary.main, 0.16)}`,
               backgroundImage: "none",
-              backgroundColor: alpha(theme.palette.background.paper, 0.98),
+              backgroundColor: theme.palette.background.paper,
             },
           })}
         >

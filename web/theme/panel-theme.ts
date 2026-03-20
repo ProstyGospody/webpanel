@@ -61,7 +61,7 @@ export const panelTheme = createTheme({
     MuiCssBaseline: {
       styleOverrides: (theme) => ({
         ":root": {
-          colorScheme: "dark",
+          colorScheme: theme.palette.mode,
         },
         html: {
           minHeight: "100%",
@@ -71,11 +71,7 @@ export const panelTheme = createTheme({
           minHeight: "100%",
           margin: 0,
           backgroundColor: theme.palette.background.default,
-          backgroundImage: [
-            `radial-gradient(circle at 0% 0%, ${alpha(theme.palette.primary.main, 0.14)} 0%, transparent 34%)`,
-            `radial-gradient(circle at 100% 0%, ${alpha(theme.palette.secondary.main, 0.09)} 0%, transparent 28%)`,
-            `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.015)} 0%, transparent 70%)`,
-          ].join(","),
+          backgroundImage: "none",
           color: theme.palette.text.primary,
         },
         "*": {
@@ -329,6 +325,66 @@ export const panelTheme = createTheme({
           borderRadius: 999,
           backgroundColor: alpha(theme.palette.common.white, 0.08),
           height: 8,
+        }),
+      },
+    },
+  },
+});
+
+export const panelLightTheme = createTheme(panelTheme, {
+  palette: {
+    mode: "light",
+    primary: { main: "#1e88e5", light: "#5eb8ff", dark: "#005cb2", contrastText: "#ffffff" },
+    secondary: { main: "#f59f00", light: "#ffce4f", dark: "#bc7700", contrastText: "#1f1303" },
+    success: { main: "#12a66c", light: "#4ccf96", dark: "#007744" },
+    warning: { main: "#ef9f18", light: "#ffc35c", dark: "#be7600" },
+    error: { main: "#d94b5b", light: "#f07d89", dark: "#9f1f2f" },
+    background: { default: "#eef3f9", paper: "#ffffff" },
+    divider: "rgba(19, 43, 74, 0.18)",
+    text: { primary: "#0f1f33", secondary: "#4f6785" },
+  },
+  components: {
+    MuiCssBaseline: {
+      styleOverrides: (theme) => ({
+        ":root": {
+          colorScheme: "light",
+        },
+        html: {
+          minHeight: "100%",
+          backgroundColor: theme.palette.background.default,
+        },
+        body: {
+          minHeight: "100%",
+          margin: 0,
+          backgroundColor: theme.palette.background.default,
+          backgroundImage: "none",
+          color: theme.palette.text.primary,
+        },
+      }),
+    },
+    MuiCard: {
+      styleOverrides: {
+        root: ({ theme }) => ({
+          borderColor: theme.palette.divider,
+          backgroundColor: alpha(theme.palette.background.paper, 0.98),
+        }),
+      },
+    },
+    MuiAppBar: {
+      styleOverrides: {
+        root: ({ theme }) => ({
+          borderBottom: `1px solid ${theme.palette.divider}`,
+          backgroundColor: alpha(theme.palette.background.paper, 0.98),
+          backdropFilter: "blur(8px)",
+        }),
+      },
+    },
+    MuiDrawer: {
+      styleOverrides: {
+        paper: ({ theme }) => ({
+          borderRight: `1px solid ${theme.palette.divider}`,
+          backgroundColor: alpha(theme.palette.background.paper, 0.98),
+          backdropFilter: "none",
         }),
       },
     },

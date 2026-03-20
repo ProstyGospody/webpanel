@@ -147,19 +147,29 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
   const rangeMs = range === "24h" ? DAY_MS : HOUR_MS;
   const maxPoints = range === "24h" ? 480 : 360;
   const xTicks = range === "24h" ? 8 : 6;
+  const rangeEndMs = Date.now();
+  const rangeStartMs = rangeEndMs - rangeMs;
+  const rangeStartDate = new Date(rangeStartMs);
+  const rangeEndDate = new Date(rangeEndMs);
 
   const points = useMemo(() => {
-    const now = Date.now();
-    const start = now - rangeMs;
-
     const filtered = samples
       .map(parsePoint)
       .filter((point): point is PreparedPoint => point !== null)
-      .filter((point) => point.timestampMs >= start && point.timestampMs <= now)
+      .filter((point) => point.timestampMs >= rangeStartMs && point.timestampMs <= rangeEndMs)
       .sort((a, b) => a.timestampMs - b.timestampMs);
 
+    if (filtered.length > 0 && filtered[0].timestampMs > rangeStartMs) {
+      const first = filtered[0];
+      filtered.unshift({
+        ...first,
+        timestampMs: rangeStartMs,
+        date: new Date(rangeStartMs),
+      });
+    }
+
     return downsample(filtered, maxPoints);
-  }, [samples, rangeMs, maxPoints]);
+  }, [samples, rangeStartMs, rangeEndMs, maxPoints]);
 
   const hasTrend = points.length > 1;
 
@@ -232,6 +242,8 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         data: xAxis,
                         scaleType: "time",
                         tickNumber: xTicks,
+                        min: rangeStartDate,
+                        max: rangeEndDate,
                         valueFormatter: formatAxisTime,
                       },
                     ]}
@@ -288,6 +300,8 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         data: xAxis,
                         scaleType: "time",
                         tickNumber: xTicks,
+                        min: rangeStartDate,
+                        max: rangeEndDate,
                         valueFormatter: formatAxisTime,
                       },
                     ]}
@@ -337,6 +351,8 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         data: xAxis,
                         scaleType: "time",
                         tickNumber: xTicks,
+                        min: rangeStartDate,
+                        max: rangeEndDate,
                         valueFormatter: formatAxisTime,
                       },
                     ]}

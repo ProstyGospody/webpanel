@@ -149,7 +149,56 @@ export function ServerSettingsForm({
         </AccordionSummary>
         <AccordionDetails>
           <Stack spacing={2}>
+            <Typography variant="subtitle2" color="text.secondary">Bandwidth</Typography>
             <Grid container spacing={2}>
+              <Grid size={{ xs: 12, md: 4 }}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={Boolean(draft.ignoreClientBandwidth)}
+                      onChange={(event) => onDraftChange({ ...draft, ignoreClientBandwidth: event.target.checked })}
+                    />
+                  }
+                  label="Ignore Client Bandwidth"
+                />
+              </Grid>
+              <Grid size={{ xs: 12, md: 4 }}>
+                <TextField
+                  label="Bandwidth Up"
+                  value={draft.bandwidth?.up || ""}
+                  onChange={(event) => onDraftChange({ ...draft, bandwidth: { up: event.target.value, down: draft.bandwidth?.down || "" } })}
+                  fullWidth
+                  placeholder="100 mbps"
+                />
+              </Grid>
+              <Grid size={{ xs: 12, md: 4 }}>
+                <TextField
+                  label="Bandwidth Down"
+                  value={draft.bandwidth?.down || ""}
+                  onChange={(event) => onDraftChange({ ...draft, bandwidth: { up: draft.bandwidth?.up || "", down: event.target.value } })}
+                  fullWidth
+                  placeholder="200 mbps"
+                />
+              </Grid>
+            </Grid>
+
+            <Typography variant="subtitle2" color="text.secondary">Transport</Typography>
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, md: 4 }}>
+                <FormControlLabel
+                  control={<Switch checked={Boolean(draft.disableUDP)} onChange={(event) => onDraftChange({ ...draft, disableUDP: event.target.checked })} />}
+                  label="Disable UDP"
+                />
+              </Grid>
+              <Grid size={{ xs: 12, md: 4 }}>
+                <TextField
+                  label="UDP Idle Timeout"
+                  value={draft.udpIdleTimeout || ""}
+                  onChange={(event) => onDraftChange({ ...draft, udpIdleTimeout: event.target.value })}
+                  fullWidth
+                  placeholder="90s"
+                />
+              </Grid>
               <Grid size={{ xs: 12, md: 4 }}>
                 <FormControl fullWidth>
                   <InputLabel id="masq-label">Masquerade</InputLabel>
@@ -172,24 +221,6 @@ export function ServerSettingsForm({
                     <MenuItem value="string">String</MenuItem>
                   </Select>
                 </FormControl>
-              </Grid>
-              <Grid size={{ xs: 12, md: 4 }}>
-                <TextField
-                  label="Bandwidth Up"
-                  value={draft.bandwidth?.up || ""}
-                  onChange={(event) => onDraftChange({ ...draft, bandwidth: { up: event.target.value, down: draft.bandwidth?.down || "" } })}
-                  fullWidth
-                  placeholder="100 mbps"
-                />
-              </Grid>
-              <Grid size={{ xs: 12, md: 4 }}>
-                <TextField
-                  label="Bandwidth Down"
-                  value={draft.bandwidth?.down || ""}
-                  onChange={(event) => onDraftChange({ ...draft, bandwidth: { up: draft.bandwidth?.up || "", down: event.target.value } })}
-                  fullWidth
-                  placeholder="200 mbps"
-                />
               </Grid>
             </Grid>
 
@@ -247,35 +278,7 @@ export function ServerSettingsForm({
               />
             ) : null}
 
-            <Grid container spacing={2}>
-              <Grid size={{ xs: 12, md: 4 }}>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={Boolean(draft.ignoreClientBandwidth)}
-                      onChange={(event) => onDraftChange({ ...draft, ignoreClientBandwidth: event.target.checked })}
-                    />
-                  }
-                  label="Ignore Client Bandwidth"
-                />
-              </Grid>
-              <Grid size={{ xs: 12, md: 4 }}>
-                <FormControlLabel
-                  control={<Switch checked={Boolean(draft.disableUDP)} onChange={(event) => onDraftChange({ ...draft, disableUDP: event.target.checked })} />}
-                  label="Disable UDP"
-                />
-              </Grid>
-              <Grid size={{ xs: 12, md: 4 }}>
-                <TextField
-                  label="UDP Idle Timeout"
-                  value={draft.udpIdleTimeout || ""}
-                  onChange={(event) => onDraftChange({ ...draft, udpIdleTimeout: event.target.value })}
-                  fullWidth
-                  placeholder="90s"
-                />
-              </Grid>
-            </Grid>
-
+            <Typography variant="subtitle2" color="text.secondary">QUIC</Typography>
             <Grid container spacing={2}>
               <Grid size={{ xs: 12, md: 4 }}>
                 <FormControlLabel
