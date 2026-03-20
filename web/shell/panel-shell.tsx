@@ -17,7 +17,7 @@ import {
   Typography,
   useMediaQuery,
 } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
+import { alpha, useTheme } from "@mui/material/styles";
 import DashboardRoundedIcon from "@mui/icons-material/DashboardRounded";
 import GroupRoundedIcon from "@mui/icons-material/GroupRounded";
 import SettingsEthernetRoundedIcon from "@mui/icons-material/SettingsEthernetRounded";
@@ -89,14 +89,17 @@ export function PanelShell({ children }: { children: ReactNode }) {
                 router.push(item.href);
                 setMobileOpen(false);
               }}
-              sx={{
+              sx={(theme) => ({
                 mb: 0.5,
                 borderRadius: 2,
                 "&.Mui-selected": {
-                  backgroundColor: "rgba(41,198,255,0.18)",
-                  border: "1px solid rgba(41,198,255,0.35)",
+                  backgroundColor: alpha(theme.palette.primary.main, 0.16),
+                  border: `1px solid ${alpha(theme.palette.primary.main, 0.4)}`,
                 },
-              }}
+                "&:hover": {
+                  backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                },
+              })}
             >
               <ListItemIcon sx={{ minWidth: 38, color: selected ? "primary.light" : "text.secondary" }}>{item.icon}</ListItemIcon>
               <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: selected ? 700 : 500 }} />
@@ -118,13 +121,13 @@ export function PanelShell({ children }: { children: ReactNode }) {
       <AppBar
         position="fixed"
         elevation={0}
-        sx={{
+        sx={(theme) => ({
           backdropFilter: "blur(10px)",
-          bgcolor: "rgba(8,16,34,0.84)",
-          borderBottom: "1px solid rgba(77,119,176,0.32)",
+          bgcolor: alpha(theme.palette.background.default, 0.9),
+          borderBottom: `1px solid ${alpha(theme.palette.divider, 0.9)}`,
           width: desktop ? `calc(100% - ${drawerWidth}px)` : "100%",
           ml: desktop ? `${drawerWidth}px` : 0,
-        }}
+        })}
       >
         <Toolbar sx={{ gap: 1 }}>
           {!desktop ? (
@@ -142,16 +145,16 @@ export function PanelShell({ children }: { children: ReactNode }) {
         open={desktop ? true : mobileOpen}
         onClose={() => setMobileOpen(false)}
         ModalProps={{ keepMounted: true }}
-        sx={{
+        sx={(theme) => ({
           width: drawerWidth,
           flexShrink: 0,
           "& .MuiDrawer-paper": {
             width: drawerWidth,
             boxSizing: "border-box",
-            borderRight: "1px solid rgba(77,119,176,0.28)",
-            background: "linear-gradient(180deg, rgba(16,28,49,0.98) 0%, rgba(10,20,36,0.98) 100%)",
+            borderRight: `1px solid ${alpha(theme.palette.divider, 0.95)}`,
+            background: `linear-gradient(180deg, ${alpha(theme.palette.background.paper, 0.98)} 0%, ${alpha(theme.palette.background.default, 0.98)} 100%)`,
           },
-        }}
+        })}
       >
         {drawerContent}
       </Drawer>

@@ -1,5 +1,6 @@
 "use client";
 
+import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import {
   Alert,
   Button,
@@ -12,44 +13,37 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { OverviewCharts } from "@/components/charts/overview-charts";
+import { MetricCard } from "@/components/ui/metric-card";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusChip } from "@/components/ui/status-chip";
+import { buildOverviewTrends } from "@/domain/overview/adapters";
+import { getHysteriaStatsHistory } from "@/domain/overview/services";
+import { HysteriaStatsSnapshot } from "@/domain/overview/types";
 import { APIError, apiFetch } from "@/services/api";
-import { formatBytes, formatDateTime, formatRate, formatUptime } from "@/utils/format";
 import { HysteriaOverview, SystemLiveResponse } from "@/types/common";
-
-function MetricCard({ label, value, hint }: { label: string; value: string; hint: string }) {
-  return (
-    <Card>
-      <CardContent>
-        <Stack spacing={1}>
-          <Typography variant="body2" color="text.secondary">{label}</Typography>
-          <Typography variant="h4" sx={{ fontWeight: 800 }}>{value}</Typography>
-          <Typography variant="caption" color="text.secondary">{hint}</Typography>
-        </Stack>
-      </CardContent>
-    </Card>
-  );
-}
+import { formatBytes, formatDateTime, formatRate, formatUptime } from "@/utils/format";
 
 export default function DashboardPage() {
   const [live, setLive] = useState<SystemLiveResponse | null>(null);
   const [overview, setOverview] = useState<HysteriaOverview | null>(null);
+  const [historySnapshots, setHistorySnapshots] = useState<HysteriaStatsSnapshot[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     setError("");
     try {
-      const [livePayload, overviewPayload] = await Promise.all([
+      const [livePayload, overviewPayload, historyPayload] = await Promise.all([
         apiFetch<SystemLiveResponse>("/api/system/live", { method: "GET" }),
         apiFetch<HysteriaOverview>("/api/hysteria/stats/overview", { method: "GET" }),
+        getHysteriaStatsHistory(),
       ]);
       setLive(livePayload);
       setOverview(overviewPayload);
+      setHistorySnapshots(historyPayload.items || []);
     } catch (err) {
       setError(err instanceof APIError ? err.message : "Failed to load dashboard data");
     } finally {
@@ -62,6 +56,11 @@ export default function DashboardPage() {
     const timer = setInterval(() => void load(), 15000);
     return () => clearInterval(timer);
   }, [load]);
+
+  const trendPoints = useMemo(() => buildOverviewTrends(historySnapshots), [historySnapshots]);
+  const tcpConnections = live?.hysteria.connections_tcp ?? 0;
+  const udpConnections = live?.hysteria.connections_udp ?? 0;
+  const hasConnectionBreakdown = Boolean(live?.hysteria.connections_breakdown_available);
 
   if (loading) {
     return (
@@ -83,33 +82,63 @@ export default function DashboardPage() {
       {live?.errors?.length ? <Alert severity="warning">{live.errors.join(" | ")}</Alert> : null}
 
       <Grid container spacing={2}>
-        <Grid size={{ xs: 12, md: 6, lg: 2 }}>
-          <MetricCard label="Enabled Clients" value={String(overview?.enabled_users ?? live?.hysteria.enabled_users ?? 0)} hint="Enabled" />
-        </Grid>
-        <Grid size={{ xs: 12, md: 6, lg: 2 }}>
-          <MetricCard label="Online Sessions" value={String(overview?.online_count ?? live?.hysteria.online_count ?? 0)} hint="Online" />
-        </Grid>
-        <Grid size={{ xs: 12, md: 6, lg: 2 }}>
-          <MetricCard label="Total Upload" value={formatBytes(overview?.total_tx_bytes ?? live?.hysteria.total_tx_bytes ?? 0)} hint="Upload" />
-        </Grid>
-        <Grid size={{ xs: 12, md: 6, lg: 2 }}>
-          <MetricCard label="Total Download" value={formatBytes(overview?.total_rx_bytes ?? live?.hysteria.total_rx_bytes ?? 0)} hint="Download" />
-        </Grid>
-        <Grid size={{ xs: 12, md: 6, lg: 2 }}>
+        <Grid size={{ xs: 12, sm: 6, lg: 2 }}>
           <MetricCard
-            label="TCP Active"
-            value={`${(live?.system.tcp_packets_per_sec ?? 0).toFixed(1)} pkt/s`}
-            hint="Current"
+            label="Enabled Clients"
+            value={String(overview?.enabled_users ?? live?.hysteria.enabled_users ?? 0)}
+            caption="Configured access entries"
+            tone="primary"
           />
         </Grid>
-        <Grid size={{ xs: 12, md: 6, lg: 2 }}>
+        <Grid size={{ xs: 12, sm: 6, lg: 2 }}>
           <MetricCard
-            label="UDP Active"
-            value={`${(live?.system.udp_packets_per_sec ?? 0).toFixed(1)} pkt/s`}
-            hint="Current"
+            label="Online Sessions"
+            value={String(overview?.online_count ?? live?.hysteria.online_count ?? 0)}
+            caption="Current Hysteria online count"
+            tone="success"
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, lg: 2 }}>
+          <MetricCard
+            label="Total Upload"
+            value={formatBytes(overview?.total_tx_bytes ?? live?.hysteria.total_tx_bytes ?? 0)}
+            caption="Accumulated transmitted traffic"
+            tone="primary"
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, lg: 2 }}>
+          <MetricCard
+            label="Total Download"
+            value={formatBytes(overview?.total_rx_bytes ?? live?.hysteria.total_rx_bytes ?? 0)}
+            caption="Accumulated received traffic"
+            tone="primary"
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, lg: 2 }}>
+          <MetricCard
+            label="Connections TCP"
+            value={hasConnectionBreakdown ? String(tcpConnections) : "Unavailable"}
+            caption={hasConnectionBreakdown ? "Current Hysteria TCP connections" : "Protocol breakdown not published by live API"}
+            tone="secondary"
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, lg: 2 }}>
+          <MetricCard
+            label="Connections UDP"
+            value={hasConnectionBreakdown ? String(udpConnections) : "Unavailable"}
+            caption={hasConnectionBreakdown ? "Current Hysteria UDP connections" : "Protocol breakdown not published by live API"}
+            tone="secondary"
           />
         </Grid>
       </Grid>
+
+      <OverviewCharts
+        loading={loading}
+        trendPoints={trendPoints}
+        connectionsTCP={tcpConnections}
+        connectionsUDP={udpConnections}
+        connectionsBreakdownAvailable={hasConnectionBreakdown}
+      />
 
       {live ? (
         <Grid container spacing={2}>
@@ -153,12 +182,12 @@ export default function DashboardPage() {
                       <Typography variant="h6">{formatRate(live.system.network_tx_bps)}</Typography>
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6 }}>
-                      <Typography variant="body2" color="text.secondary">TCP Active</Typography>
-                      <Typography variant="h6">{(live.system.tcp_packets_per_sec || 0).toFixed(1)} pkt/s</Typography>
+                      <Typography variant="body2" color="text.secondary">Connections TCP</Typography>
+                      <Typography variant="h6">{hasConnectionBreakdown ? String(tcpConnections) : "Unavailable"}</Typography>
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6 }}>
-                      <Typography variant="body2" color="text.secondary">UDP Active</Typography>
-                      <Typography variant="h6">{(live.system.udp_packets_per_sec || 0).toFixed(1)} pkt/s</Typography>
+                      <Typography variant="body2" color="text.secondary">Connections UDP</Typography>
+                      <Typography variant="h6">{hasConnectionBreakdown ? String(udpConnections) : "Unavailable"}</Typography>
                     </Grid>
                   </Grid>
 

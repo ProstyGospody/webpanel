@@ -328,11 +328,10 @@ export function ServerSettingsForm({
             value={rawYaml}
             InputProps={{
               readOnly: true,
-              sx: {
-                fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-                fontSize: "0.84rem",
-                lineHeight: 1.45,
-              },
+              sx: (theme) => ({
+                ...theme.typography.code,
+                lineHeight: 1.5,
+              }),
             }}
             helperText="Generated preview"
           />

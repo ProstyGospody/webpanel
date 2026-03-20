@@ -130,9 +130,9 @@ export default function ServicesPage() {
               <Typography variant="body2" color="text.secondary">Active: {details.active} / {details.sub_state}</Typography>
               <Typography variant="body2" color="text.secondary">PID: {details.main_pid || 0} | Checked: {formatDateTime(details.checked_at)}</Typography>
               <Typography variant="subtitle2" sx={{ pt: 1 }}>Recent logs</Typography>
-              <Card variant="outlined" sx={{ bgcolor: "rgba(3,9,18,0.65)" }}>
+              <Card variant="outlined" sx={{ bgcolor: (theme) => theme.palette.background.default }}>
                 <CardContent sx={{ p: 1.5 }}>
-                  <Typography component="pre" sx={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace", fontSize: "0.78rem", lineHeight: 1.45 }}>
+                  <Typography component="pre" variant="code" sx={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                     {details.last_logs?.length ? details.last_logs.join("\n") : "No logs available"}
                   </Typography>
                 </CardContent>

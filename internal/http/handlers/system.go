@@ -41,13 +41,16 @@ type liveServiceStatus struct {
 }
 
 type liveHy2Overview struct {
-	EnabledUsers int64     `json:"enabled_users"`
-	TotalTxBytes int64     `json:"total_tx_bytes"`
-	TotalRxBytes int64     `json:"total_rx_bytes"`
-	OnlineCount  int64     `json:"online_count"`
-	CollectedAt  time.Time `json:"collected_at"`
-	Source       string    `json:"source"`
-	IsStale      bool      `json:"is_stale"`
+	EnabledUsers                 int64     `json:"enabled_users"`
+	TotalTxBytes                 int64     `json:"total_tx_bytes"`
+	TotalRxBytes                 int64     `json:"total_rx_bytes"`
+	OnlineCount                  int64     `json:"online_count"`
+	ConnectionsTCP               int64     `json:"connections_tcp"`
+	ConnectionsUDP               int64     `json:"connections_udp"`
+	ConnectionsBreakdownAvailable bool      `json:"connections_breakdown_available"`
+	CollectedAt                  time.Time `json:"collected_at"`
+	Source                       string    `json:"source"`
+	IsStale                      bool      `json:"is_stale"`
 }
 
 func (h *Handler) GetSystemLive(w http.ResponseWriter, r *http.Request) {
@@ -264,13 +267,16 @@ func (h *Handler) collectHy2Live(ctx context.Context) (liveHy2Overview, string) 
 	}
 
 	resp := liveHy2Overview{
-		EnabledUsers: base.EnabledUsers,
-		TotalTxBytes: base.TotalTxBytes,
-		TotalRxBytes: base.TotalRxBytes,
-		OnlineCount:  base.OnlineCount,
-		CollectedAt:  time.Now().UTC(),
-		Source:       "snapshot",
-		IsStale:      true,
+		EnabledUsers:                 base.EnabledUsers,
+		TotalTxBytes:                 base.TotalTxBytes,
+		TotalRxBytes:                 base.TotalRxBytes,
+		OnlineCount:                  base.OnlineCount,
+		ConnectionsTCP:               0,
+		ConnectionsUDP:               0,
+		ConnectionsBreakdownAvailable: false,
+		CollectedAt:                  time.Now().UTC(),
+		Source:                       "snapshot",
+		IsStale:                      true,
 	}
 
 	if h.hy2Client == nil {
@@ -278,7 +284,7 @@ func (h *Handler) collectHy2Live(ctx context.Context) (liveHy2Overview, string) 
 	}
 
 	traffic, trafficErr := h.hy2Client.FetchTraffic(ctx)
-	online, onlineErr := h.hy2Client.FetchOnline(ctx)
+	online, onlineSummary, onlineErr := h.hy2Client.FetchOnlineStats(ctx)
 	if trafficErr != nil || onlineErr != nil {
 		return resp, "hysteria live stats fallback to snapshots"
 	}
@@ -298,6 +304,9 @@ func (h *Handler) collectHy2Live(ctx context.Context) (liveHy2Overview, string) 
 	resp.TotalTxBytes = totalTx
 	resp.TotalRxBytes = totalRx
 	resp.OnlineCount = totalOnline
+	resp.ConnectionsTCP = onlineSummary.TCPConnections
+	resp.ConnectionsUDP = onlineSummary.UDPConnections
+	resp.ConnectionsBreakdownAvailable = onlineSummary.BreakdownAvailable
 	resp.Source = "live"
 	resp.IsStale = false
 	resp.CollectedAt = time.Now().UTC()

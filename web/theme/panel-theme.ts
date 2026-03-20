@@ -1,6 +1,24 @@
 import { alpha, createTheme, type Shadows } from "@mui/material/styles";
+import type { CSSProperties } from "react";
 
 const noShadows = Array(25).fill("none") as Shadows;
+const codeFontFamily = "var(--font-panel-mono), \"JetBrains Mono\", \"IBM Plex Mono\", \"SFMono-Regular\", Menlo, Consolas, monospace";
+
+declare module "@mui/material/styles" {
+  interface TypographyVariants {
+    code: CSSProperties;
+  }
+
+  interface TypographyVariantsOptions {
+    code?: CSSProperties;
+  }
+}
+
+declare module "@mui/material/Typography" {
+  interface TypographyPropsVariantOverrides {
+    code: true;
+  }
+}
 
 export const panelTheme = createTheme({
   spacing: 8,
@@ -18,16 +36,26 @@ export const panelTheme = createTheme({
     text: { primary: "#edf4ff", secondary: "#9cb1cc" },
   },
   typography: {
-    fontFamily: "var(--font-panel), \"IBM Plex Sans\", \"Segoe UI\", sans-serif",
+    fontFamily: "var(--font-panel-sans), \"Manrope\", \"IBM Plex Sans\", \"Segoe UI\", sans-serif",
     h1: { fontSize: "2rem", fontWeight: 700, letterSpacing: "-0.02em" },
     h2: { fontSize: "1.7rem", fontWeight: 700, letterSpacing: "-0.02em" },
     h3: { fontSize: "1.45rem", fontWeight: 700, letterSpacing: "-0.015em" },
     h4: { fontSize: "1.25rem", fontWeight: 700, letterSpacing: "-0.01em" },
     h5: { fontSize: "1.1rem", fontWeight: 700 },
     h6: { fontSize: "1rem", fontWeight: 700 },
+    subtitle1: { fontSize: "0.95rem", fontWeight: 600, letterSpacing: "0.01em" },
+    subtitle2: { fontSize: "0.82rem", fontWeight: 600, letterSpacing: "0.02em" },
     body1: { fontSize: "0.95rem", lineHeight: 1.55 },
     body2: { fontSize: "0.86rem", lineHeight: 1.45 },
+    caption: { fontSize: "0.76rem", lineHeight: 1.45, letterSpacing: "0.02em" },
+    overline: { fontSize: "0.72rem", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" },
     button: { textTransform: "none", fontWeight: 600, letterSpacing: "0.01em" },
+    code: {
+      fontFamily: codeFontFamily,
+      fontSize: "0.78rem",
+      lineHeight: 1.45,
+      letterSpacing: 0,
+    },
   },
   components: {
     MuiCssBaseline: {
@@ -63,6 +91,13 @@ export const panelTheme = createTheme({
         },
         "*::-webkit-scrollbar-track": {
           backgroundColor: alpha(theme.palette.background.paper, 0.7),
+        },
+        ".MuiChartsAxis-line, .MuiChartsAxis-tick, .MuiChartsGrid-line": {
+          stroke: alpha(theme.palette.divider, 0.9),
+        },
+        ".MuiChartsAxis-tickLabel, .MuiChartsLegend-label, .MuiChartsTooltip-labelCell, .MuiChartsTooltip-valueCell": {
+          fill: theme.palette.text.secondary,
+          color: theme.palette.text.secondary,
         },
       }),
     },
@@ -121,6 +156,7 @@ export const panelTheme = createTheme({
     MuiButton: {
       defaultProps: {
         disableElevation: true,
+        size: "medium",
       },
       styleOverrides: {
         root: ({ theme }) => ({
@@ -153,6 +189,17 @@ export const panelTheme = createTheme({
             borderColor: alpha(theme.palette.primary.light, 0.8),
           },
         }),
+      },
+    },
+    MuiFormControl: {
+      defaultProps: {
+        fullWidth: true,
+        size: "small",
+      },
+    },
+    MuiSelect: {
+      defaultProps: {
+        size: "small",
       },
     },
     MuiTextField: {
@@ -206,6 +253,11 @@ export const panelTheme = createTheme({
           borderRadius: 8,
           borderColor: alpha(theme.palette.divider, 0.95),
         }),
+      },
+    },
+    MuiSvgIcon: {
+      defaultProps: {
+        fontSize: "small",
       },
     },
     MuiDialog: {

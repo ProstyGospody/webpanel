@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
-import { Manrope } from "next/font/google";
+import { JetBrains_Mono, Manrope } from "next/font/google";
 
 import { AppThemeProvider } from "@/theme/app-theme-provider";
 
 import "./globals.css";
 
-const manrope = Manrope({ subsets: ["latin", "cyrillic"], variable: "--font-panel" });
+const manrope = Manrope({ subsets: ["latin", "cyrillic"], variable: "--font-panel-sans" });
+const jetbrainsMono = JetBrains_Mono({ subsets: ["latin", "cyrillic"], variable: "--font-panel-mono" });
 
 export const metadata: Metadata = {
   title: "Hysteria 2 Panel",
@@ -14,7 +15,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={manrope.variable}>
+    <html lang="en" className={`${manrope.variable} ${jetbrainsMono.variable}`}>
       <body>
         <AppThemeProvider>{children}</AppThemeProvider>
       </body>

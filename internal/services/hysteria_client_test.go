@@ -66,3 +66,93 @@ func TestHysteriaKickUsesArrayPayload(t *testing.T) {
 		t.Fatalf("Kick returned error: %v", err)
 	}
 }
+
+func TestHysteriaFetchOnlineStatsWithProtocolBreakdown(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/online" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"users": map[string]any{
+				"alice": map[string]any{
+					"online":          4,
+					"connections_tcp": 1,
+					"connections_udp": 3,
+				},
+				"bob": []any{
+					map[string]any{"protocol": "tcp"},
+					map[string]any{"network": "udp"},
+					map[string]any{"transport": "quic"},
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := NewHysteriaClient(server.URL, "")
+	online, summary, err := client.FetchOnlineStats(context.Background())
+	if err != nil {
+		t.Fatalf("FetchOnlineStats returned error: %v", err)
+	}
+
+	expectedOnline := map[string]int{
+		"alice": 4,
+		"bob":   3,
+	}
+	if !reflect.DeepEqual(online, expectedOnline) {
+		t.Fatalf("unexpected online map: %#v", online)
+	}
+
+	if summary.TotalConnections != 7 {
+		t.Fatalf("unexpected total connections: %d", summary.TotalConnections)
+	}
+	if summary.TCPConnections != 2 {
+		t.Fatalf("unexpected tcp connections: %d", summary.TCPConnections)
+	}
+	if summary.UDPConnections != 5 {
+		t.Fatalf("unexpected udp connections: %d", summary.UDPConnections)
+	}
+	if !summary.BreakdownAvailable {
+		t.Fatalf("expected breakdown availability to be true")
+	}
+}
+
+func TestHysteriaFetchOnlineStatsWithoutProtocolBreakdown(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/online" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"users": map[string]any{
+				"alice": 2,
+				"bob": map[string]any{
+					"count": 1,
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := NewHysteriaClient(server.URL, "")
+	online, summary, err := client.FetchOnlineStats(context.Background())
+	if err != nil {
+		t.Fatalf("FetchOnlineStats returned error: %v", err)
+	}
+
+	expectedOnline := map[string]int{
+		"alice": 2,
+		"bob":   1,
+	}
+	if !reflect.DeepEqual(online, expectedOnline) {
+		t.Fatalf("unexpected online map: %#v", online)
+	}
+	if summary.TotalConnections != 3 {
+		t.Fatalf("unexpected total connections: %d", summary.TotalConnections)
+	}
+	if summary.TCPConnections != 0 || summary.UDPConnections != 0 {
+		t.Fatalf("expected zero tcp/udp breakdown, got tcp=%d udp=%d", summary.TCPConnections, summary.UDPConnections)
+	}
+	if summary.BreakdownAvailable {
+		t.Fatalf("expected breakdown availability to be false")
+	}
+}

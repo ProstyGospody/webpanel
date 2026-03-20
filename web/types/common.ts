@@ -65,6 +65,9 @@ export type SystemLiveResponse = {
     total_tx_bytes: number;
     total_rx_bytes: number;
     online_count: number;
+    connections_tcp: number;
+    connections_udp: number;
+    connections_breakdown_available: boolean;
     collected_at: string;
     source: string;
     is_stale: boolean;

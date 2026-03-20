@@ -63,7 +63,7 @@ export default function AuditPage() {
                       <TableCell><Typography sx={{ fontWeight: 700 }}>{item.action}</Typography></TableCell>
                       <TableCell>{item.entity_type}{item.entity_id ? `:${item.entity_id}` : ""}</TableCell>
                       <TableCell>
-                        <Typography component="pre" sx={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace", fontSize: "0.73rem", maxWidth: 460 }}>
+                        <Typography component="pre" variant="code" sx={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", maxWidth: 460 }}>
                           {item.payload_json || "{}"}
                         </Typography>
                       </TableCell>
