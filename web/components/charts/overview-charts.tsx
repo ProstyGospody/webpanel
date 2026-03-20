@@ -62,7 +62,18 @@ function downsample<T>(items: T[], maxPoints: number): T[] {
 }
 
 function asTimeLabel(value: unknown): string {
-  const date = value instanceof Date ? value : new Date(String(value));
+  let date: Date;
+  if (value instanceof Date) {
+    date = value;
+  } else if (typeof value === "number") {
+    date = new Date(value);
+  } else if (typeof value === "string") {
+    const asNumber = Number(value);
+    date = Number.isFinite(asNumber) && /^\d+$/.test(value.trim()) ? new Date(asNumber) : new Date(value);
+  } else {
+    date = new Date(Number.NaN);
+  }
+
   if (Number.isNaN(date.getTime())) {
     return "";
   }
@@ -136,6 +147,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
 
   const hasTrend = points.length > 1;
   const xAxisData = points.map((point) => point.date);
+  const xAxisTickNumber = range === "24h" ? 8 : 7;
 
   const handleRangeChange = (_event: MouseEvent<HTMLElement>, nextRange: DashboardChartRange | null) => {
     if (nextRange) {
@@ -199,7 +211,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                       {
                         data: xAxisData,
                         scaleType: "time",
-                        label: "Time",
+                        tickNumber: xAxisTickNumber,
                         valueFormatter: asTimeLabel,
                       },
                     ]}
@@ -255,7 +267,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                       {
                         data: xAxisData,
                         scaleType: "time",
-                        label: "Time",
+                        tickNumber: xAxisTickNumber,
                         valueFormatter: asTimeLabel,
                       },
                     ]}
@@ -304,7 +316,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                       {
                         data: xAxisData,
                         scaleType: "time",
-                        label: "Time",
+                        tickNumber: xAxisTickNumber,
                         valueFormatter: asTimeLabel,
                       },
                     ]}
