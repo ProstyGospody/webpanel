@@ -76,6 +76,16 @@ func (h *Handler) CreateHysteriaUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	exportValidation, err := h.hysteriaAccess.ValidateClientExportDraft(r.Context(), username, password, req.ClientOverrides)
+	if err != nil {
+		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to validate generated hysteria client config", nil)
+		return
+	}
+	if !exportValidation.Valid {
+		h.renderError(w, http.StatusBadRequest, "validation", "generated hysteria client config is invalid", exportValidation)
+		return
+	}
+
 	user, err := h.repo.CreateHysteriaUser(r.Context(), username, password, req.Note, req.ClientOverrides)
 	if err != nil {
 		if repository.IsUniqueViolation(err) {
@@ -158,6 +168,16 @@ func (h *Handler) UpdateHysteriaUser(w http.ResponseWriter, r *http.Request) {
 	validationErrors = append(validationErrors, hysteriadomain.ValidateClientOverrides(overrides)...)
 	if len(validationErrors) > 0 {
 		h.renderError(w, http.StatusBadRequest, "validation", "hysteria user validation failed", validationErrors)
+		return
+	}
+
+	exportValidation, err := h.hysteriaAccess.ValidateClientExportDraft(r.Context(), username, password, overrides)
+	if err != nil {
+		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to validate generated hysteria client config", nil)
+		return
+	}
+	if !exportValidation.Valid {
+		h.renderError(w, http.StatusBadRequest, "validation", "generated hysteria client config is invalid", exportValidation)
 		return
 	}
 
@@ -413,5 +433,3 @@ func (h *Handler) renderHysteriaUserPayload(w http.ResponseWriter, status int, i
 	response["artifacts"] = artifacts
 	render.JSON(w, status, response)
 }
-
-

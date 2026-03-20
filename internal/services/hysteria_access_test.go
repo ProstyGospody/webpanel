@@ -310,3 +310,59 @@ obfs:
 		t.Fatalf("expected inherited obfs password in URI: %s", artifacts.URI)
 	}
 }
+func TestHysteriaAccessManagerBuildUserArtifactsSupportsURIServerDomain(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "server.yaml")
+	content := `listen: :443
+acme:
+  domains:
+    - ignored.example.com
+auth:
+  type: userpass
+  userpass: {}`
+	if err := os.WriteFile(configPath, []byte(content), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	repo, err := repository.New(filepath.Join(tmpDir, "storage"), filepath.Join(tmpDir, "audit"), filepath.Join(tmpDir, "run"))
+	if err != nil {
+		t.Fatalf("open repository: %v", err)
+	}
+	t.Cleanup(func() { _ = repo.Close() })
+
+	created, err := repo.CreateHysteriaUser(ctx, "demo-user", "supersecret88", nil, nil)
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	view, err := repo.GetHysteriaUser(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
+
+	manager := NewHysteriaAccessManager(repo, config.Config{
+		Hy2ConfigPath: configPath,
+		Hy2Domain:     "hysteria2://hy2.example.com:443/?sni=cdn.example.com&insecure=1",
+		Hy2Port:       443,
+	}, NewHysteriaConfigManager(configPath))
+
+	artifacts, validation, err := manager.BuildUserArtifacts(view)
+	if err != nil {
+		t.Fatalf("build artifacts: %v", err)
+	}
+	if !validation.Valid {
+		t.Fatalf("expected valid artifacts, got errors: %#v", validation.Errors)
+	}
+	if !strings.Contains(artifacts.URI, "demo-user:supersecret88@hy2.example.com:443/") {
+		t.Fatalf("expected user credential embedded into URI server value: %s", artifacts.URI)
+	}
+	if strings.Contains(artifacts.URI, "127.0.0.1:1080") {
+		t.Fatalf("share URI/QR payload must not contain local mode settings: %s", artifacts.URI)
+	}
+	if strings.Contains(artifacts.ClientYAML, "auth:") {
+		t.Fatalf("client YAML must not duplicate auth when server is URI: %s", artifacts.ClientYAML)
+	}
+	if strings.Contains(artifacts.ClientYAML, "pinSHA256:") || strings.Contains(artifacts.ClientYAML, "insecure:") {
+		t.Fatalf("client YAML must not duplicate URI-embedded TLS values: %s", artifacts.ClientYAML)
+	}
+}

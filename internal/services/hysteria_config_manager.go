@@ -155,18 +155,25 @@ type HysteriaConfigManager struct {
 }
 
 type Hy2ClientProfile struct {
-	Name   string         `json:"name,omitempty"`
-	Server string         `json:"server"`
-	Auth   string         `json:"auth"`
-	TLS    Hy2ClientTLS   `json:"tls"`
-	Obfs   *Hy2ClientObfs `json:"obfs,omitempty"`
-	QUIC   *Hy2ClientQUIC `json:"quic,omitempty"`
+	Name      string               `json:"name,omitempty"`
+	Server    string               `json:"server"`
+	Auth      string               `json:"auth"`
+	AuthType  string               `json:"authType,omitempty"`
+	TLS       Hy2ClientTLS         `json:"tls"`
+	Obfs      *Hy2ClientObfs       `json:"obfs,omitempty"`
+	QUIC      *Hy2ClientQUIC       `json:"quic,omitempty"`
+	Bandwidth *Hy2ClientBandwidth  `json:"bandwidth,omitempty"`
+	Socks5    *Hy2ClientSocks5Mode `json:"socks5,omitempty"`
+	HTTP      *Hy2ClientHTTPMode   `json:"http,omitempty"`
 }
 
 type Hy2ClientTLS struct {
-	SNI       string `json:"sni,omitempty"`
-	Insecure  bool   `json:"insecure,omitempty"`
-	PinSHA256 string `json:"pinSHA256,omitempty"`
+	SNI               string `json:"sni,omitempty"`
+	Insecure          bool   `json:"insecure,omitempty"`
+	PinSHA256         string `json:"pinSHA256,omitempty"`
+	CA                string `json:"ca,omitempty"`
+	ClientCertificate string `json:"clientCertificate,omitempty"`
+	ClientKey         string `json:"clientKey,omitempty"`
 }
 
 type Hy2ClientObfs struct {
@@ -185,6 +192,25 @@ type Hy2ClientQUIC struct {
 	MaxConnReceiveWindow    int    `json:"maxConnReceiveWindow,omitempty"`
 	MaxIdleTimeout          string `json:"maxIdleTimeout,omitempty"`
 	DisablePathMTUDiscovery bool   `json:"disablePathMTUDiscovery,omitempty"`
+}
+
+type Hy2ClientBandwidth struct {
+	Up   string `json:"up,omitempty"`
+	Down string `json:"down,omitempty"`
+}
+
+type Hy2ClientSocks5Mode struct {
+	Listen     string `json:"listen,omitempty"`
+	Username   string `json:"username,omitempty"`
+	Password   string `json:"password,omitempty"`
+	DisableUDP bool   `json:"disableUDP,omitempty"`
+}
+
+type Hy2ClientHTTPMode struct {
+	Listen   string `json:"listen,omitempty"`
+	Username string `json:"username,omitempty"`
+	Password string `json:"password,omitempty"`
+	Realm    string `json:"realm,omitempty"`
 }
 
 type Hy2ClientValidation struct {
@@ -351,7 +377,14 @@ func (m *HysteriaConfigManager) ApplySettings(content string, input Hy2Settings)
 func (m *HysteriaConfigManager) ClientParams(content string, fallbackHost string, fallbackPort int) Hy2ClientParams {
 	settings := m.ExtractSettings(content, fallbackHost, fallbackPort)
 	profile := m.DefaultClientProfileFromSettings(settings, fallbackHost, fallbackPort, "")
-	host, ports := splitServerForClient(profile.Server)
+	resolved, validation := resolveClientProfile(profile)
+
+	host := strings.TrimSpace(resolved.Host)
+	ports := strings.TrimSpace(resolved.PortUnion)
+	if !validation.Valid {
+		host, ports = splitServerForClient(profile.Server)
+	}
+
 	port := firstPortFromUnion(ports)
 	if port <= 0 {
 		port = fallbackPort
@@ -362,22 +395,23 @@ func (m *HysteriaConfigManager) ClientParams(content string, fallbackHost string
 	if host == "" {
 		host = "127.0.0.1"
 	}
-	pin := strings.TrimSpace(profile.TLS.PinSHA256)
+
 	obfsType := ""
 	obfsPassword := ""
-	if profile.Obfs != nil {
-		obfsType = strings.TrimSpace(profile.Obfs.Type)
-		if profile.Obfs.Salamander != nil {
-			obfsPassword = strings.TrimSpace(profile.Obfs.Salamander.Password)
+	if resolved.Obfs != nil {
+		obfsType = strings.TrimSpace(resolved.Obfs.Type)
+		if resolved.Obfs.Salamander != nil {
+			obfsPassword = strings.TrimSpace(resolved.Obfs.Salamander.Password)
 		}
 	}
+
 	return Hy2ClientParams{
 		Server:       host,
 		Port:         port,
 		PortUnion:    ports,
-		SNI:          strings.TrimSpace(profile.TLS.SNI),
-		Insecure:     profile.TLS.Insecure,
-		PinSHA256:    pin,
+		SNI:          strings.TrimSpace(resolved.TLS.SNI),
+		Insecure:     resolved.TLS.Insecure,
+		PinSHA256:    strings.TrimSpace(resolved.TLS.PinSHA256),
 		ObfsType:     obfsType,
 		ObfsPassword: obfsPassword,
 	}
@@ -419,9 +453,11 @@ func (m *HysteriaConfigManager) DefaultClientProfileFromSettings(settings Hy2Set
 	}
 
 	profile := Hy2ClientProfile{
-		Server: publicHost + ":" + listenPorts,
-		Auth:   strings.TrimSpace(auth),
-		TLS:    Hy2ClientTLS{SNI: sni},
+		Server:   publicHost + ":" + listenPorts,
+		Auth:     strings.TrimSpace(auth),
+		AuthType: strings.ToLower(strings.TrimSpace(settings.Auth.Type)),
+		TLS:      Hy2ClientTLS{SNI: sni},
+		Socks5:   &Hy2ClientSocks5Mode{Listen: "127.0.0.1:1080"},
 	}
 
 	if settings.Obfs != nil && strings.EqualFold(strings.TrimSpace(settings.Obfs.Type), "salamander") {
@@ -447,7 +483,7 @@ func (m *HysteriaConfigManager) DefaultClientProfileFromSettings(settings Hy2Set
 }
 
 func (m *HysteriaConfigManager) ValidateClientProfile(profile Hy2ClientProfile) Hy2ClientValidation {
-	return validateClientProfile(normalizeClientProfile(profile))
+	return validateClientProfile(profile)
 }
 
 func (m *HysteriaConfigManager) GenerateClientArtifacts(profile Hy2ClientProfile) (Hy2ClientArtifacts, Hy2ClientValidation) {
@@ -1244,8 +1280,12 @@ func normalizeClientProfile(input Hy2ClientProfile) Hy2ClientProfile {
 	profile.Name = strings.TrimSpace(profile.Name)
 	profile.Server = strings.TrimSpace(profile.Server)
 	profile.Auth = strings.TrimSpace(profile.Auth)
+	profile.AuthType = strings.ToLower(strings.TrimSpace(profile.AuthType))
 	profile.TLS.SNI = strings.TrimSpace(profile.TLS.SNI)
 	profile.TLS.PinSHA256 = strings.TrimSpace(profile.TLS.PinSHA256)
+	profile.TLS.CA = strings.TrimSpace(profile.TLS.CA)
+	profile.TLS.ClientCertificate = strings.TrimSpace(profile.TLS.ClientCertificate)
+	profile.TLS.ClientKey = strings.TrimSpace(profile.TLS.ClientKey)
 
 	if profile.Obfs != nil {
 		profile.Obfs.Type = strings.ToLower(strings.TrimSpace(profile.Obfs.Type))
@@ -1267,108 +1307,369 @@ func normalizeClientProfile(input Hy2ClientProfile) Hy2ClientProfile {
 			profile.QUIC = nil
 		}
 	}
+
+	if profile.Bandwidth != nil {
+		profile.Bandwidth.Up = strings.TrimSpace(profile.Bandwidth.Up)
+		profile.Bandwidth.Down = strings.TrimSpace(profile.Bandwidth.Down)
+		if profile.Bandwidth.Up == "" && profile.Bandwidth.Down == "" {
+			profile.Bandwidth = nil
+		}
+	}
+
+	if profile.Socks5 != nil {
+		profile.Socks5.Listen = strings.TrimSpace(profile.Socks5.Listen)
+		profile.Socks5.Username = strings.TrimSpace(profile.Socks5.Username)
+		profile.Socks5.Password = strings.TrimSpace(profile.Socks5.Password)
+		if profile.Socks5.Listen == "" && profile.Socks5.Username == "" && profile.Socks5.Password == "" && !profile.Socks5.DisableUDP {
+			profile.Socks5 = nil
+		}
+	}
+
+	if profile.HTTP != nil {
+		profile.HTTP.Listen = strings.TrimSpace(profile.HTTP.Listen)
+		profile.HTTP.Username = strings.TrimSpace(profile.HTTP.Username)
+		profile.HTTP.Password = strings.TrimSpace(profile.HTTP.Password)
+		profile.HTTP.Realm = strings.TrimSpace(profile.HTTP.Realm)
+		if profile.HTTP.Listen == "" && profile.HTTP.Username == "" && profile.HTTP.Password == "" && profile.HTTP.Realm == "" {
+			profile.HTTP = nil
+		}
+	}
+
 	return profile
 }
 
+type hy2ResolvedServerMode string
+
+const (
+	hy2ResolvedServerPlain hy2ResolvedServerMode = "plain"
+	hy2ResolvedServerURI   hy2ResolvedServerMode = "uri"
+)
+
+type hy2ResolvedClientProfile struct {
+	Name       string
+	ServerMode hy2ResolvedServerMode
+	Server     string
+	Host       string
+	PortUnion  string
+	Auth       string
+	AuthType   string
+	TLS        Hy2ClientTLS
+	Obfs       *Hy2ClientObfs
+	QUIC       *Hy2ClientQUIC
+	Bandwidth  *Hy2ClientBandwidth
+	Socks5     *Hy2ClientSocks5Mode
+	HTTP       *Hy2ClientHTTPMode
+}
+
 func validateClientProfile(profile Hy2ClientProfile) Hy2ClientValidation {
+	_, validation := resolveClientProfile(profile)
+	return validation
+}
+
+func resolveClientProfile(profile Hy2ClientProfile) (hy2ResolvedClientProfile, Hy2ClientValidation) {
+	normalized := normalizeClientProfile(profile)
 	v := Hy2ClientValidation{Errors: []string{}, Warnings: []string{}}
-	host, ports := splitServerForClient(profile.Server)
-	if host == "" {
-		v.Errors = append(v.Errors, "profile.server is required")
+	resolved := hy2ResolvedClientProfile{
+		Name:      normalized.Name,
+		Server:    normalized.Server,
+		AuthType:  normalized.AuthType,
+		TLS:       normalized.TLS,
+		Obfs:      normalized.Obfs,
+		QUIC:      normalized.QUIC,
+		Bandwidth: normalized.Bandwidth,
+		Socks5:    normalized.Socks5,
+		HTTP:      normalized.HTTP,
 	}
-	if ports != "" && !validPortUnion(ports) {
-		v.Errors = append(v.Errors, "profile.server port section must be a valid port union")
+
+
+	if isHy2ServerURI(normalized.Server) {
+		uriResolved, err := parseClientServerURI(normalized.Server)
+		if err != nil {
+			v.Errors = append(v.Errors, "profile.server URI is invalid: "+strings.TrimSpace(err.Error()))
+		} else {
+			resolved.ServerMode = hy2ResolvedServerURI
+			resolved.Server = uriResolved.Server
+			resolved.Host = uriResolved.Host
+			resolved.PortUnion = uriResolved.PortUnion
+			resolved.Auth = uriResolved.Auth
+			resolved.TLS.SNI = uriResolved.TLS.SNI
+			resolved.TLS.Insecure = uriResolved.TLS.Insecure
+			resolved.TLS.PinSHA256 = uriResolved.TLS.PinSHA256
+			resolved.Obfs = uriResolved.Obfs
+		}
+
+		if strings.TrimSpace(normalized.Auth) != "" {
+			v.Errors = append(v.Errors, "profile.auth must be omitted when profile.server is a hysteria2:// URI")
+		}
+		if strings.TrimSpace(normalized.TLS.SNI) != "" || normalized.TLS.Insecure || strings.TrimSpace(normalized.TLS.PinSHA256) != "" {
+			v.Errors = append(v.Errors, "profile.tls.sni/insecure/pinSHA256 must be omitted when profile.server is a hysteria2:// URI")
+		}
+		if normalized.Obfs != nil {
+			v.Errors = append(v.Errors, "profile.obfs must be omitted when profile.server is a hysteria2:// URI")
+		}
+	} else {
+		host, ports := splitServerForClient(normalized.Server)
+		if host == "" {
+			v.Errors = append(v.Errors, "profile.server is required")
+		} else {
+			resolved.Host = host
+			resolved.PortUnion = ports
+			resolved.Server = joinServerValue(host, ports)
+			resolved.ServerMode = hy2ResolvedServerPlain
+		}
+		if ports != "" && !validPortUnion(ports) {
+			v.Errors = append(v.Errors, "profile.server port section must be a valid port union")
+		}
+		resolved.Auth = normalized.Auth
 	}
-	if strings.TrimSpace(profile.Auth) == "" {
-		v.Errors = append(v.Errors, "profile.auth is required")
+
+	if resolved.AuthType == "" {
+		if strings.Contains(strings.TrimSpace(resolved.Auth), ":") {
+			resolved.AuthType = "userpass"
+		} else {
+			resolved.AuthType = "password"
+		}
 	}
-	if profile.TLS.SNI != "" && NormalizeHost(profile.TLS.SNI) == "" {
+
+	authForValidation := strings.TrimSpace(resolved.Auth)
+	switch resolved.AuthType {
+	case "userpass":
+		parts := strings.SplitN(authForValidation, ":", 2)
+		if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
+			v.Errors = append(v.Errors, "profile.auth must use username:password format when authType=userpass")
+		}
+	case "password", "":
+		if authForValidation == "" {
+			v.Errors = append(v.Errors, "profile.auth is required")
+		}
+	default:
+		v.Errors = append(v.Errors, "profile.authType must be userpass or password")
+	}
+
+	if resolved.TLS.SNI != "" && NormalizeHost(resolved.TLS.SNI) == "" {
 		v.Errors = append(v.Errors, "profile.tls.sni must be a valid host")
 	}
-	if profile.TLS.PinSHA256 != "" && !isValidPinSHA256(profile.TLS.PinSHA256) {
+	if resolved.TLS.PinSHA256 != "" && !isValidPinSHA256(resolved.TLS.PinSHA256) {
 		v.Errors = append(v.Errors, "profile.tls.pinSHA256 must be a valid SHA-256 certificate fingerprint")
 	}
-	if profile.Obfs != nil {
-		if profile.Obfs.Type != "salamander" {
+	if (resolved.TLS.ClientCertificate == "") != (resolved.TLS.ClientKey == "") {
+		v.Errors = append(v.Errors, "profile.tls.clientCertificate and profile.tls.clientKey must be set together")
+	}
+
+	if resolved.Obfs != nil {
+		if resolved.Obfs.Type != "salamander" {
 			v.Errors = append(v.Errors, "profile.obfs.type must be salamander")
-		} else if profile.Obfs.Salamander == nil || strings.TrimSpace(profile.Obfs.Salamander.Password) == "" {
+		} else if resolved.Obfs.Salamander == nil || strings.TrimSpace(resolved.Obfs.Salamander.Password) == "" {
 			v.Errors = append(v.Errors, "profile.obfs.salamander.password is required when obfs.type=salamander")
 		}
 	}
-	if profile.QUIC != nil {
+
+	if resolved.Bandwidth != nil {
+		if resolved.Bandwidth.Up != "" && !validBandwidthValue(resolved.Bandwidth.Up) {
+			v.Errors = append(v.Errors, "profile.bandwidth.up must use Hysteria bandwidth format")
+		}
+		if resolved.Bandwidth.Down != "" && !validBandwidthValue(resolved.Bandwidth.Down) {
+			v.Errors = append(v.Errors, "profile.bandwidth.down must use Hysteria bandwidth format")
+		}
+	}
+
+	if resolved.QUIC != nil {
 		hasCustomValue := false
-		if profile.QUIC.InitStreamReceiveWindow > 0 {
+		if resolved.QUIC.InitStreamReceiveWindow > 0 {
 			hasCustomValue = true
 		}
-		if profile.QUIC.MaxStreamReceiveWindow > 0 {
+		if resolved.QUIC.MaxStreamReceiveWindow > 0 {
 			hasCustomValue = true
 		}
-		if profile.QUIC.InitConnReceiveWindow > 0 {
+		if resolved.QUIC.InitConnReceiveWindow > 0 {
 			hasCustomValue = true
 		}
-		if profile.QUIC.MaxConnReceiveWindow > 0 {
+		if resolved.QUIC.MaxConnReceiveWindow > 0 {
 			hasCustomValue = true
 		}
-		if profile.QUIC.MaxIdleTimeout != "" {
-			if _, err := time.ParseDuration(profile.QUIC.MaxIdleTimeout); err != nil {
+		if resolved.QUIC.MaxIdleTimeout != "" {
+			if _, err := time.ParseDuration(resolved.QUIC.MaxIdleTimeout); err != nil {
 				v.Errors = append(v.Errors, "profile.quic.maxIdleTimeout must be a valid duration")
 			} else {
 				hasCustomValue = true
 			}
 		}
-		if profile.QUIC.DisablePathMTUDiscovery {
+		if resolved.QUIC.DisablePathMTUDiscovery {
 			hasCustomValue = true
 		}
 		if !hasCustomValue {
 			v.Errors = append(v.Errors, "profile.quic is present but no valid values are set")
 		}
 	}
+
+	if resolved.Socks5 != nil {
+		if !validListenAddress(resolved.Socks5.Listen) {
+			v.Errors = append(v.Errors, "profile.socks5.listen must be a valid host:port or :port")
+		}
+		if (resolved.Socks5.Username == "") != (resolved.Socks5.Password == "") {
+			v.Errors = append(v.Errors, "profile.socks5.username and profile.socks5.password must be set together")
+		}
+	}
+	if resolved.HTTP != nil {
+		if !validListenAddress(resolved.HTTP.Listen) {
+			v.Errors = append(v.Errors, "profile.http.listen must be a valid host:port or :port")
+		}
+		if (resolved.HTTP.Username == "") != (resolved.HTTP.Password == "") {
+			v.Errors = append(v.Errors, "profile.http.username and profile.http.password must be set together")
+		}
+	}
+	if resolved.Socks5 == nil && resolved.HTTP == nil {
+		v.Errors = append(v.Errors, "at least one client mode must be configured (socks5 or http)")
+	}
+
 	v.Valid = len(v.Errors) == 0
-	return v
+	return resolved, v
+}
+
+func isHy2ServerURI(raw string) bool {
+	value := strings.ToLower(strings.TrimSpace(raw))
+	return strings.HasPrefix(value, "hysteria2://") || strings.HasPrefix(value, "hy2://")
+}
+
+func joinServerValue(host string, ports string) string {
+	server := strings.TrimSpace(host)
+	if strings.TrimSpace(ports) != "" {
+		server = server + ":" + strings.TrimSpace(ports)
+	}
+	return ensureBracketedIPv6(server)
+}
+
+func parseClientServerURI(raw string) (hy2ResolvedClientProfile, error) {
+	value := strings.TrimSpace(raw)
+	u, err := url.Parse(value)
+	if err != nil {
+		return hy2ResolvedClientProfile{}, err
+	}
+	scheme := strings.ToLower(strings.TrimSpace(u.Scheme))
+	if scheme != "hysteria2" && scheme != "hy2" {
+		return hy2ResolvedClientProfile{}, fmt.Errorf("unsupported URI scheme")
+	}
+
+	host, ports := splitServerForClient(strings.TrimSpace(u.Host))
+	if strings.TrimSpace(host) == "" {
+		return hy2ResolvedClientProfile{}, fmt.Errorf("missing host")
+	}
+	u.Scheme = "hysteria2"
+	u.Host = joinServerValue(host, ports)
+	u.Path = "/"
+	u.Fragment = ""
+
+	q := u.Query()
+	tls := Hy2ClientTLS{}
+	if sni := strings.TrimSpace(q.Get("sni")); sni != "" {
+		tls.SNI = sni
+	}
+	if insecureRaw := strings.TrimSpace(q.Get("insecure")); insecureRaw != "" {
+		insecure, parseErr := parseURIBool(insecureRaw)
+		if parseErr != nil {
+			return hy2ResolvedClientProfile{}, fmt.Errorf("invalid insecure value: %w", parseErr)
+		}
+		tls.Insecure = insecure
+	}
+	if pin := strings.TrimSpace(q.Get("pinSHA256")); pin != "" {
+		tls.PinSHA256 = pin
+	}
+
+	var obfs *Hy2ClientObfs
+	if obfsType := strings.ToLower(strings.TrimSpace(q.Get("obfs"))); obfsType != "" {
+		if obfsType != "salamander" {
+			return hy2ResolvedClientProfile{}, fmt.Errorf("unsupported URI obfs type")
+		}
+		password := strings.TrimSpace(q.Get("obfs-password"))
+		if password == "" {
+			return hy2ResolvedClientProfile{}, fmt.Errorf("URI obfs-password is required when obfs=salamander")
+		}
+		obfs = &Hy2ClientObfs{Type: "salamander", Salamander: &Hy2ClientSalamander{Password: password}}
+	}
+
+	u.RawQuery = q.Encode()
+
+	auth := ""
+	if u.User != nil {
+		user := strings.TrimSpace(u.User.Username())
+		if pass, hasPass := u.User.Password(); hasPass {
+			auth = user + ":" + pass
+		} else {
+			auth = user
+		}
+	}
+
+	return hy2ResolvedClientProfile{
+		ServerMode: hy2ResolvedServerURI,
+		Server:     u.String(),
+		Host:       host,
+		PortUnion:  ports,
+		Auth:       auth,
+		TLS:        tls,
+		Obfs:       obfs,
+	}, nil
+}
+
+func parseURIBool(raw string) (bool, error) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "1", "true", "yes", "on":
+		return true, nil
+	case "0", "false", "no", "off":
+		return false, nil
+	default:
+		return false, fmt.Errorf("expected 0/1 or boolean")
+	}
 }
 
 func buildClientURI(profile Hy2ClientProfile) (string, string) {
-	profile = normalizeClientProfile(profile)
-	host, ports := splitServerForClient(profile.Server)
-	if host == "" {
-		host = strings.TrimSpace(profile.Server)
+	resolved, validation := resolveClientProfile(profile)
+	if !validation.Valid {
+		return "", ""
 	}
-	authority := host
-	if strings.TrimSpace(ports) != "" {
-		authority = host + ":" + strings.TrimSpace(ports)
-	}
-	authority = ensureBracketedIPv6(authority)
 
-	u := url.URL{Scheme: "hysteria2", Host: authority, Path: "/"}
-	auth := strings.TrimSpace(profile.Auth)
-	if auth != "" {
-		parts := strings.SplitN(auth, ":", 2)
+	if resolved.ServerMode == hy2ResolvedServerURI {
+		u, err := url.Parse(resolved.Server)
+		if err != nil {
+			return "", ""
+		}
+		u.Scheme = "hysteria2"
+		u.Path = "/"
+		if resolved.Name != "" {
+			u.Fragment = resolved.Name
+		}
+		uri := u.String()
+		return uri, strings.Replace(uri, "hysteria2://", "hy2://", 1)
+	}
+
+	u := url.URL{Scheme: "hysteria2", Host: joinServerValue(resolved.Host, resolved.PortUnion), Path: "/"}
+	if strings.TrimSpace(resolved.Auth) != "" {
+		parts := strings.SplitN(strings.TrimSpace(resolved.Auth), ":", 2)
 		if len(parts) == 2 {
 			u.User = url.UserPassword(parts[0], parts[1])
 		} else {
-			u.User = url.User(auth)
+			u.User = url.User(strings.TrimSpace(resolved.Auth))
 		}
 	}
 
 	query := url.Values{}
-	if profile.TLS.SNI != "" {
-		query.Set("sni", profile.TLS.SNI)
+	if resolved.TLS.SNI != "" {
+		query.Set("sni", resolved.TLS.SNI)
 	}
-	if profile.TLS.Insecure {
+	if resolved.TLS.Insecure {
 		query.Set("insecure", "1")
 	}
-	if pin := normalizeCertHash(profile.TLS.PinSHA256); pin != "" {
+	if pin := normalizeCertHash(resolved.TLS.PinSHA256); pin != "" {
 		query.Set("pinSHA256", pin)
 	}
-	if profile.Obfs != nil && strings.EqualFold(profile.Obfs.Type, "salamander") {
+	if resolved.Obfs != nil && strings.EqualFold(resolved.Obfs.Type, "salamander") {
 		query.Set("obfs", "salamander")
-		if profile.Obfs.Salamander != nil && strings.TrimSpace(profile.Obfs.Salamander.Password) != "" {
-			query.Set("obfs-password", strings.TrimSpace(profile.Obfs.Salamander.Password))
+		if resolved.Obfs.Salamander != nil && strings.TrimSpace(resolved.Obfs.Salamander.Password) != "" {
+			query.Set("obfs-password", strings.TrimSpace(resolved.Obfs.Salamander.Password))
 		}
 	}
 	u.RawQuery = query.Encode()
-	if profile.Name != "" {
-		u.Fragment = profile.Name
+	if resolved.Name != "" {
+		u.Fragment = resolved.Name
 	}
 
 	uri := u.String()
@@ -1376,48 +1677,59 @@ func buildClientURI(profile Hy2ClientProfile) (string, string) {
 }
 
 func buildClientYAML(profile Hy2ClientProfile) (string, error) {
-	cfg := map[string]any{"server": profile.Server, "auth": profile.Auth}
+	resolved, validation := resolveClientProfile(profile)
+	if !validation.Valid {
+		return "", errors.New(strings.Join(validation.Errors, "; "))
+	}
 
-	tlsMap := map[string]any{}
-	if profile.TLS.SNI != "" {
-		tlsMap["sni"] = profile.TLS.SNI
-	}
-	if profile.TLS.Insecure {
-		tlsMap["insecure"] = true
-	}
-	if profile.TLS.PinSHA256 != "" {
-		tlsMap["pinSHA256"] = profile.TLS.PinSHA256
-	}
-	if len(tlsMap) > 0 {
+	cfg := map[string]any{"server": resolved.Server}
+	if resolved.ServerMode == hy2ResolvedServerPlain {
+		cfg["auth"] = resolved.Auth
+		if tlsMap := buildClientTLSMap(resolved.TLS, true); len(tlsMap) > 0 {
+			cfg["tls"] = tlsMap
+		}
+		if resolved.Obfs != nil {
+			obfs := map[string]any{"type": resolved.Obfs.Type}
+			if resolved.Obfs.Salamander != nil {
+				obfs["salamander"] = map[string]any{"password": resolved.Obfs.Salamander.Password}
+			}
+			cfg["obfs"] = obfs
+		}
+	} else if tlsMap := buildClientTLSMap(resolved.TLS, false); len(tlsMap) > 0 {
 		cfg["tls"] = tlsMap
 	}
 
-	if profile.Obfs != nil {
-		obfs := map[string]any{"type": profile.Obfs.Type}
-		if profile.Obfs.Salamander != nil {
-			obfs["salamander"] = map[string]any{"password": profile.Obfs.Salamander.Password}
+	if resolved.Bandwidth != nil {
+		bandwidth := map[string]any{}
+		if resolved.Bandwidth.Up != "" {
+			bandwidth["up"] = resolved.Bandwidth.Up
 		}
-		cfg["obfs"] = obfs
+		if resolved.Bandwidth.Down != "" {
+			bandwidth["down"] = resolved.Bandwidth.Down
+		}
+		if len(bandwidth) > 0 {
+			cfg["bandwidth"] = bandwidth
+		}
 	}
 
-	if profile.QUIC != nil {
+	if resolved.QUIC != nil {
 		quic := map[string]any{}
-		if profile.QUIC.InitStreamReceiveWindow > 0 {
-			quic["initStreamReceiveWindow"] = profile.QUIC.InitStreamReceiveWindow
+		if resolved.QUIC.InitStreamReceiveWindow > 0 {
+			quic["initStreamReceiveWindow"] = resolved.QUIC.InitStreamReceiveWindow
 		}
-		if profile.QUIC.MaxStreamReceiveWindow > 0 {
-			quic["maxStreamReceiveWindow"] = profile.QUIC.MaxStreamReceiveWindow
+		if resolved.QUIC.MaxStreamReceiveWindow > 0 {
+			quic["maxStreamReceiveWindow"] = resolved.QUIC.MaxStreamReceiveWindow
 		}
-		if profile.QUIC.InitConnReceiveWindow > 0 {
-			quic["initConnReceiveWindow"] = profile.QUIC.InitConnReceiveWindow
+		if resolved.QUIC.InitConnReceiveWindow > 0 {
+			quic["initConnReceiveWindow"] = resolved.QUIC.InitConnReceiveWindow
 		}
-		if profile.QUIC.MaxConnReceiveWindow > 0 {
-			quic["maxConnReceiveWindow"] = profile.QUIC.MaxConnReceiveWindow
+		if resolved.QUIC.MaxConnReceiveWindow > 0 {
+			quic["maxConnReceiveWindow"] = resolved.QUIC.MaxConnReceiveWindow
 		}
-		if profile.QUIC.MaxIdleTimeout != "" {
-			quic["maxIdleTimeout"] = profile.QUIC.MaxIdleTimeout
+		if resolved.QUIC.MaxIdleTimeout != "" {
+			quic["maxIdleTimeout"] = resolved.QUIC.MaxIdleTimeout
 		}
-		if profile.QUIC.DisablePathMTUDiscovery {
+		if resolved.QUIC.DisablePathMTUDiscovery {
 			quic["disablePathMTUDiscovery"] = true
 		}
 		if len(quic) > 0 {
@@ -1425,13 +1737,62 @@ func buildClientYAML(profile Hy2ClientProfile) (string, error) {
 		}
 	}
 
-	cfg["socks5"] = map[string]any{"listen": "127.0.0.1:1080"}
+	if resolved.Socks5 != nil {
+		socks5 := map[string]any{"listen": resolved.Socks5.Listen}
+		if resolved.Socks5.Username != "" {
+			socks5["username"] = resolved.Socks5.Username
+			socks5["password"] = resolved.Socks5.Password
+		}
+		if resolved.Socks5.DisableUDP {
+			socks5["disableUDP"] = true
+		}
+		cfg["socks5"] = socks5
+	}
+	if resolved.HTTP != nil {
+		httpMap := map[string]any{"listen": resolved.HTTP.Listen}
+		if resolved.HTTP.Username != "" {
+			httpMap["username"] = resolved.HTTP.Username
+			httpMap["password"] = resolved.HTTP.Password
+		}
+		if resolved.HTTP.Realm != "" {
+			httpMap["realm"] = resolved.HTTP.Realm
+		}
+		cfg["http"] = httpMap
+	}
+	if resolved.Socks5 == nil && resolved.HTTP == nil {
+		return "", errors.New("at least one client mode must be configured")
+	}
 
 	normalized, ok := normalizeYAMLValue(cfg).(map[string]any)
 	if !ok {
 		return "", errors.New("failed to render client config")
 	}
 	return marshalYAMLMap(normalized)
+}
+
+func buildClientTLSMap(tls Hy2ClientTLS, includeConnectionFields bool) map[string]any {
+	out := map[string]any{}
+	if includeConnectionFields {
+		if tls.SNI != "" {
+			out["sni"] = tls.SNI
+		}
+		if tls.Insecure {
+			out["insecure"] = true
+		}
+		if tls.PinSHA256 != "" {
+			out["pinSHA256"] = tls.PinSHA256
+		}
+	}
+	if tls.CA != "" {
+		out["ca"] = tls.CA
+	}
+	if tls.ClientCertificate != "" {
+		out["clientCertificate"] = tls.ClientCertificate
+	}
+	if tls.ClientKey != "" {
+		out["clientKey"] = tls.ClientKey
+	}
+	return out
 }
 
 func mergeKnownValues(current any, desired any, schema *schemaNode) any {
@@ -1863,12 +2224,19 @@ func splitServerForClient(server string) (string, string) {
 	}
 	if strings.Contains(value, "://") {
 		if u, err := url.Parse(value); err == nil {
-			h := strings.TrimSpace(u.Hostname())
-			p := strings.TrimSpace(u.Port())
-			if h != "" {
-				return h, p
+			host, ports := splitServerAuthority(strings.TrimSpace(u.Host))
+			if host != "" {
+				return host, ports
 			}
 		}
+	}
+	return splitServerAuthority(value)
+}
+
+func splitServerAuthority(value string) (string, string) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", ""
 	}
 	if strings.HasPrefix(value, "[") {
 		idx := strings.LastIndex(value, "]:")
@@ -1877,6 +2245,9 @@ func splitServerForClient(server string) (string, string) {
 		}
 		host := strings.TrimSpace(value[:idx+1])
 		ports := strings.TrimSpace(value[idx+2:])
+		if !validPortUnion(ports) {
+			return value, ""
+		}
 		return host, ports
 	}
 	if strings.Count(value, ":") == 0 {
@@ -2149,4 +2520,3 @@ func buildServerSchema() *schemaNode {
 		"udpIdleTimeout":        emptySchema,
 	}}
 }
-

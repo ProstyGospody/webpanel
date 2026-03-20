@@ -130,6 +130,7 @@ func TestHysteriaConfigManagerGenerateClientArtifacts(t *testing.T) {
 			MaxIdleTimeout:          "30s",
 			DisablePathMTUDiscovery: true,
 		},
+		Socks5: &Hy2ClientSocks5Mode{Listen: "127.0.0.1:1080"},
 	}
 
 	artifacts, validation := manager.GenerateClientArtifacts(profile)
@@ -258,4 +259,3 @@ auth:
 		t.Fatalf("udpIdleTimeout is missing: %s", next)
 	}
 }
-
