@@ -7,6 +7,7 @@ import PeopleAltRoundedIcon from "@mui/icons-material/PeopleAltRounded";
 import PreviewRoundedIcon from "@mui/icons-material/PreviewRounded";
 import RestartAltRoundedIcon from "@mui/icons-material/RestartAltRounded";
 import RouterRoundedIcon from "@mui/icons-material/RouterRounded";
+import SettingsEthernetRoundedIcon from "@mui/icons-material/SettingsEthernetRounded";
 import StorageRoundedIcon from "@mui/icons-material/StorageRounded";
 import SyncRoundedIcon from "@mui/icons-material/SyncRounded";
 import type { SvgIconComponent } from "@mui/icons-material";
@@ -264,7 +265,7 @@ export default function DashboardPage() {
   }, [loadServices]);
 
   const warningMessages = useMemo(() => {
-    return (live?.errors || []).filter((item) => !/tcp|udp|packet/i.test(item));
+    return live?.errors || [];
   }, [live]);
 
   async function openServiceDetails(name: string) {
@@ -313,6 +314,8 @@ export default function DashboardPage() {
   const networkTx = Math.max(0, live?.system.network_tx_bps ?? 0);
   const uptime = formatUptime(live?.system.uptime_seconds ?? 0);
   const totalTraffic = Math.max(0, (live?.hysteria.total_rx_bytes ?? 0) + (live?.hysteria.total_tx_bytes ?? 0));
+  const tcpPacketsPerSec = Math.max(0, live?.system.tcp_packets_per_sec ?? 0);
+  const udpPacketsPerSec = Math.max(0, live?.system.udp_packets_per_sec ?? 0);
   const metricTiles: MetricTile[] = [
     {
       label: "CPU",
@@ -350,6 +353,13 @@ export default function DashboardPage() {
       value: formatBytes(totalTraffic),
       tone: "primary",
       icon: DataUsageRoundedIcon,
+    },
+    {
+      label: "TCP / UDP",
+      value: `TCP ${tcpPacketsPerSec.toFixed(1)}/s`,
+      valueSecondary: `UDP ${udpPacketsPerSec.toFixed(1)}/s`,
+      tone: "info",
+      icon: SettingsEthernetRoundedIcon,
     },
   ];
 
