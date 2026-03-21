@@ -4,18 +4,43 @@ import AccessTimeRoundedIcon from "@mui/icons-material/AccessTimeRounded";
 import DataUsageRoundedIcon from "@mui/icons-material/DataUsageRounded";
 import MemoryRoundedIcon from "@mui/icons-material/MemoryRounded";
 import PeopleAltRoundedIcon from "@mui/icons-material/PeopleAltRounded";
+import PreviewRoundedIcon from "@mui/icons-material/PreviewRounded";
+import RestartAltRoundedIcon from "@mui/icons-material/RestartAltRounded";
 import RouterRoundedIcon from "@mui/icons-material/RouterRounded";
 import StorageRoundedIcon from "@mui/icons-material/StorageRounded";
+import SyncRoundedIcon from "@mui/icons-material/SyncRounded";
 import type { SvgIconComponent } from "@mui/icons-material";
-import { Alert, Card, CardContent, CircularProgress, Grid, Stack, Typography } from "@mui/material";
+import {
+  Alert,
+  Card,
+  CardContent,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Grid,
+  IconButton,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Tooltip,
+  Typography,
+  Button,
+} from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { DashboardChartRange, OverviewCharts, SystemTrendSample } from "@/components/charts/overview-charts";
 import { PageHeader } from "@/components/ui/page-header";
+import { StatusChip } from "@/components/ui/status-chip";
 import { APIError, apiFetch } from "@/services/api";
-import { SystemHistoryResponse, SystemLiveResponse } from "@/types/common";
-import { formatBytes, formatRate, formatUptime } from "@/utils/format";
+import { ServiceDetails, ServiceSummary, SystemHistoryResponse, SystemLiveResponse } from "@/types/common";
+import { formatBytes, formatDateTime, formatRate, formatUptime } from "@/utils/format";
 
 const LIVE_POLL_MS = 6000;
 const TREND_RETENTION_MS = 24 * 60 * 60 * 1000;
@@ -147,6 +172,8 @@ type MetricTile = {
   icon: SvgIconComponent;
 };
 
+type ActionState = { name: string; action: "restart" | "reload" } | null;
+
 export default function DashboardPage() {
   const [live, setLive] = useState<SystemLiveResponse | null>(null);
   const [trendSamples, setTrendSamples] = useState<SystemTrendSample[]>([]);
@@ -154,6 +181,13 @@ export default function DashboardPage() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [serviceItems, setServiceItems] = useState<ServiceSummary[]>([]);
+  const [servicesLoading, setServicesLoading] = useState(true);
+  const [servicesBusy, setServicesBusy] = useState(false);
+  const [servicesError, setServicesError] = useState("");
+  const [serviceDetails, setServiceDetails] = useState<ServiceDetails | null>(null);
+  const [serviceDetailsOpen, setServiceDetailsOpen] = useState(false);
+  const [serviceActionState, setServiceActionState] = useState<ActionState>(null);
   const loadingRef = useRef(false);
   const historyRequestRef = useRef(0);
 
@@ -201,6 +235,18 @@ export default function DashboardPage() {
     }
   }, []);
 
+  const loadServices = useCallback(async () => {
+    setServicesError("");
+    try {
+      const payload = await apiFetch<{ items: ServiceSummary[] }>("/api/services", { method: "GET" });
+      setServiceItems(payload.items || []);
+    } catch (err) {
+      setServicesError(err instanceof APIError ? err.message : "Failed to load services");
+    } finally {
+      setServicesLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void loadHistory(chartRange);
   }, [chartRange, loadHistory]);
@@ -211,9 +257,45 @@ export default function DashboardPage() {
     return () => clearInterval(timer);
   }, [load]);
 
+  useEffect(() => {
+    void loadServices();
+    const timer = setInterval(() => void loadServices(), 15000);
+    return () => clearInterval(timer);
+  }, [loadServices]);
+
   const warningMessages = useMemo(() => {
     return (live?.errors || []).filter((item) => !/tcp|udp|packet/i.test(item));
   }, [live]);
+
+  async function openServiceDetails(name: string) {
+    setServicesBusy(true);
+    try {
+      const payload = await apiFetch<ServiceDetails>(`/api/services/${name}?lines=120`, { method: "GET" });
+      setServiceDetails(payload);
+      setServiceDetailsOpen(true);
+    } catch (err) {
+      setServicesError(err instanceof APIError ? err.message : "Failed to load service details");
+    } finally {
+      setServicesBusy(false);
+    }
+  }
+
+  async function runServiceAction() {
+    if (!serviceActionState) return;
+    setServicesBusy(true);
+    try {
+      await apiFetch<{ ok: boolean }>(`/api/services/${serviceActionState.name}/${serviceActionState.action}`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      setServiceActionState(null);
+      await loadServices();
+    } catch (err) {
+      setServicesError(err instanceof APIError ? err.message : "Failed to run action");
+    } finally {
+      setServicesBusy(false);
+    }
+  }
 
   if (loading && !live) {
     return (
@@ -370,6 +452,112 @@ export default function DashboardPage() {
         range={chartRange}
         onRangeChange={setChartRange}
       />
+
+      <Card>
+        <CardContent>
+          <Stack spacing={2}>
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>Managed Services</Typography>
+            {servicesError ? <Alert severity="error">{servicesError}</Alert> : null}
+            {servicesLoading ? (
+              <Stack alignItems="center" justifyContent="center" sx={{ py: 8 }} spacing={1.5}>
+                <CircularProgress size={28} />
+                <Typography color="text.secondary">Loading services...</Typography>
+              </Stack>
+            ) : (
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Service</TableCell>
+                      <TableCell>Status</TableCell>
+                      <TableCell>Version</TableCell>
+                      <TableCell>Last Check</TableCell>
+                      <TableCell align="right">Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {serviceItems.map((item) => (
+                      <TableRow key={item.service_name} hover>
+                        <TableCell>
+                          <Typography sx={{ fontWeight: 700 }}>{item.service_name}</Typography>
+                        </TableCell>
+                        <TableCell><StatusChip status={item.status || "unknown"} /></TableCell>
+                        <TableCell>{item.version || "-"}</TableCell>
+                        <TableCell>{formatDateTime(item.last_check_at)}</TableCell>
+                        <TableCell align="right">
+                          <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                            <Tooltip title="Details & Logs">
+                              <IconButton size="small" onClick={() => void openServiceDetails(item.service_name)} disabled={servicesBusy}>
+                                <PreviewRoundedIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Reload">
+                              <IconButton size="small" onClick={() => setServiceActionState({ name: item.service_name, action: "reload" })} disabled={servicesBusy}>
+                                <SyncRoundedIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Restart">
+                              <IconButton size="small" onClick={() => setServiceActionState({ name: item.service_name, action: "restart" })} disabled={servicesBusy}>
+                                <RestartAltRoundedIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </Stack>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Dialog open={serviceDetailsOpen} onClose={() => setServiceDetailsOpen(false)} fullWidth maxWidth="md">
+        <DialogTitle>{serviceDetails?.name || "Service"} details</DialogTitle>
+        <DialogContent>
+          {serviceDetails ? (
+            <Stack spacing={1.5}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Typography variant="body2" color="text.secondary">Status:</Typography>
+                <StatusChip status={serviceDetails.status_text} />
+              </Stack>
+              <Typography variant="body2" color="text.secondary">
+                Active: {serviceDetails.active} / {serviceDetails.sub_state}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                PID: {serviceDetails.main_pid || 0} | Checked: {formatDateTime(serviceDetails.checked_at)}
+              </Typography>
+              <Typography variant="subtitle2" sx={{ pt: 1 }}>Recent logs</Typography>
+              <Card variant="outlined" sx={{ bgcolor: (theme) => theme.palette.background.default }}>
+                <CardContent sx={{ p: 1.5 }}>
+                  <Typography component="pre" variant="code" sx={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                    {serviceDetails.last_logs?.length ? serviceDetails.last_logs.join("\n") : "No logs available"}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Stack>
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setServiceDetailsOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(serviceActionState)} onClose={() => !servicesBusy && setServiceActionState(null)}>
+        <DialogTitle>Confirm service action</DialogTitle>
+        <DialogContent>
+          <Typography>
+            {serviceActionState?.action === "restart" ? "Restart" : "Reload"} <strong>{serviceActionState?.name}</strong> now?
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setServiceActionState(null)} disabled={servicesBusy}>Cancel</Button>
+          <Button variant="contained" onClick={() => void runServiceAction()} disabled={servicesBusy}>
+            {servicesBusy ? "Processing..." : "Confirm"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   );
 }

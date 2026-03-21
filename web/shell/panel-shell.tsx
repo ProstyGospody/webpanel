@@ -20,7 +20,6 @@ import {
 import { alpha, useTheme } from "@mui/material/styles";
 import DashboardRoundedIcon from "@mui/icons-material/DashboardRounded";
 import GroupRoundedIcon from "@mui/icons-material/GroupRounded";
-import SettingsEthernetRoundedIcon from "@mui/icons-material/SettingsEthernetRounded";
 import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
 import TuneRoundedIcon from "@mui/icons-material/TuneRounded";
 import MenuRoundedIcon from "@mui/icons-material/MenuRounded";
@@ -44,7 +43,6 @@ const navItems: NavItem[] = [
   { href: "/", label: "Overview", icon: <DashboardRoundedIcon /> },
   { href: "/users", label: "Users", icon: <GroupRoundedIcon /> },
   { href: "/config", label: "Server", icon: <TuneRoundedIcon /> },
-  { href: "/services", label: "Services", icon: <SettingsEthernetRoundedIcon /> },
   { href: "/audit", label: "Audit", icon: <ReceiptLongRoundedIcon /> },
 ];
 
