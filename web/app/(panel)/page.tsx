@@ -314,8 +314,8 @@ export default function DashboardPage() {
   const networkTx = Math.max(0, live?.system.network_tx_bps ?? 0);
   const uptime = formatUptime(live?.system.uptime_seconds ?? 0);
   const totalTraffic = Math.max(0, (live?.hysteria.total_rx_bytes ?? 0) + (live?.hysteria.total_tx_bytes ?? 0));
-  const tcpPacketsPerSec = Math.max(0, live?.system.tcp_packets_per_sec ?? 0);
-  const udpPacketsPerSec = Math.max(0, live?.system.udp_packets_per_sec ?? 0);
+  const tcpPackets = Math.max(0, Math.round(live?.system.tcp_packets ?? 0));
+  const udpPackets = Math.max(0, Math.round(live?.system.udp_packets ?? 0));
   const metricTiles: MetricTile[] = [
     {
       label: "CPU",
@@ -356,8 +356,8 @@ export default function DashboardPage() {
     },
     {
       label: "TCP / UDP",
-      value: `TCP ${tcpPacketsPerSec.toFixed(1)}/s`,
-      valueSecondary: `UDP ${udpPacketsPerSec.toFixed(1)}/s`,
+      value: `TCP ${tcpPackets.toLocaleString()}`,
+      valueSecondary: `UDP ${udpPackets.toLocaleString()}`,
       tone: "info",
       icon: SettingsEthernetRoundedIcon,
     },
@@ -370,7 +370,7 @@ export default function DashboardPage() {
       {error ? <Alert severity="error">{error}</Alert> : null}
       {warningMessages.length ? <Alert severity="warning">{warningMessages.join(" | ")}</Alert> : null}
 
-      <Grid container spacing={1.5}>
+      <Grid container spacing={1.5} columns={{ xs: 12, sm: 12, md: 12, xl: 14 }}>
         {metricTiles.map((tile) => {
           const Icon = tile.icon;
           return (
