@@ -145,7 +145,6 @@ type MetricTile = {
   valueSecondary?: string;
   tone: "primary" | "secondary" | "success" | "info" | "warning";
   icon: SvgIconComponent;
-  iconOffsetY?: number;
 };
 
 export default function DashboardPage() {
@@ -238,21 +237,18 @@ export default function DashboardPage() {
       value: `${cpuPercent.toFixed(1)}%`,
       tone: "primary",
       icon: MemoryRoundedIcon,
-      iconOffsetY: -2,
     },
     {
       label: "RAM",
       value: `${ramPercent.toFixed(1)}%`,
       tone: "secondary",
       icon: StorageRoundedIcon,
-      iconOffsetY: -1,
     },
     {
       label: "ONLINE",
       value: `${onlineUsers}`,
       tone: "success",
       icon: PeopleAltRoundedIcon,
-      iconOffsetY: -1,
     },
     {
       label: "NETWORK",
@@ -260,21 +256,18 @@ export default function DashboardPage() {
       valueSecondary: `↑ ${formatRate(networkTx)}`,
       tone: "info",
       icon: RouterRoundedIcon,
-      iconOffsetY: -1,
     },
     {
       label: "UPTIME",
       value: uptime,
       tone: "warning",
       icon: AccessTimeRoundedIcon,
-      iconOffsetY: -2,
     },
     {
       label: "TRAFFIC",
       value: formatBytes(totalTraffic),
       tone: "primary",
       icon: DataUsageRoundedIcon,
-      iconOffsetY: -1,
     },
   ];
 
@@ -300,17 +293,15 @@ export default function DashboardPage() {
               >
                 <CardContent
                   sx={{
-                    py: 1.6,
+                    pt: 1.05,
+                    pb: 1.6,
                     px: 2,
+                    position: "relative",
                     height: "100%",
                     minHeight: { xs: 106, sm: 122 },
-                    display: "grid",
-                    gridTemplateColumns: "minmax(0, 1fr) auto",
-                    columnGap: 1.5,
-                    alignItems: "center",
                   }}
                 >
-                  <Stack spacing={0.2}>
+                  <Stack spacing={0.2} sx={{ pr: { xs: 7, sm: 8 }, alignItems: "flex-start" }}>
                     <Typography
                       variant="subtitle2"
                       color="text.secondary"
@@ -350,6 +341,10 @@ export default function DashboardPage() {
                     alignItems="center"
                     justifyContent="center"
                     sx={{
+                      position: "absolute",
+                      right: 16,
+                      top: "50%",
+                      transform: "translateY(-50%)",
                       width: { xs: 42, sm: 48, md: 54 },
                       height: { xs: 42, sm: 48, md: 54 },
                     }}
@@ -359,7 +354,6 @@ export default function DashboardPage() {
                       sx={{
                         display: "block",
                         fontSize: { xs: "2rem", sm: "2.35rem", md: "2.6rem" },
-                        transform: `translateY(${tile.iconOffsetY || 0}px)`,
                       }}
                     />
                   </Stack>
