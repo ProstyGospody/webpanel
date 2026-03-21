@@ -73,7 +73,7 @@ function downsample<T>(items: T[], maxPoints: number): T[] {
   return items.filter((_, index) => index % step === 0 || index === items.length - 1);
 }
 
-function formatAxisTime(value: unknown, context?: AxisContext): string {
+function formatAxisTime(value: unknown, context?: AxisContext, range?: DashboardChartRange): string {
   const date =
     value instanceof Date
       ? value
@@ -91,6 +91,14 @@ function formatAxisTime(value: unknown, context?: AxisContext): string {
     return date.toLocaleString([], {
       day: "2-digit",
       month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  }
+
+  if (range === "24h") {
+    return date.toLocaleTimeString([], {
       hour: "2-digit",
       minute: "2-digit",
       hour12: false,
@@ -146,11 +154,13 @@ function chartStyleSx(theme: Theme) {
 export function OverviewCharts({ loading, samples, range, onRangeChange }: OverviewChartsProps) {
   const rangeMs = range === "24h" ? DAY_MS : HOUR_MS;
   const maxPoints = range === "24h" ? 480 : 360;
-  const xTicks = range === "24h" ? 8 : 6;
-  const rangeEndMs = Date.now();
+  const xTicks = range === "24h" ? 24 : 6;
+  const nowMs = Date.now();
+  const rangeEndMs = range === "24h" ? Math.floor(nowMs / HOUR_MS) * HOUR_MS : nowMs;
   const rangeStartMs = rangeEndMs - rangeMs;
   const rangeStartDate = new Date(rangeStartMs);
   const rangeEndDate = new Date(rangeEndMs);
+  const axisValueFormatter = (value: unknown, context?: AxisContext) => formatAxisTime(value, context, range);
 
   const points = useMemo(() => {
     const filtered = samples
@@ -244,7 +254,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         tickNumber: xTicks,
                         min: rangeStartDate,
                         max: rangeEndDate,
-                        valueFormatter: formatAxisTime,
+                        valueFormatter: axisValueFormatter,
                       },
                     ]}
                     yAxis={[
@@ -272,7 +282,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         valueFormatter: (value: unknown) => formatRate(Number(value) || 0),
                       },
                     ]}
-                    grid={{ horizontal: true, vertical: false }}
+                    grid={{ horizontal: true, vertical: range === "24h" }}
                   />
                 )}
               </Stack>
@@ -302,7 +312,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         tickNumber: xTicks,
                         min: rangeStartDate,
                         max: rangeEndDate,
-                        valueFormatter: formatAxisTime,
+                        valueFormatter: axisValueFormatter,
                       },
                     ]}
                     yAxis={[
@@ -323,7 +333,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         valueFormatter: (value: unknown) => `${clampPercent(Number(value) || 0).toFixed(1)}%`,
                       },
                     ]}
-                    grid={{ horizontal: true, vertical: false }}
+                    grid={{ horizontal: true, vertical: range === "24h" }}
                   />
                 )}
               </Stack>
@@ -353,7 +363,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         tickNumber: xTicks,
                         min: rangeStartDate,
                         max: rangeEndDate,
-                        valueFormatter: formatAxisTime,
+                        valueFormatter: axisValueFormatter,
                       },
                     ]}
                     yAxis={[
@@ -374,7 +384,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         valueFormatter: (value: unknown) => `${clampPercent(Number(value) || 0).toFixed(1)}%`,
                       },
                     ]}
-                    grid={{ horizontal: true, vertical: false }}
+                    grid={{ horizontal: true, vertical: range === "24h" }}
                   />
                 )}
               </Stack>

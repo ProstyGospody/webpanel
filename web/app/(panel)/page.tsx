@@ -145,6 +145,7 @@ type MetricTile = {
   valueSecondary?: string;
   tone: "primary" | "secondary" | "success" | "info" | "warning";
   icon: SvgIconComponent;
+  iconOffsetY?: number;
 };
 
 export default function DashboardPage() {
@@ -237,18 +238,21 @@ export default function DashboardPage() {
       value: `${cpuPercent.toFixed(1)}%`,
       tone: "primary",
       icon: MemoryRoundedIcon,
+      iconOffsetY: -2,
     },
     {
       label: "RAM",
       value: `${ramPercent.toFixed(1)}%`,
       tone: "secondary",
       icon: StorageRoundedIcon,
+      iconOffsetY: -1,
     },
     {
       label: "ONLINE",
       value: `${onlineUsers}`,
       tone: "success",
       icon: PeopleAltRoundedIcon,
+      iconOffsetY: -1,
     },
     {
       label: "NETWORK",
@@ -256,18 +260,21 @@ export default function DashboardPage() {
       valueSecondary: `↑ ${formatRate(networkTx)}`,
       tone: "info",
       icon: RouterRoundedIcon,
+      iconOffsetY: -1,
     },
     {
       label: "UPTIME",
       value: uptime,
       tone: "warning",
       icon: AccessTimeRoundedIcon,
+      iconOffsetY: -2,
     },
     {
       label: "TRAFFIC",
       value: formatBytes(totalTraffic),
       tone: "primary",
       icon: DataUsageRoundedIcon,
+      iconOffsetY: -1,
     },
   ];
 
@@ -286,7 +293,7 @@ export default function DashboardPage() {
               <Card
                 variant="outlined"
                 sx={(theme) => ({
-                  height: "100%",
+                  height: { xs: "100%", sm: 122 },
                   borderColor: alpha(theme.palette[tile.tone].main, 0.32),
                   backgroundColor: alpha(theme.palette.background.paper, 0.9),
                 })}
@@ -295,56 +302,56 @@ export default function DashboardPage() {
                   sx={{
                     py: 1.6,
                     px: 2,
-                    position: "relative",
-                    minHeight: { xs: 104, sm: 112 },
+                    height: "100%",
+                    minHeight: { xs: 106, sm: 122 },
+                    display: "grid",
+                    gridTemplateColumns: "minmax(0, 1fr) auto",
+                    columnGap: 1.5,
+                    alignItems: "center",
                   }}
                 >
-                  <Stack spacing={0.2} sx={{ pr: { xs: 7, sm: 8 } }}>
-                      <Typography
-                        variant="subtitle2"
-                        color="text.secondary"
-                        sx={{
-                          textTransform: "uppercase",
-                          letterSpacing: "0.09em",
-                          fontWeight: 800,
-                          fontSize: { xs: "0.82rem", sm: "0.9rem" },
-                        }}
-                      >
-                        {tile.label}
-                      </Typography>
+                  <Stack spacing={0.2}>
+                    <Typography
+                      variant="subtitle2"
+                      color="text.secondary"
+                      sx={{
+                        textTransform: "uppercase",
+                        letterSpacing: "0.09em",
+                        fontWeight: 800,
+                        fontSize: { xs: "0.82rem", sm: "0.9rem" },
+                      }}
+                    >
+                      {tile.label}
+                    </Typography>
+                    <Typography
+                      variant="h5"
+                      sx={{
+                        fontWeight: 900,
+                        lineHeight: 1.1,
+                        fontSize: { xs: "1.55rem", sm: "1.72rem", md: "1.88rem" },
+                      }}
+                    >
+                      {tile.value}
+                    </Typography>
+                    {tile.valueSecondary ? (
                       <Typography
                         variant="h5"
                         sx={{
                           fontWeight: 900,
                           lineHeight: 1.1,
-                          fontSize: { xs: "1.55rem", sm: "1.72rem", md: "1.88rem" },
+                          fontSize: { xs: "1.45rem", sm: "1.62rem", md: "1.76rem" },
                         }}
                       >
-                        {tile.value}
+                        {tile.valueSecondary}
                       </Typography>
-                      {tile.valueSecondary ? (
-                        <Typography
-                          variant="h5"
-                          sx={{
-                            fontWeight: 900,
-                            lineHeight: 1.1,
-                            fontSize: { xs: "1.45rem", sm: "1.62rem", md: "1.76rem" },
-                          }}
-                        >
-                          {tile.valueSecondary}
-                        </Typography>
-                      ) : null}
+                    ) : null}
                   </Stack>
                   <Stack
                     alignItems="center"
                     justifyContent="center"
                     sx={{
-                      position: "absolute",
-                      right: 16,
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      width: { xs: 40, sm: 48, md: 52 },
-                      height: { xs: 40, sm: 48, md: 52 },
+                      width: { xs: 42, sm: 48, md: 54 },
+                      height: { xs: 42, sm: 48, md: 54 },
                     }}
                   >
                     <Icon
@@ -352,6 +359,7 @@ export default function DashboardPage() {
                       sx={{
                         display: "block",
                         fontSize: { xs: "2rem", sm: "2.35rem", md: "2.6rem" },
+                        transform: `translateY(${tile.iconOffsetY || 0}px)`,
                       }}
                     />
                   </Stack>
