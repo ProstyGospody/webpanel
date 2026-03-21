@@ -63,7 +63,7 @@ export function PanelShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const theme = useTheme();
   const { mode, toggleMode } = useAppThemeMode();
-  const desktop = useMediaQuery(theme.breakpoints.up("lg"));
+  const desktop = useMediaQuery(theme.breakpoints.up("lg"), { noSsr: true });
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopNavCollapsed, setDesktopNavCollapsed] = useState(false);
   const activeTitle = useMemo(() => resolveTitle(pathname), [pathname]);

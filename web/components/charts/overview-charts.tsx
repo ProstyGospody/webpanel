@@ -169,7 +169,7 @@ function chartStyleSx(theme: Theme, compact: boolean) {
 
 export function OverviewCharts({ loading, samples, range, onRangeChange }: OverviewChartsProps) {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"), { noSsr: true });
   const rangeMs = range === "24h" ? DAY_MS : HOUR_MS;
   const maxPoints = range === "24h" ? 480 : 360;
   const xTicks = range === "24h" ? (isMobile ? 6 : 10) : (isMobile ? 4 : 7);

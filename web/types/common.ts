@@ -49,6 +49,8 @@ export type SystemLiveResponse = {
     uptime_seconds: number;
     network_rx_bps: number;
     network_tx_bps: number;
+    tcp_sockets: number;
+    udp_sockets: number;
     tcp_packets: number;
     udp_packets: number;
     tcp_packets_per_sec: number;

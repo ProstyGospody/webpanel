@@ -31,6 +31,8 @@ type liveSystemMetrics struct {
 	UptimeSeconds     int64     `json:"uptime_seconds"`
 	NetworkRxBps      float64   `json:"network_rx_bps"`
 	NetworkTxBps      float64   `json:"network_tx_bps"`
+	TCPSockets        int64     `json:"tcp_sockets"`
+	UDPSockets        int64     `json:"udp_sockets"`
 	TCPPackets        int64     `json:"tcp_packets"`
 	UDPPackets        int64     `json:"udp_packets"`
 	TCPPacketsPerSec  float64   `json:"tcp_packets_per_sec"`
@@ -86,6 +88,11 @@ func (h *Handler) GetSystemLive(w http.ResponseWriter, r *http.Request) {
 		errors = append(errors, "protocol packet metrics unavailable")
 	}
 	tcpPacketsPerSec, udpPacketsPerSec := h.calculateProtocolPacketRates(tcpPackets, udpPackets, packetCollectedAt)
+	tcpSockets, udpSockets, _, _, socketErr := h.collectProtocolSocketMetrics()
+	if socketErr != nil {
+		h.logger.Warn("failed to collect protocol socket metrics", "error", socketErr)
+		errors = append(errors, "protocol socket metrics unavailable")
+	}
 
 	hy2, hy2Err := h.collectHy2Live(ctx)
 	if hy2Err != "" {
@@ -109,6 +116,8 @@ func (h *Handler) GetSystemLive(w http.ResponseWriter, r *http.Request) {
 			UptimeSeconds:     snapshot.UptimeSeconds,
 			NetworkRxBps:      networkRx,
 			NetworkTxBps:      networkTx,
+			TCPSockets:        tcpSockets,
+			UDPSockets:        udpSockets,
 			TCPPackets:        tcpPackets,
 			UDPPackets:        udpPackets,
 			TCPPacketsPerSec:  tcpPacketsPerSec,
@@ -217,6 +226,14 @@ func (h *Handler) collectProtocolPacketMetrics() (int64, int64, time.Time, strin
 		return 0, 0, time.Now().UTC(), "unavailable", err
 	}
 	return snapshot.TCPPackets, snapshot.UDPPackets, snapshot.CollectedAt, "procfs", nil
+}
+
+func (h *Handler) collectProtocolSocketMetrics() (int64, int64, time.Time, string, error) {
+	snapshot, err := services.ReadProtocolSocketSnapshot()
+	if err != nil {
+		return 0, 0, time.Now().UTC(), "unavailable", err
+	}
+	return snapshot.TCPSockets, snapshot.UDPSockets, snapshot.CollectedAt, "procfs", nil
 }
 
 func (h *Handler) calculateProtocolPacketRates(tcpPackets int64, udpPackets int64, collectedAt time.Time) (float64, float64) {
