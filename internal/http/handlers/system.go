@@ -80,7 +80,7 @@ func (h *Handler) GetSystemLive(w http.ResponseWriter, r *http.Request) {
 		source = "unavailable"
 	}
 
-	tcpPackets, udpPackets, packetCollectedAt, packetSource, packetErr := h.collectProtocolPacketMetrics(ctx)
+	tcpPackets, udpPackets, packetCollectedAt, packetSource, packetErr := h.collectProtocolPacketMetrics()
 	if packetErr != nil {
 		h.logger.Warn("failed to collect protocol packet metrics", "error", packetErr)
 		errors = append(errors, "protocol packet metrics unavailable")
@@ -152,14 +152,6 @@ func (h *Handler) GetSystemHistory(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) collectSystemMetrics(ctx context.Context) (services.SystemMetrics, float64, float64, string, error) {
-	if h.prometheus != nil {
-		snapshot, rx, tx, err := h.collectPrometheusMetrics(ctx)
-		if err == nil {
-			return snapshot, rx, tx, "prometheus", nil
-		}
-		h.logger.Warn("prometheus metrics failed, falling back to procfs", "error", err)
-	}
-
 	if h.systemMetrics == nil {
 		return services.SystemMetrics{}, 0, 0, "unavailable", fmt.Errorf("system metrics collector is not configured")
 	}
@@ -219,28 +211,7 @@ func (h *Handler) collectProcNetworkRates() (float64, float64, error) {
 	return float64(rxDelta) / seconds, float64(txDelta) / seconds, nil
 }
 
-func (h *Handler) collectProtocolPacketMetrics(ctx context.Context) (int64, int64, time.Time, string, error) {
-	if h.prometheus != nil {
-		tcpPackets, tcpAt, tcpErr := h.prometheus.QueryFloat(ctx, `(sum(node_netstat_Tcp_InSegs) + sum(node_netstat_Tcp_OutSegs))`)
-		if tcpErr == nil {
-			udpPackets, udpAt, udpErr := h.prometheus.QueryFloat(ctx, `(sum(node_netstat_Udp_InDatagrams) + sum(node_netstat_Udp_OutDatagrams))`)
-			if udpErr == nil {
-				tcp := int64(tcpPackets)
-				udp := int64(udpPackets)
-				if tcp < 0 {
-					tcp = 0
-				}
-				if udp < 0 {
-					udp = 0
-				}
-				return tcp, udp, latestTime(tcpAt, udpAt), "prometheus", nil
-			}
-			h.logger.Warn("prometheus udp packet metrics failed, falling back to procfs", "error", udpErr)
-		} else {
-			h.logger.Warn("prometheus tcp packet metrics failed, falling back to procfs", "error", tcpErr)
-		}
-	}
-
+func (h *Handler) collectProtocolPacketMetrics() (int64, int64, time.Time, string, error) {
 	snapshot, err := services.ReadProtocolPacketSnapshot()
 	if err != nil {
 		return 0, 0, time.Now().UTC(), "unavailable", err
@@ -283,66 +254,6 @@ func (h *Handler) calculateProtocolPacketRates(tcpPackets int64, udpPackets int6
 	}
 
 	return float64(tcpDelta) / seconds, float64(udpDelta) / seconds
-}
-
-func (h *Handler) collectPrometheusMetrics(ctx context.Context) (services.SystemMetrics, float64, float64, error) {
-	cpu, cpuAt, err := h.prometheus.QueryFloat(ctx, `100 * (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[1m])))`)
-	if err != nil {
-		return services.SystemMetrics{}, 0, 0, err
-	}
-
-	memTotal, memTotalAt, err := h.prometheus.QueryFloat(ctx, `node_memory_MemTotal_bytes`)
-	if err != nil {
-		return services.SystemMetrics{}, 0, 0, err
-	}
-
-	memAvailable, memAvailableAt, err := h.prometheus.QueryFloat(ctx, `node_memory_MemAvailable_bytes`)
-	if err != nil {
-		return services.SystemMetrics{}, 0, 0, err
-	}
-
-	uptime, uptimeAt, err := h.prometheus.QueryFloat(ctx, `node_time_seconds - node_boot_time_seconds`)
-	if err != nil {
-		return services.SystemMetrics{}, 0, 0, err
-	}
-
-	collectedAt := latestTime(cpuAt, memTotalAt, memAvailableAt, uptimeAt)
-
-	used := memTotal - memAvailable
-	if used < 0 {
-		used = 0
-	}
-
-	usedPercent := 0.0
-	if memTotal > 0 {
-		usedPercent = (used * 100) / memTotal
-	}
-
-	rx, _, _ := h.prometheus.QueryFloat(ctx, `sum(rate(node_network_receive_bytes_total{device!~"^(lo|docker.*|veth.*|br.*|virbr.*|zt.*)$"}[1m]))`)
-	tx, _, _ := h.prometheus.QueryFloat(ctx, `sum(rate(node_network_transmit_bytes_total{device!~"^(lo|docker.*|veth.*|br.*|virbr.*|zt.*)$"}[1m]))`)
-
-	if cpu < 0 {
-		cpu = 0
-	}
-	if cpu > 100 {
-		cpu = 100
-	}
-
-	if usedPercent < 0 {
-		usedPercent = 0
-	}
-	if usedPercent > 100 {
-		usedPercent = 100
-	}
-
-	return services.SystemMetrics{
-		CPUUsagePercent:   cpu,
-		MemoryUsedBytes:   int64(used),
-		MemoryTotalBytes:  int64(memTotal),
-		MemoryUsedPercent: usedPercent,
-		UptimeSeconds:     int64(uptime),
-		CollectedAt:       collectedAt,
-	}, rx, tx, nil
 }
 
 func (h *Handler) collectHy2Live(ctx context.Context) (liveHy2Overview, string) {
@@ -448,19 +359,6 @@ func (h *Handler) collectProxyServiceStatuses(ctx context.Context) []liveService
 	}
 
 	return states
-}
-
-func latestTime(values ...time.Time) time.Time {
-	latest := time.Time{}
-	for _, value := range values {
-		if value.After(latest) {
-			latest = value
-		}
-	}
-	if latest.IsZero() {
-		return time.Now().UTC()
-	}
-	return latest
 }
 
 func parseSystemHistoryLimit(raw string) int {

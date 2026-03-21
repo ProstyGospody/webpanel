@@ -46,7 +46,7 @@ Primary storage roots:
 - Scheduler polls:
   - Hysteria traffic/online snapshots
   - managed service statuses
-- Optional Prometheus-backed host metrics can be enabled
+- Host metrics are collected via local procfs readers
 
 ## Service control
 

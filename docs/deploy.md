@@ -72,5 +72,4 @@ This validates:
 - core systemd services
 - API health/readiness
 - Hysteria listener check
-- optional Prometheus checks
 - admin login flow

@@ -45,8 +45,6 @@ ENV_OVERRIDE_KEYS=(
   HY2_STATS_PORT
   INITIAL_ADMIN_EMAIL
   INITIAL_ADMIN_PASSWORD
-  PROMETHEUS_ENABLED
-  PROMETHEUS_READY_GRACE_SECONDS
 )
 
 action() {
@@ -158,8 +156,6 @@ install_system_packages() {
     pkg-config \
     libssl-dev \
     zlib1g-dev \
-    prometheus \
-    prometheus-node-exporter \
     caddy \
     sudo
 }
@@ -425,11 +421,6 @@ collect_configuration() {
   PANEL_AUDIT_DIR="${PANEL_AUDIT_DIR:-/var/log/proxy-panel/audit}"
   PANEL_RUNTIME_DIR="${PANEL_RUNTIME_DIR:-/run/proxy-panel}"
 
-  PROMETHEUS_ENABLED="${PROMETHEUS_ENABLED:-true}"
-  PROMETHEUS_URL="${PROMETHEUS_URL:-http://127.0.0.1:9090}"
-  PROMETHEUS_QUERY_TIMEOUT="${PROMETHEUS_QUERY_TIMEOUT:-2s}"
-  PROMETHEUS_READY_GRACE_SECONDS="${PROMETHEUS_READY_GRACE_SECONDS:-5}"
-
   SESSION_COOKIE_NAME="${SESSION_COOKIE_NAME:-pp_session}"
   CSRF_COOKIE_NAME="${CSRF_COOKIE_NAME:-pp_csrf}"
   CSRF_HEADER_NAME="${CSRF_HEADER_NAME:-X-CSRF-Token}"
@@ -492,11 +483,6 @@ HY2_STATS_URL=${HY2_STATS_URL}
 HY2_STATS_SECRET=${HY2_STATS_SECRET}
 HY2_OBFS_PASSWORD=${HY2_OBFS_PASSWORD}
 HY2_POLL_INTERVAL=${HY2_POLL_INTERVAL}
-
-PROMETHEUS_ENABLED=${PROMETHEUS_ENABLED}
-PROMETHEUS_URL=${PROMETHEUS_URL}
-PROMETHEUS_QUERY_TIMEOUT=${PROMETHEUS_QUERY_TIMEOUT}
-PROMETHEUS_READY_GRACE_SECONDS=${PROMETHEUS_READY_GRACE_SECONDS}
 
 SERVICE_POLL_INTERVAL=${SERVICE_POLL_INTERVAL}
 MANAGED_SERVICES=${MANAGED_SERVICES}
@@ -638,39 +624,9 @@ wait_for_hysteria_certificate() {
   bash "${SRC_DIR}/scripts/sync-hysteria-cert.sh" "${ENV_FILE}" --wait
 }
 
-configure_prometheus() {
-  action "Configuring Prometheus and node_exporter"
-
-  local exporter_bin
-  exporter_bin="$(command -v prometheus-node-exporter || true)"
-  if [[ -z "${exporter_bin}" ]]; then
-    fatal "prometheus-node-exporter binary is not installed"
-  fi
-
-  cat > /etc/prometheus/prometheus.yml <<'EOF'
-global:
-  scrape_interval: 5s
-  evaluation_interval: 5s
-
-scrape_configs:
-  - job_name: prometheus
-    static_configs:
-      - targets: ['127.0.0.1:9090']
-
-  - job_name: node_exporter
-    static_configs:
-      - targets: ['127.0.0.1:9100']
-EOF
-
-  mkdir -p /etc/systemd/system/prometheus-node-exporter.service.d
-  cat > /etc/systemd/system/prometheus-node-exporter.service.d/override.conf <<EOF
-[Service]
-EnvironmentFile=
-ExecStart=
-ExecStart=${exporter_bin} --web.listen-address=127.0.0.1:9100
-EOF
-
-  systemctl daemon-reload
+disable_legacy_prometheus() {
+  action "Disabling legacy Prometheus services"
+  systemctl disable --now prometheus.service prometheus-node-exporter.service >/dev/null 2>&1 || true
 }
 
 install_sudoers_policy() {
@@ -711,19 +667,10 @@ start_services() {
   action "Starting services"
   local services=(proxy-panel-api proxy-panel-web caddy hysteria-server)
 
-  if [[ "${PROMETHEUS_ENABLED}" == "true" ]]; then
-    services+=(prometheus prometheus-node-exporter)
-  fi
-
   local service
   for service in "${services[@]}"; do
     systemctl enable "${service}.service"
   done
-
-  if [[ "${PROMETHEUS_ENABLED}" == "true" ]]; then
-    systemctl restart prometheus.service
-    systemctl restart prometheus-node-exporter.service
-  fi
 
   systemctl restart proxy-panel-api.service
   systemctl restart proxy-panel-web.service
@@ -755,12 +702,10 @@ Systemd services:
   - proxy-panel-api.service
   - proxy-panel-web.service
   - hysteria-server.service
-  - prometheus.service
-  - prometheus-node-exporter.service
   - caddy.service
 
 Useful commands:
-  systemctl status proxy-panel-api proxy-panel-web hysteria-server prometheus prometheus-node-exporter caddy
+  systemctl status proxy-panel-api proxy-panel-web hysteria-server caddy
   journalctl -u proxy-panel-api -n 100 --no-pager
   bash ${SRC_DIR}/scripts/smoke-check.sh ${ENV_FILE}
   sudo bash ${REPO_ROOT}/deploy/install.sh --reconfigure
@@ -790,7 +735,7 @@ main() {
   build_backend
   build_frontend
   render_runtime_configs
-  configure_prometheus
+  disable_legacy_prometheus
   install_sudoers_policy
   install_systemd_units
 

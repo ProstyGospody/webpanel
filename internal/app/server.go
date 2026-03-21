@@ -36,12 +36,7 @@ func NewServer(cfg config.Config, logger *slog.Logger, repo *repository.Reposito
 	hysteriaAccess := services.NewHysteriaAccessManager(repo, cfg, hy2ConfigManager)
 	systemMetrics := services.NewSystemMetricsCollector()
 
-	var prometheusClient *services.PrometheusClient
-	if cfg.PrometheusEnabled {
-		prometheusClient = services.NewPrometheusClient(cfg.PrometheusURL, cfg.PrometheusQueryTTL)
-	}
-
-	h := handlers.New(cfg, logger, repo, rateLimiter, hy2Client, serviceManager, hy2ConfigManager, hysteriaAccess, prometheusClient, systemMetrics)
+	h := handlers.New(cfg, logger, repo, rateLimiter, hy2Client, serviceManager, hy2ConfigManager, hysteriaAccess, systemMetrics)
 	router := httpserver.NewRouter(cfg, logger, repo, h)
 
 	httpSrv := &http.Server{

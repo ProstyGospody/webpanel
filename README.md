@@ -8,7 +8,7 @@ Control plane stack:
 - `panel-web`: Next.js 16 + TypeScript + MUI
 - Local filesystem storage under `/var/lib/proxy-panel`
 - Caddy (TLS reverse proxy and certificate issuer)
-- Prometheus + node_exporter (live host metrics)
+- Native procfs-based host metrics (live CPU/RAM/network)
 - systemd
 
 ## One-command deploy (Ubuntu 24.04 host)
@@ -36,7 +36,7 @@ sudo bash ./deploy/ubuntu24-host-install.sh
 Installer phases:
 
 1. Validates Ubuntu 24.04 + root access
-2. Installs host dependencies (Go, Node.js/npm, Caddy, Prometheus, node_exporter)
+2. Installs host dependencies (Go, Node.js/npm, Caddy)
 3. Installs Hysteria binary
 4. Creates system users (`proxy-panel`, `hysteria`)
 5. Generates runtime env files and admin credentials
@@ -44,7 +44,7 @@ Installer phases:
 7. Renders Caddy + Hysteria runtime configuration
 8. Bootstraps file storage and admin account
 9. Installs systemd units + restricted sudoers policy
-10. Starts panel services, Hysteria, Prometheus, and Caddy
+10. Starts panel services, Hysteria, and Caddy
 11. Syncs Caddy-issued cert into `/etc/proxy-panel/hysteria/`
 12. Runs smoke checks
 
@@ -65,14 +65,12 @@ Installer phases:
 - `proxy-panel-api.service`
 - `proxy-panel-web.service`
 - `hysteria-server.service`
-- `prometheus.service`
-- `prometheus-node-exporter.service`
 - `caddy.service`
 
 Check status:
 
 ```bash
-systemctl status proxy-panel-api proxy-panel-web hysteria-server prometheus prometheus-node-exporter caddy
+systemctl status proxy-panel-api proxy-panel-web hysteria-server caddy
 ```
 
 ## Smoke check

@@ -25,7 +25,6 @@ type Handler struct {
 	serviceManager   *services.ServiceManager
 	hy2ConfigManager *services.HysteriaConfigManager
 	hysteriaAccess   *services.HysteriaAccessManager
-	prometheus       *services.PrometheusClient
 	systemMetrics    *services.SystemMetricsCollector
 	protocolMu       sync.Mutex
 	protocolSample   protocolPacketSample
@@ -62,7 +61,6 @@ func New(
 	serviceManager *services.ServiceManager,
 	hy2ConfigManager *services.HysteriaConfigManager,
 	hysteriaAccess *services.HysteriaAccessManager,
-	prometheus *services.PrometheusClient,
 	systemMetrics *services.SystemMetricsCollector,
 ) *Handler {
 	return &Handler{
@@ -74,7 +72,6 @@ func New(
 		serviceManager:   serviceManager,
 		hy2ConfigManager: hy2ConfigManager,
 		hysteriaAccess:   hysteriaAccess,
-		prometheus:       prometheus,
 		systemMetrics:    systemMetrics,
 	}
 }

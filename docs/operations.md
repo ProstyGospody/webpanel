@@ -6,12 +6,6 @@
 systemctl status proxy-panel-api proxy-panel-web hysteria-server caddy
 ```
 
-If metrics pipeline is enabled:
-
-```bash
-systemctl status prometheus prometheus-node-exporter
-```
-
 ## Service restart / reload
 
 ```bash

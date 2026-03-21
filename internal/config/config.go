@@ -39,9 +39,6 @@ type Config struct {
 	RateLimitWindow     time.Duration
 	RateLimitBurst      int
 	Hy2BinaryPath       string
-	PrometheusEnabled   bool
-	PrometheusURL       string
-	PrometheusQueryTTL  time.Duration
 }
 
 func Load() (Config, error) {
@@ -76,9 +73,6 @@ func Load() (Config, error) {
 		RateLimitWindow:     getEnvDuration("AUTH_RATE_LIMIT_WINDOW", 15*time.Minute),
 		RateLimitBurst:      getEnvInt("AUTH_RATE_LIMIT_BURST", 10),
 		Hy2BinaryPath:       getEnv("HY2_BINARY_PATH", "/usr/local/bin/hysteria"),
-		PrometheusEnabled:   getEnvBool("PROMETHEUS_ENABLED", false),
-		PrometheusURL:       strings.TrimRight(getEnv("PROMETHEUS_URL", "http://127.0.0.1:9090"), "/"),
-		PrometheusQueryTTL:  getEnvDuration("PROMETHEUS_QUERY_TIMEOUT", 2*time.Second),
 	}
 
 	if strings.TrimSpace(cfg.StorageRoot) == "" {
