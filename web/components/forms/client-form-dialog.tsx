@@ -10,7 +10,9 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
   Stack,
+  Switch,
   TextField,
   Typography,
 } from "@mui/material";
@@ -38,14 +40,14 @@ export function ClientFormDialog({
   onClose: () => void;
   onSubmit: (values: ClientFormValues) => Promise<void>;
 }) {
-  const [values, setValues] = useState<ClientFormValues>(formFromClient(client));
+  const [values, setValues] = useState<ClientFormValues>(formFromClient(client, defaults));
   const [previewOpen, setPreviewOpen] = useState(true);
 
   useEffect(() => {
     if (!open) return;
-    setValues(formFromClient(client));
+    setValues(formFromClient(client, defaults));
     setPreviewOpen(true);
-  }, [client, mode, open]);
+  }, [client, defaults, mode, open]);
 
   const previewConfig = useMemo(() => {
     return buildClientConfigPreview(values, defaults, mode, client);
@@ -89,6 +91,16 @@ export function ClientFormDialog({
               onChange={(event) => setValues((prev) => ({ ...prev, authSecret: event.target.value }))}
               fullWidth
               helperText={mode === "create" ? "Leave empty to auto-generate" : "Leave empty to keep current secret"}
+            />
+
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={values.insecure}
+                  onChange={(_, checked) => setValues((prev) => ({ ...prev, insecure: checked }))}
+                />
+              }
+              label="TLS Insecure"
             />
 
             <Accordion expanded={previewOpen} onChange={(_, expanded) => setPreviewOpen(expanded)}>

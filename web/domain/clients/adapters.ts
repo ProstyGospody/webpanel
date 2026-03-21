@@ -9,6 +9,7 @@ type ClientFormValues = {
   username: string;
   note: string;
   authSecret: string;
+  insecure: boolean;
 };
 
 export function defaultsSummary(defaults: HysteriaClientDefaults | null): string {
@@ -20,21 +21,25 @@ export function defaultsSummary(defaults: HysteriaClientDefaults | null): string
   const parts = [
     `${params.server}:${params.port}`,
     params.sni ? `SNI ${params.sni}` : "",
+    params.insecure ? "TLS insecure" : "",
     options.obfs_type ? `OBFS ${options.obfs_type}` : "",
     options.masquerade_type ? `Masquerade ${options.masquerade_type}` : "",
   ].filter(Boolean);
   return parts.join(" | ");
 }
 
-export function formFromClient(client: HysteriaClient | null): ClientFormValues {
+export function formFromClient(client: HysteriaClient | null, defaults: HysteriaClientDefaults | null): ClientFormValues {
+  const inheritedInsecure = Boolean(defaults?.client_params.insecure);
+  const overrideInsecure = client?.client_overrides?.insecure;
   return {
     username: client?.username || "",
     note: client?.note || "",
     authSecret: "",
+    insecure: typeof overrideInsecure === "boolean" ? overrideInsecure : inheritedInsecure,
   };
 }
 
-export function toCreateRequest(values: ClientFormValues): HysteriaClientCreateRequest {
+export function toCreateRequest(values: ClientFormValues, defaults: HysteriaClientDefaults | null): HysteriaClientCreateRequest {
   const payload: HysteriaClientCreateRequest = {
     username: values.username,
   };
@@ -44,10 +49,14 @@ export function toCreateRequest(values: ClientFormValues): HysteriaClientCreateR
   if (values.authSecret.trim()) {
     payload.auth_secret = values.authSecret.trim();
   }
+  const inheritedInsecure = Boolean(defaults?.client_params.insecure);
+  if (values.insecure !== inheritedInsecure) {
+    payload.client_overrides = { insecure: values.insecure };
+  }
   return payload;
 }
 
-export function toUpdateRequest(values: ClientFormValues): HysteriaClientUpdateRequest {
+export function toUpdateRequest(values: ClientFormValues, defaults: HysteriaClientDefaults | null): HysteriaClientUpdateRequest {
   const payload: HysteriaClientUpdateRequest = {
     username: values.username,
   };
@@ -57,8 +66,8 @@ export function toUpdateRequest(values: ClientFormValues): HysteriaClientUpdateR
   if (values.authSecret.trim()) {
     payload.auth_secret = values.authSecret.trim();
   }
-  // Explicitly clear old per-client overrides: the form now uses inherited server defaults.
-  payload.client_overrides = {};
+  const inheritedInsecure = Boolean(defaults?.client_params.insecure);
+  payload.client_overrides = values.insecure !== inheritedInsecure ? { insecure: values.insecure } : {};
   return payload;
 }
 
@@ -99,7 +108,7 @@ export function buildClientConfigPreview(
 
   const lines = ["server: " + authority, "auth: " + `${username}:${secret}`];
   const sni = defaults?.client_params.sni?.trim() || "";
-  const insecure = Boolean(defaults?.client_params.insecure);
+  const insecure = values.insecure;
   const pin = defaults?.client_params.pinSHA256?.trim() || "";
   if (sni || insecure || pin) {
     lines.push("tls:");
