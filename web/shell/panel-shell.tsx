@@ -29,7 +29,8 @@ import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
 import DarkModeRoundedIcon from "@mui/icons-material/DarkModeRounded";
 import LightModeRoundedIcon from "@mui/icons-material/LightModeRounded";
-import { ReactNode, useMemo, useState } from "react";
+import { ReactNode, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
 import { apiFetch } from "@/services/api";
@@ -52,6 +53,13 @@ function resolveTitle(pathname: string): string {
   return navItems.find((x) => x.href === pathname)?.label || "Panel";
 }
 
+function isNavItemSelected(pathname: string, href: string): boolean {
+  if (href === "/") {
+    return pathname === "/";
+  }
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
 export function PanelShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -63,6 +71,12 @@ export function PanelShell({ children }: { children: ReactNode }) {
   const activeTitle = useMemo(() => resolveTitle(pathname), [pathname]);
   const topBarHeight = { xs: 54, sm: 58 };
   const layoutDrawerWidth = desktop ? (desktopNavCollapsed ? collapsedDrawerWidth : drawerWidth) : 0;
+
+  useEffect(() => {
+    for (const item of navItems) {
+      router.prefetch(item.href);
+    }
+  }, [router]);
 
   async function logout() {
     try {
@@ -103,13 +117,14 @@ export function PanelShell({ children }: { children: ReactNode }) {
       </Toolbar>
       <List sx={{ px: collapsed ? 0.8 : 1.5, py: 1.5, flexGrow: 1 }}>
         {navItems.map((item) => {
-          const selected = pathname === item.href;
+          const selected = isNavItemSelected(pathname, item.href);
           const itemButton = (
             <ListItemButton
               key={item.href}
+              component={Link}
+              href={item.href}
               selected={selected}
               onClick={() => {
-                router.push(item.href);
                 setMobileOpen(false);
               }}
               sx={(theme) => ({
@@ -201,11 +216,13 @@ export function PanelShell({ children }: { children: ReactNode }) {
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
       <AppBar
         position="fixed"
+        color="default"
         elevation={0}
         sx={(theme) => ({
           backdropFilter: "none",
           backgroundImage: "none",
           bgcolor: theme.palette.background.paper,
+          color: theme.palette.text.primary,
           border: 0,
           borderBottom: 0,
           borderRadius: 0,
@@ -236,20 +253,44 @@ export function PanelShell({ children }: { children: ReactNode }) {
               </IconButton>
             </Tooltip>
           ) : (
-            <IconButton color="inherit" edge="start" onClick={() => setMobileOpen(true)}>
+            <IconButton
+              color="inherit"
+              edge="start"
+              onClick={() => setMobileOpen(true)}
+              sx={(theme) => ({
+                color: theme.palette.text.secondary,
+                "&:hover": { color: theme.palette.text.primary, backgroundColor: alpha(theme.palette.primary.main, 0.08) },
+              })}
+            >
               <MenuRoundedIcon />
             </IconButton>
           )}
           <Box sx={{ flexGrow: 1 }}>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>{activeTitle}</Typography>
+            <Typography variant="h6" sx={{ fontWeight: 700, color: "text.primary" }}>{activeTitle}</Typography>
           </Box>
           <Tooltip title={mode === "dark" ? "Light theme" : "Dark theme"}>
-            <IconButton color="inherit" onClick={toggleMode}>
+            <IconButton
+              color="inherit"
+              onClick={toggleMode}
+              sx={(theme) => ({
+                color: theme.palette.text.secondary,
+                "&:hover": { color: theme.palette.text.primary, backgroundColor: alpha(theme.palette.primary.main, 0.08) },
+              })}
+            >
               {mode === "dark" ? <LightModeRoundedIcon /> : <DarkModeRoundedIcon />}
             </IconButton>
           </Tooltip>
           <Tooltip title="Sign out">
-            <IconButton color="inherit" onClick={logout}><LogoutRoundedIcon /></IconButton>
+            <IconButton
+              color="inherit"
+              onClick={logout}
+              sx={(theme) => ({
+                color: theme.palette.text.secondary,
+                "&:hover": { color: theme.palette.text.primary, backgroundColor: alpha(theme.palette.primary.main, 0.08) },
+              })}
+            >
+              <LogoutRoundedIcon />
+            </IconButton>
           </Tooltip>
         </Toolbar>
       </AppBar>

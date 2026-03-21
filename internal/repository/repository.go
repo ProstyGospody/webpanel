@@ -20,7 +20,7 @@ var (
 	ErrUniqueViolation = errors.New("repository: unique violation")
 )
 
-const currentSchemaVersion = 2
+const currentSchemaVersion = 3
 
 type Repository struct {
 	mu sync.Mutex
@@ -32,6 +32,7 @@ type Repository struct {
 	hysteriaUsersDir     string
 	serviceStatesDir     string
 	hysteriaSnapshotsDir string
+	systemSnapshotsDir   string
 	backupsDir           string
 	auditDir             string
 	runDir               string
@@ -46,6 +47,7 @@ type metaState struct {
 	NextAuditID       int64     `json:"next_audit_id"`
 	NextHy2SnapshotID int64     `json:"next_hy2_snapshot_id"`
 	NextServiceStateID int64    `json:"next_service_state_id"`
+	NextSystemSnapshotID int64  `json:"next_system_snapshot_id"`
 }
 
 func New(storageRoot string, auditDir string, runDir string) (*Repository, error) {
@@ -70,6 +72,7 @@ func New(storageRoot string, auditDir string, runDir string) (*Repository, error
 		hysteriaUsersDir:     filepath.Join(storageRoot, "state", "hysteria-users"),
 		serviceStatesDir:     filepath.Join(storageRoot, "state", "service-states"),
 		hysteriaSnapshotsDir: filepath.Join(storageRoot, "snapshots", "hy2"),
+		systemSnapshotsDir:   filepath.Join(storageRoot, "snapshots", "system"),
 		backupsDir:           filepath.Join(storageRoot, "backups"),
 		auditDir:             auditDir,
 		runDir:               runDir,
@@ -130,6 +133,7 @@ func (r *Repository) ensureLayout() error {
 		r.hysteriaUsersDir,
 		r.serviceStatesDir,
 		r.hysteriaSnapshotsDir,
+		r.systemSnapshotsDir,
 		r.backupsDir,
 		r.auditDir,
 		filepath.Join(r.runDir, "locks"),

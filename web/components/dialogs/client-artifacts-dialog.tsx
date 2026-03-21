@@ -33,6 +33,7 @@ export function ClientArtifactsDialog({
   const artifacts = payload?.artifacts || null;
   const currentClient = payload?.user || client;
   const shareURI = artifacts?.uri_hy2 || artifacts?.uri || "";
+  const subscriptionURL = artifacts?.subscription_url || "";
   const qrSrc = currentClient ? `${qrURL(currentClient.id, 380)}&v=${encodeURIComponent(shareURI)}` : "";
 
   return (
@@ -52,9 +53,14 @@ export function ClientArtifactsDialog({
               src={qrSrc}
               sx={{ width: 240, height: 240, borderRadius: 2, bgcolor: "common.white", p: 1 }}
             />
-            <Button variant="outlined" fullWidth startIcon={<ContentCopyRoundedIcon />} onClick={() => onCopy(shareURI)} disabled={!shareURI}>
-              Copy Link
-            </Button>
+            <Stack spacing={1} sx={{ width: "100%" }}>
+              <Button variant="outlined" fullWidth startIcon={<ContentCopyRoundedIcon />} onClick={() => onCopy(shareURI)} disabled={!shareURI}>
+                Copy Connection Link
+              </Button>
+              <Button variant="outlined" fullWidth startIcon={<ContentCopyRoundedIcon />} onClick={() => onCopy(subscriptionURL)} disabled={!subscriptionURL}>
+                Copy Subscription URL
+              </Button>
+            </Stack>
           </Stack>
         ) : (
           <Alert severity="warning">No active artifacts for this client.</Alert>

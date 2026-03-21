@@ -4,20 +4,23 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strconv"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	"proxy-panel/internal/http/render"
+	"proxy-panel/internal/repository"
 	"proxy-panel/internal/services"
 )
 
 const (
-	systemTrendRetention        = 24 * time.Hour
-	systemTrendMaxPoints        = 20000
-	systemTrendDefaultLimit     = 15000
+	systemTrendRetention         = 24 * time.Hour
+	systemTrendMaxPoints         = 20000
+	systemTrendDefaultLimit      = 15000
 	systemTrendCollectorInterval = 6 * time.Second
+	systemTrendDefaultStepSec    = 6
+	systemTrendMaxStepSec        = 3600
 )
 
 type liveSystemMetrics struct {
@@ -125,7 +128,24 @@ func (h *Handler) GetSystemLive(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) GetSystemHistory(w http.ResponseWriter, r *http.Request) {
 	limit := parseSystemHistoryLimit(r.URL.Query().Get("limit"))
-	items := h.snapshotSystemTrend(limit)
+	window := parseSystemHistoryWindow(r.URL.Query().Get("window"))
+	stepSeconds := parseSystemHistoryStepSeconds(r.URL.Query().Get("step"), window)
+	to := time.Now().UTC()
+	from := to.Add(-window)
+
+	if h.repo == nil {
+		render.JSON(w, http.StatusOK, map[string]any{"items": []systemTrendSample{}})
+		return
+	}
+
+	snapshots, err := h.repo.ListSystemSnapshots(r.Context(), from, to, limit)
+	if err != nil {
+		h.logger.Warn("failed to load system history", "error", err)
+		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to load system history", nil)
+		return
+	}
+
+	items := toSystemTrendSamples(snapshots, from, to, stepSeconds)
 	render.JSON(w, http.StatusOK, map[string]any{
 		"items": items,
 	})
@@ -148,7 +168,55 @@ func (h *Handler) collectSystemMetrics(ctx context.Context) (services.SystemMetr
 	if err != nil {
 		return services.SystemMetrics{}, 0, 0, "procfs", err
 	}
-	return snapshot, 0, 0, "procfs", nil
+
+	networkRx, networkTx, rateErr := h.collectProcNetworkRates()
+	if rateErr != nil {
+		h.logger.Debug("procfs network rate failed", "error", rateErr)
+		return snapshot, 0, 0, "procfs", nil
+	}
+	return snapshot, networkRx, networkTx, "procfs", nil
+}
+
+func (h *Handler) collectProcNetworkRates() (float64, float64, error) {
+	snapshot, err := services.ReadNetworkTrafficSnapshot()
+	if err != nil {
+		return 0, 0, err
+	}
+
+	collectedAt := snapshot.CollectedAt.UTC()
+	if collectedAt.IsZero() {
+		collectedAt = time.Now().UTC()
+	}
+
+	h.networkMu.Lock()
+	defer h.networkMu.Unlock()
+
+	prev := h.networkSample
+	h.networkSample = networkByteSample{
+		rxBytes:     snapshot.RxBytes,
+		txBytes:     snapshot.TxBytes,
+		collectedAt: collectedAt,
+	}
+
+	if prev.collectedAt.IsZero() || !collectedAt.After(prev.collectedAt) {
+		return 0, 0, nil
+	}
+
+	seconds := collectedAt.Sub(prev.collectedAt).Seconds()
+	if seconds <= 0 {
+		return 0, 0, nil
+	}
+
+	rxDelta := snapshot.RxBytes - prev.rxBytes
+	txDelta := snapshot.TxBytes - prev.txBytes
+	if rxDelta < 0 {
+		rxDelta = 0
+	}
+	if txDelta < 0 {
+		txDelta = 0
+	}
+
+	return float64(rxDelta) / seconds, float64(txDelta) / seconds, nil
 }
 
 func (h *Handler) collectProtocolPacketMetrics(ctx context.Context) (int64, int64, time.Time, string, error) {
@@ -415,100 +483,122 @@ func parseSystemHistoryLimit(raw string) int {
 	return parsed
 }
 
-func (h *Handler) snapshotSystemTrend(limit int) []systemTrendSample {
-	if limit <= 0 {
-		limit = systemTrendDefaultLimit
-	}
-	if limit > systemTrendMaxPoints {
-		limit = systemTrendMaxPoints
+func parseSystemHistoryWindow(raw string) time.Duration {
+	value := strings.TrimSpace(strings.ToLower(raw))
+	if value == "" {
+		return systemTrendRetention
 	}
 
-	cutoff := time.Now().UTC().Add(-systemTrendRetention)
-
-	h.systemTrendMu.Lock()
-	defer h.systemTrendMu.Unlock()
-
-	retained := h.systemTrend[:0]
-	for _, item := range h.systemTrend {
-		if item.Timestamp.IsZero() || item.Timestamp.Before(cutoff) {
-			continue
-		}
-		retained = append(retained, item)
-	}
-	h.systemTrend = retained
-
-	if len(h.systemTrend) == 0 {
-		return []systemTrendSample{}
+	switch value {
+	case "1h", "1hr", "hour":
+		return time.Hour
+	case "24h", "1d", "day":
+		return 24 * time.Hour
 	}
 
-	start := 0
-	if len(h.systemTrend) > limit {
-		start = len(h.systemTrend) - limit
+	parsed, err := time.ParseDuration(value)
+	if err != nil {
+		return systemTrendRetention
 	}
-
-	out := make([]systemTrendSample, len(h.systemTrend)-start)
-	copy(out, h.systemTrend[start:])
-	return out
+	if parsed < time.Minute {
+		return time.Minute
+	}
+	if parsed > 7*24*time.Hour {
+		return 7 * 24 * time.Hour
+	}
+	return parsed
 }
 
-func (h *Handler) appendSystemTrend(item systemTrendSample) {
-	now := time.Now().UTC()
-	if item.Timestamp.IsZero() {
-		item.Timestamp = now
-	} else {
-		item.Timestamp = item.Timestamp.UTC()
-		if item.Timestamp.After(now.Add(1 * time.Minute)) {
-			item.Timestamp = now
+func parseSystemHistoryStepSeconds(raw string, window time.Duration) int {
+	defaultStep := systemTrendDefaultStepSec
+	if window >= 12*time.Hour {
+		defaultStep = 30
+	}
+
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return defaultStep
+	}
+
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed <= 0 {
+		return defaultStep
+	}
+	if parsed > systemTrendMaxStepSec {
+		return systemTrendMaxStepSec
+	}
+	return parsed
+}
+
+func toSystemTrendSamples(snapshots []repository.SystemSnapshot, from time.Time, to time.Time, stepSeconds int) []systemTrendSample {
+	if len(snapshots) == 0 {
+		return []systemTrendSample{}
+	}
+	if stepSeconds <= 1 {
+		stepSeconds = 1
+	}
+
+	if from.IsZero() {
+		from = snapshots[0].SnapshotAt.UTC()
+	}
+	if to.IsZero() {
+		to = time.Now().UTC()
+	}
+
+	sort.Slice(snapshots, func(i, j int) bool {
+		return snapshots[i].SnapshotAt.Before(snapshots[j].SnapshotAt)
+	})
+
+	if stepSeconds <= systemTrendDefaultStepSec {
+		out := make([]systemTrendSample, 0, len(snapshots))
+		for _, sample := range snapshots {
+			out = append(out, systemTrendSample{
+				Timestamp:         sample.SnapshotAt.UTC(),
+				CPUUsagePercent:   sample.CPUUsagePercent,
+				MemoryUsedPercent: sample.MemoryUsedPercent,
+				NetworkRxBps:      sample.NetworkRxBps,
+				NetworkTxBps:      sample.NetworkTxBps,
+			})
 		}
+		return out
 	}
 
-	if item.CPUUsagePercent < 0 {
-		item.CPUUsagePercent = 0
-	} else if item.CPUUsagePercent > 100 {
-		item.CPUUsagePercent = 100
-	}
-	if item.MemoryUsedPercent < 0 {
-		item.MemoryUsedPercent = 0
-	} else if item.MemoryUsedPercent > 100 {
-		item.MemoryUsedPercent = 100
-	}
-	if item.NetworkRxBps < 0 {
-		item.NetworkRxBps = 0
-	}
-	if item.NetworkTxBps < 0 {
-		item.NetworkTxBps = 0
-	}
+	interval := time.Duration(stepSeconds) * time.Second
+	buckets := make([]systemTrendSample, 0, len(snapshots))
+	var current systemTrendSample
+	var currentBucket time.Time
+	hasCurrent := false
 
-	cutoff := now.Add(-systemTrendRetention)
+	for _, sample := range snapshots {
+		ts := sample.SnapshotAt.UTC()
+		bucket := ts.Truncate(interval)
+		point := systemTrendSample{
+			Timestamp:         ts,
+			CPUUsagePercent:   sample.CPUUsagePercent,
+			MemoryUsedPercent: sample.MemoryUsedPercent,
+			NetworkRxBps:      sample.NetworkRxBps,
+			NetworkTxBps:      sample.NetworkTxBps,
+		}
 
-	h.systemTrendMu.Lock()
-	defer h.systemTrendMu.Unlock()
-
-	retained := h.systemTrend[:0]
-	for _, sample := range h.systemTrend {
-		if sample.Timestamp.IsZero() || sample.Timestamp.Before(cutoff) {
+		if !hasCurrent {
+			current = point
+			currentBucket = bucket
+			hasCurrent = true
 			continue
 		}
-		retained = append(retained, sample)
-	}
-	h.systemTrend = retained
-
-	n := len(h.systemTrend)
-	if n > 0 {
-		last := h.systemTrend[n-1]
-		if !item.Timestamp.After(last.Timestamp) {
-			item.Timestamp = last.Timestamp.Add(time.Millisecond)
+		if bucket.Equal(currentBucket) {
+			current = point
+			continue
 		}
-		if item.Timestamp.Sub(last.Timestamp) < time.Second {
-			h.systemTrend[n-1] = item
-			return
-		}
+		buckets = append(buckets, current)
+		current = point
+		currentBucket = bucket
 	}
 
-	h.systemTrend = append(h.systemTrend, item)
-	if len(h.systemTrend) > systemTrendMaxPoints {
-		h.systemTrend = h.systemTrend[len(h.systemTrend)-systemTrendMaxPoints:]
+	if hasCurrent {
+		buckets = append(buckets, current)
 	}
+	return buckets
 }
 
 func (h *Handler) StartSystemTrendCollector(ctx context.Context) {
@@ -539,11 +629,18 @@ func (h *Handler) collectSystemTrendPoint(parent context.Context) {
 		return
 	}
 
-	h.appendSystemTrend(systemTrendSample{
-		Timestamp:         snapshot.CollectedAt,
+	if h.repo == nil {
+		return
+	}
+
+	_, err = h.repo.InsertSystemSnapshot(ctx, repository.SystemSnapshot{
+		SnapshotAt:        snapshot.CollectedAt,
 		CPUUsagePercent:   snapshot.CPUUsagePercent,
 		MemoryUsedPercent: snapshot.MemoryUsedPercent,
 		NetworkRxBps:      networkRx,
 		NetworkTxBps:      networkTx,
 	})
+	if err != nil {
+		h.logger.Debug("system trend persist failed", "error", err)
+	}
 }

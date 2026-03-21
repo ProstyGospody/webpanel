@@ -26,6 +26,8 @@ Primary storage roots:
   - metadata counters
 - `/var/lib/proxy-panel/snapshots/hy2`
   - per-user traffic/online snapshots
+- `/var/lib/proxy-panel/snapshots/system`
+  - host CPU/RAM/network trend snapshots for dashboard history
 - `/var/lib/proxy-panel/backups`
   - saved config backups
 - `/var/log/proxy-panel/audit`

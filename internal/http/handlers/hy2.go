@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"proxy-panel/internal/http/render"
 	"proxy-panel/internal/repository"
 	"proxy-panel/internal/security"
+	"proxy-panel/internal/services"
 )
 
 type createHysteriaUserRequest struct {
@@ -335,6 +337,58 @@ func (h *Handler) HysteriaUserArtifacts(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	render.JSON(w, http.StatusOK, map[string]any{"user": item, "artifacts": artifacts})
+}
+
+func (h *Handler) HysteriaUserSubscription(w http.ResponseWriter, r *http.Request) {
+	if h.hysteriaAccess == nil {
+		h.renderError(w, http.StatusServiceUnavailable, "service", "hysteria access manager is not configured", nil)
+		return
+	}
+
+	token := strings.TrimSpace(chi.URLParam(r, "token"))
+	user, err := h.hysteriaAccess.ResolveSubscriptionUser(r.Context(), token)
+	if err != nil {
+		if errors.Is(err, services.ErrInvalidSubscriptionToken) || repository.IsNotFound(err) {
+			h.renderError(w, http.StatusNotFound, "not_found", "subscription not found", nil)
+			return
+		}
+		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to resolve subscription", nil)
+		return
+	}
+	if !user.Enabled {
+		h.renderError(w, http.StatusNotFound, "not_found", "subscription not found", nil)
+		return
+	}
+
+	artifacts, _, err := h.hysteriaAccess.BuildUserArtifacts(user)
+	if err != nil {
+		h.renderError(w, http.StatusInternalServerError, "runtime", "failed to generate subscription artifacts", nil)
+		return
+	}
+
+	format := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("format")))
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename="%s-hy2-subscription.txt"`, user.Username))
+
+	if format == "yaml" || format == "client" {
+		w.Header().Set("Content-Type", "application/x-yaml; charset=utf-8")
+		_, _ = w.Write([]byte(strings.TrimSpace(artifacts.ClientYAML) + "\n"))
+		return
+	}
+
+	shareURI := strings.TrimSpace(artifacts.URIHy2)
+	if shareURI == "" {
+		shareURI = strings.TrimSpace(artifacts.URI)
+	}
+	if shareURI == "" {
+		h.renderError(w, http.StatusNotFound, "not_found", "subscription endpoint has no active URI", nil)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	_, _ = w.Write([]byte(shareURI + "\n"))
 }
 
 func (h *Handler) HysteriaUserQR(w http.ResponseWriter, r *http.Request) {

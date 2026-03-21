@@ -29,13 +29,19 @@ type Handler struct {
 	systemMetrics    *services.SystemMetricsCollector
 	protocolMu       sync.Mutex
 	protocolSample   protocolPacketSample
-	systemTrendMu    sync.RWMutex
-	systemTrend      []systemTrendSample
+	networkMu        sync.Mutex
+	networkSample    networkByteSample
 }
 
 type protocolPacketSample struct {
 	tcpPackets  int64
 	udpPackets  int64
+	collectedAt time.Time
+}
+
+type networkByteSample struct {
+	rxBytes     int64
+	txBytes     int64
 	collectedAt time.Time
 }
 

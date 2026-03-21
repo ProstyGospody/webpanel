@@ -2,9 +2,15 @@ package services
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
+	"time"
 
 	"proxy-panel/internal/config"
 	hysteriadomain "proxy-panel/internal/domain/hysteria"
@@ -14,6 +20,7 @@ import (
 type HysteriaUserArtifacts struct {
 	URI             string                           `json:"uri"`
 	URIHy2          string                           `json:"uri_hy2"`
+	SubscriptionURL string                           `json:"subscription_url"`
 	ClientYAML      string                           `json:"client_config"`
 	ClientParams    Hy2ClientParams                  `json:"client_params"`
 	ServerDefaults  Hy2ClientParams                  `json:"server_defaults"`
@@ -49,6 +56,8 @@ type HysteriaAccessManager struct {
 	cfg           config.Config
 	configManager *HysteriaConfigManager
 }
+
+var ErrInvalidSubscriptionToken = errors.New("invalid subscription token")
 
 func NewHysteriaAccessManager(repo *repository.Repository, cfg config.Config, configManager *HysteriaConfigManager) *HysteriaAccessManager {
 	return &HysteriaAccessManager{repo: repo, cfg: cfg, configManager: configManager}
@@ -168,6 +177,7 @@ func (m *HysteriaAccessManager) BuildUserArtifacts(user repository.HysteriaUserV
 	return HysteriaUserArtifacts{
 		URI:             artifacts.URI,
 		URIHy2:          artifacts.URIHy2,
+		SubscriptionURL: m.BuildSubscriptionURL(user),
 		ClientYAML:      artifacts.ClientYAML,
 		ClientParams:    effectiveParams,
 		ServerDefaults:  serverDefaults,
@@ -175,6 +185,34 @@ func (m *HysteriaAccessManager) BuildUserArtifacts(user repository.HysteriaUserV
 		ServerOptions:   m.serverClientOptionsFromSettings(settings),
 		SingBoxOutbound: m.buildSingBoxOutbound(user, effectiveProfile, effectiveParams),
 	}, validation, nil
+}
+
+func (m *HysteriaAccessManager) BuildSubscriptionURL(user repository.HysteriaUserView) string {
+	base := strings.TrimRight(strings.TrimSpace(m.cfg.PublicPanelURL), "/")
+	if base == "" {
+		return ""
+	}
+	token, err := buildSubscriptionToken(m.cfg.InternalAuthToken, user.ID, user.UpdatedAt)
+	if err != nil {
+		return ""
+	}
+	return base + "/api/hysteria/subscription/" + url.PathEscape(token)
+}
+
+func (m *HysteriaAccessManager) ResolveSubscriptionUser(ctx context.Context, token string) (repository.HysteriaUserView, error) {
+	userID, err := parseSubscriptionTokenSubject(token)
+	if err != nil {
+		return repository.HysteriaUserView{}, ErrInvalidSubscriptionToken
+	}
+	user, err := m.repo.GetHysteriaUser(ctx, userID)
+	if err != nil {
+		return repository.HysteriaUserView{}, err
+	}
+	ok := verifySubscriptionToken(m.cfg.InternalAuthToken, token, user.ID, user.UpdatedAt)
+	if !ok {
+		return repository.HysteriaUserView{}, ErrInvalidSubscriptionToken
+	}
+	return user, nil
 }
 
 func (m *HysteriaAccessManager) managedContent(ctx context.Context) (string, error) {
@@ -498,4 +536,71 @@ func (m *HysteriaAccessManager) buildSingBoxOutbound(user repository.HysteriaUse
 		outbound["obfs"] = obfs
 	}
 	return outbound
+}
+
+func buildSubscriptionToken(secret string, userID string, updatedAt time.Time) (string, error) {
+	subject := strings.TrimSpace(userID)
+	key := strings.TrimSpace(secret)
+	if subject == "" || key == "" {
+		return "", fmt.Errorf("subscription token key is empty")
+	}
+	payload := base64.RawURLEncoding.EncodeToString([]byte(subject))
+	signature := computeSubscriptionSignature(key, subject, updatedAt)
+	return payload + "." + base64.RawURLEncoding.EncodeToString(signature), nil
+}
+
+func parseSubscriptionTokenSubject(token string) (string, error) {
+	value := strings.TrimSpace(token)
+	if value == "" {
+		return "", ErrInvalidSubscriptionToken
+	}
+	parts := strings.Split(value, ".")
+	if len(parts) != 2 {
+		return "", ErrInvalidSubscriptionToken
+	}
+	subjectBytes, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return "", ErrInvalidSubscriptionToken
+	}
+	subject := strings.TrimSpace(string(subjectBytes))
+	if subject == "" {
+		return "", ErrInvalidSubscriptionToken
+	}
+	return subject, nil
+}
+
+func verifySubscriptionToken(secret string, token string, userID string, updatedAt time.Time) bool {
+	value := strings.TrimSpace(token)
+	key := strings.TrimSpace(secret)
+	subject := strings.TrimSpace(userID)
+	if value == "" || key == "" || subject == "" {
+		return false
+	}
+	parts := strings.Split(value, ".")
+	if len(parts) != 2 {
+		return false
+	}
+	payloadBytes, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return false
+	}
+	if strings.TrimSpace(string(payloadBytes)) != subject {
+		return false
+	}
+	signature, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return false
+	}
+	expected := computeSubscriptionSignature(key, subject, updatedAt)
+	return hmac.Equal(signature, expected)
+}
+
+func computeSubscriptionSignature(secret string, userID string, updatedAt time.Time) []byte {
+	mac := hmac.New(sha256.New, []byte(strings.TrimSpace(secret)))
+	mac.Write([]byte("hy2-sub-v1"))
+	mac.Write([]byte("|"))
+	mac.Write([]byte(strings.TrimSpace(userID)))
+	mac.Write([]byte("|"))
+	mac.Write([]byte(strconv.FormatInt(updatedAt.UTC().Unix(), 10)))
+	return mac.Sum(nil)
 }

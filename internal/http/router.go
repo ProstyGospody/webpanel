@@ -29,6 +29,8 @@ func NewRouter(
 	r.Get("/readyz", h.Readyz)
 
 	r.Route("/api", func(api chi.Router) {
+		api.Get("/hysteria/subscription/{token}", h.HysteriaUserSubscription)
+
 		api.Route("/auth", func(auth chi.Router) {
 			auth.Post("/login", h.Login)
 			auth.With(
@@ -78,4 +80,3 @@ func NewRouter(
 
 	return r
 }
-

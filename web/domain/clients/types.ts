@@ -46,6 +46,7 @@ export type HysteriaServerClientOptions = {
 export type HysteriaUserArtifacts = {
   uri: string;
   uri_hy2: string;
+  subscription_url: string;
   client_config: string;
   client_params: HysteriaClientParams;
   server_defaults: HysteriaClientParams;

@@ -34,6 +34,15 @@ type HysteriaSnapshot = hysteriadomain.Snapshot
 
 type HysteriaOverview = hysteriadomain.Overview
 
+type SystemSnapshot struct {
+	ID                int64     `json:"id"`
+	SnapshotAt        time.Time `json:"snapshot_at"`
+	CPUUsagePercent   float64   `json:"cpu_usage_percent"`
+	MemoryUsedPercent float64   `json:"memory_used_percent"`
+	NetworkRxBps      float64   `json:"network_rx_bps"`
+	NetworkTxBps      float64   `json:"network_tx_bps"`
+}
+
 type AuditLog struct {
 	ID         int64     `json:"id"`
 	AdminID    *string   `json:"admin_id"`
