@@ -29,7 +29,7 @@ export function EmptyState({
   return (
     <Paper variant="outlined" sx={{ minHeight, display: "grid", placeItems: "center", px: 2 }}>
       <Stack spacing={1} alignItems="center" textAlign="center">
-        {icon || <InboxRoundedIcon color="disabled" />}
+        {icon || <InboxRoundedIcon sx={{ color: "text.secondary" }} />}
         <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
           {title}
         </Typography>

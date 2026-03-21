@@ -102,7 +102,7 @@ export function PanelShell({ children }: { children: ReactNode }) {
               width: 38,
               height: 38,
               bgcolor: alpha(theme.palette.primary.main, 0.2),
-              color: theme.palette.primary.light,
+              color: theme.palette.mode === "light" ? theme.palette.primary.dark : theme.palette.primary.light,
             })}
           >
             <BoltRoundedIcon fontSize="small" />
@@ -145,11 +145,15 @@ export function PanelShell({ children }: { children: ReactNode }) {
               })}
             >
               <ListItemIcon
-                sx={{
+                sx={(theme) => ({
                   minWidth: collapsed ? 0 : 36,
-                  color: selected ? "primary.light" : "text.secondary",
+                  color: selected
+                    ? theme.palette.mode === "light"
+                      ? theme.palette.primary.dark
+                      : theme.palette.primary.light
+                    : theme.palette.text.secondary,
                   justifyContent: "center",
-                }}
+                })}
               >
                 {item.icon}
               </ListItemIcon>

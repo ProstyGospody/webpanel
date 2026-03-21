@@ -142,6 +142,7 @@ function normalizeHistorySamples(items: SystemHistoryResponse["items"]): SystemT
 type MetricTile = {
   label: string;
   value: string;
+  valueSecondary?: string;
   tone: "primary" | "secondary" | "success" | "info" | "warning";
   icon: SvgIconComponent;
 };
@@ -244,25 +245,26 @@ export default function DashboardPage() {
       icon: StorageRoundedIcon,
     },
     {
-      label: "Online",
+      label: "ONLINE",
       value: `${onlineUsers}`,
       tone: "success",
       icon: PeopleAltRoundedIcon,
     },
     {
-      label: "Network",
-      value: `↓ ${formatRate(networkRx)} ↑ ${formatRate(networkTx)}`,
+      label: "NETWORK",
+      value: `↓ ${formatRate(networkRx)}`,
+      valueSecondary: `↑ ${formatRate(networkTx)}`,
       tone: "info",
       icon: RouterRoundedIcon,
     },
     {
-      label: "Uptime",
+      label: "UPTIME",
       value: uptime,
       tone: "warning",
       icon: AccessTimeRoundedIcon,
     },
     {
-      label: "Traffic",
+      label: "TRAFFIC",
       value: formatBytes(totalTraffic),
       tone: "primary",
       icon: DataUsageRoundedIcon,
@@ -292,7 +294,16 @@ export default function DashboardPage() {
                 <CardContent sx={{ py: 1.6, px: 2 }}>
                   <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1.5}>
                     <Stack spacing={0.2}>
-                      <Typography variant="body2" color="text.secondary">
+                      <Typography
+                        variant="subtitle2"
+                        color="text.secondary"
+                        sx={{
+                          textTransform: "uppercase",
+                          letterSpacing: "0.09em",
+                          fontWeight: 800,
+                          fontSize: { xs: "0.82rem", sm: "0.9rem" },
+                        }}
+                      >
                         {tile.label}
                       </Typography>
                       <Typography
@@ -305,6 +316,18 @@ export default function DashboardPage() {
                       >
                         {tile.value}
                       </Typography>
+                      {tile.valueSecondary ? (
+                        <Typography
+                          variant="h5"
+                          sx={{
+                            fontWeight: 900,
+                            lineHeight: 1.1,
+                            fontSize: { xs: "1.45rem", sm: "1.62rem", md: "1.76rem" },
+                          }}
+                        >
+                          {tile.valueSecondary}
+                        </Typography>
+                      ) : null}
                     </Stack>
                     <Icon color={tile.tone} />
                   </Stack>

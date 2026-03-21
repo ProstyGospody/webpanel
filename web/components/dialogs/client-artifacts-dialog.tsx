@@ -51,7 +51,14 @@ export function ClientArtifactsDialog({
               component="img"
               alt="Hysteria QR"
               src={qrSrc}
-              sx={{ width: 240, height: 240, borderRadius: 2, bgcolor: "common.white", p: 1 }}
+              sx={(theme) => ({
+                width: 240,
+                height: 240,
+                borderRadius: 2,
+                bgcolor: "common.white",
+                p: 1,
+                border: `1px solid ${theme.palette.divider}`,
+              })}
             />
             <Stack spacing={1} sx={{ width: "100%" }}>
               <Button variant="outlined" fullWidth startIcon={<ContentCopyRoundedIcon />} onClick={() => onCopy(shareURI)} disabled={!shareURI}>

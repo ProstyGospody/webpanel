@@ -334,14 +334,19 @@ export const panelTheme = createTheme({
 export const panelLightTheme = createTheme(panelTheme, {
   palette: {
     mode: "light",
-    primary: { main: "#1e88e5", light: "#5eb8ff", dark: "#005cb2", contrastText: "#ffffff" },
-    secondary: { main: "#f59f00", light: "#ffce4f", dark: "#bc7700", contrastText: "#1f1303" },
-    success: { main: "#12a66c", light: "#4ccf96", dark: "#007744" },
-    warning: { main: "#ef9f18", light: "#ffc35c", dark: "#be7600" },
-    error: { main: "#d94b5b", light: "#f07d89", dark: "#9f1f2f" },
+    primary: { main: "#186fbf", light: "#4899e3", dark: "#0b4f8a", contrastText: "#ffffff" },
+    secondary: { main: "#cf8400", light: "#f0af3e", dark: "#9a6100", contrastText: "#1f1303" },
+    success: { main: "#0f8a5a", light: "#38b983", dark: "#0a6542" },
+    warning: { main: "#d98a00", light: "#efad3d", dark: "#9e6500" },
+    error: { main: "#b33c49", light: "#d66a76", dark: "#832733" },
     background: { default: "#eef3f9", paper: "#ffffff" },
-    divider: "rgba(19, 43, 74, 0.18)",
-    text: { primary: "#0f1f33", secondary: "#4f6785" },
+    divider: "rgba(19, 43, 74, 0.24)",
+    text: { primary: "#0d2035", secondary: "#36516f" },
+    action: {
+      active: "#28425f",
+      hover: "rgba(24, 111, 191, 0.1)",
+      selected: "rgba(24, 111, 191, 0.14)",
+    },
   },
   components: {
     MuiCssBaseline: {
@@ -359,6 +364,13 @@ export const panelLightTheme = createTheme(panelTheme, {
           backgroundColor: theme.palette.background.default,
           backgroundImage: "none",
           color: theme.palette.text.primary,
+        },
+        ".MuiChartsAxis-line, .MuiChartsAxis-tick, .MuiChartsGrid-line": {
+          stroke: alpha(theme.palette.divider, 0.95),
+        },
+        ".MuiChartsAxis-tickLabel, .MuiChartsLegend-label, .MuiChartsTooltip-labelCell, .MuiChartsTooltip-valueCell": {
+          fill: alpha(theme.palette.text.primary, 0.9),
+          color: alpha(theme.palette.text.primary, 0.9),
         },
       }),
     },
@@ -385,6 +397,27 @@ export const panelLightTheme = createTheme(panelTheme, {
           borderRight: `1px solid ${theme.palette.divider}`,
           backgroundColor: alpha(theme.palette.background.paper, 0.98),
           backdropFilter: "none",
+        }),
+      },
+    },
+    MuiIconButton: {
+      styleOverrides: {
+        root: ({ theme }: { theme: Theme }) => ({
+          color: theme.palette.text.secondary,
+        }),
+      },
+    },
+    MuiSvgIcon: {
+      styleOverrides: {
+        root: () => ({
+          color: "inherit",
+        }),
+      },
+    },
+    MuiChip: {
+      styleOverrides: {
+        root: ({ theme }: { theme: Theme }) => ({
+          borderColor: alpha(theme.palette.divider, 1),
         }),
       },
     },
