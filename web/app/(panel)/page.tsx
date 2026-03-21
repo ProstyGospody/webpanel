@@ -292,7 +292,7 @@ export default function DashboardPage() {
                 })}
               >
                 <CardContent sx={{ py: 1.6, px: 2 }}>
-                  <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1.5}>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1.5}>
                     <Stack spacing={0.2}>
                       <Typography
                         variant="subtitle2"
@@ -332,7 +332,7 @@ export default function DashboardPage() {
                     <Icon
                       color={tile.tone}
                       sx={{
-                        fontSize: { xs: "1.45rem", sm: "1.7rem", md: "1.95rem" },
+                        fontSize: { xs: "1.9rem", sm: "2.2rem", md: "2.5rem" },
                       }}
                     />
                   </Stack>
