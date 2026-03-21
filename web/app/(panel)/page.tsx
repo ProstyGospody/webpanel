@@ -171,6 +171,13 @@ type MetricTile = {
   valueSecondary?: string;
   tone: "primary" | "secondary" | "success" | "info" | "warning";
   icon: SvgIconComponent;
+  size?: {
+    xs: number;
+    sm: number;
+    md: number;
+    lg: number;
+    xl: number;
+  };
 };
 
 type ActionState = { name: string; action: "restart" | "reload" } | null;
@@ -316,6 +323,8 @@ export default function DashboardPage() {
   const totalTraffic = Math.max(0, (live?.hysteria.total_rx_bytes ?? 0) + (live?.hysteria.total_tx_bytes ?? 0));
   const tcpConnections = Math.max(0, Math.round(live?.system.tcp_sockets ?? 0));
   const udpConnections = Math.max(0, Math.round(live?.system.udp_sockets ?? 0));
+  const defaultMetricSize = { xs: 12, sm: 6, md: 4, lg: 3, xl: 2 };
+  const wideMetricSize = { xs: 12, sm: 6, md: 6, lg: 4, xl: 3 };
   const metricTiles: MetricTile[] = [
     {
       label: "CPU",
@@ -341,6 +350,7 @@ export default function DashboardPage() {
       valueSecondary: `↑ ${formatRate(networkTx)}`,
       tone: "info",
       icon: RouterRoundedIcon,
+      size: wideMetricSize,
     },
     {
       label: "UPTIME",
@@ -360,6 +370,7 @@ export default function DashboardPage() {
       valueSecondary: `UDP ${udpConnections.toLocaleString()}`,
       tone: "info",
       icon: SettingsEthernetRoundedIcon,
+      size: wideMetricSize,
     },
   ];
 
@@ -370,15 +381,17 @@ export default function DashboardPage() {
       {error ? <Alert severity="error">{error}</Alert> : null}
       {warningMessages.length ? <Alert severity="warning">{warningMessages.join(" | ")}</Alert> : null}
 
-      <Grid container spacing={1.5} columns={{ xs: 12, sm: 12, md: 12, xl: 14 }}>
+      <Grid container spacing={1.5} columns={{ xs: 12, sm: 12, md: 12, lg: 12, xl: 16 }}>
         {metricTiles.map((tile) => {
+          const hasSecondary = Boolean(tile.valueSecondary);
+          const tileSize = tile.size ?? defaultMetricSize;
           const Icon = tile.icon;
           return (
-            <Grid key={tile.label} size={{ xs: 12, sm: 6, md: 4, xl: 2 }}>
+            <Grid key={tile.label} size={tileSize}>
               <Card
                 variant="outlined"
                 sx={(theme) => ({
-                  height: { xs: "100%", sm: 122 },
+                  height: { xs: "100%", sm: hasSecondary ? 132 : 122 },
                   borderColor: alpha(theme.palette[tile.tone].main, 0.32),
                   backgroundColor: alpha(theme.palette.background.paper, 0.9),
                 })}
@@ -390,7 +403,7 @@ export default function DashboardPage() {
                     px: 2,
                     position: "relative",
                     height: "100%",
-                    minHeight: { xs: 106, sm: 122 },
+                    minHeight: { xs: hasSecondary ? 122 : 106, sm: hasSecondary ? 132 : 122 },
                   }}
                 >
                   <Stack spacing={0.2} sx={{ pr: { xs: 7, sm: 8 }, alignItems: "flex-start" }}>
@@ -411,7 +424,11 @@ export default function DashboardPage() {
                       sx={{
                         fontWeight: 900,
                         lineHeight: 1.1,
-                        fontSize: { xs: "1.55rem", sm: "1.72rem", md: "1.88rem" },
+                        fontSize: hasSecondary
+                          ? { xs: "1.35rem", sm: "1.44rem", md: "1.56rem" }
+                          : { xs: "1.55rem", sm: "1.72rem", md: "1.88rem" },
+                        whiteSpace: "nowrap",
+                        fontVariantNumeric: "tabular-nums",
                       }}
                     >
                       {tile.value}
@@ -422,7 +439,9 @@ export default function DashboardPage() {
                         sx={{
                           fontWeight: 900,
                           lineHeight: 1.1,
-                          fontSize: { xs: "1.45rem", sm: "1.62rem", md: "1.76rem" },
+                          fontSize: { xs: "1.26rem", sm: "1.36rem", md: "1.48rem" },
+                          whiteSpace: "nowrap",
+                          fontVariantNumeric: "tabular-nums",
                         }}
                       >
                         {tile.valueSecondary}
@@ -445,7 +464,9 @@ export default function DashboardPage() {
                       color={tile.tone}
                       sx={{
                         display: "block",
-                        fontSize: { xs: "2rem", sm: "2.35rem", md: "2.6rem" },
+                        fontSize: hasSecondary
+                          ? { xs: "1.78rem", sm: "2rem", md: "2.2rem" }
+                          : { xs: "2rem", sm: "2.35rem", md: "2.6rem" },
                       }}
                     />
                   </Stack>
