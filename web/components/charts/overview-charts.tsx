@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 import type { MouseEvent } from "react";
 
-import { Card, CardContent, Grid, Stack, ToggleButton, ToggleButtonGroup, Typography } from "@mui/material";
-import { alpha, type Theme } from "@mui/material/styles";
+import { Card, CardContent, Grid, Stack, ToggleButton, ToggleButtonGroup, Typography, useMediaQuery } from "@mui/material";
+import { alpha, type Theme, useTheme } from "@mui/material/styles";
 import { LineChart } from "@mui/x-charts/LineChart";
 
 import { EmptyState, LoadingState } from "@/components/ui/state-message";
@@ -112,7 +112,7 @@ function formatAxisTime(value: unknown, context?: AxisContext, range?: Dashboard
   });
 }
 
-function chartStyleSx(theme: Theme) {
+function chartStyleSx(theme: Theme, compact: boolean) {
   return {
     "& .MuiChartsAxis-line, & .MuiChartsAxis-tick": {
       stroke: alpha(theme.palette.primary.main, 0.28),
@@ -122,12 +122,12 @@ function chartStyleSx(theme: Theme) {
     },
     "& .MuiChartsAxis-tickLabel": {
       fill: alpha(theme.palette.text.primary, 0.92),
-      fontSize: 11,
+      fontSize: compact ? 10 : 11,
     },
     "& .MuiChartsLegend-label": {
       fill: theme.palette.text.primary,
       fontWeight: 600,
-      fontSize: 12,
+      fontSize: compact ? 11 : 12,
     },
     "& .MuiLineElement-root": {
       strokeWidth: 2.15,
@@ -152,15 +152,22 @@ function chartStyleSx(theme: Theme) {
 }
 
 export function OverviewCharts({ loading, samples, range, onRangeChange }: OverviewChartsProps) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const rangeMs = range === "24h" ? DAY_MS : HOUR_MS;
   const maxPoints = range === "24h" ? 480 : 360;
-  const xTicks = range === "24h" ? 24 : 6;
+  const xTicks = range === "24h" ? (isMobile ? 6 : 10) : (isMobile ? 4 : 7);
   const nowMs = Date.now();
   const rangeEndMs = range === "24h" ? Math.floor(nowMs / HOUR_MS) * HOUR_MS : nowMs;
   const rangeStartMs = rangeEndMs - rangeMs;
   const rangeStartDate = new Date(rangeStartMs);
   const rangeEndDate = new Date(rangeEndMs);
-  const axisValueFormatter = (value: unknown, context?: AxisContext) => formatAxisTime(value, context, range);
+  const axisValueFormatter = (value: unknown, context?: AxisContext) => {
+    if (context?.location === "tooltip") {
+      return formatAxisTime(value, context, range);
+    }
+    return formatAxisTime(value, { location: "tick", defaultTickLabel: context?.defaultTickLabel }, range);
+  };
 
   const points = useMemo(() => {
     const filtered = samples
@@ -231,22 +238,27 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
         </ToggleButtonGroup>
       </Stack>
 
-      <Grid container spacing={2}>
+      <Grid container spacing={{ xs: 1.25, md: 2 }}>
         <Grid size={{ xs: 12 }}>
           <Card sx={{ height: "100%" }}>
-            <CardContent>
-              <Stack spacing={1.5}>
+            <CardContent sx={{ p: { xs: 1.25, sm: 1.75 }, "&:last-child": { pb: { xs: 1.25, sm: 1.75 } } }}>
+              <Stack spacing={1}>
                 <Typography variant="h6">Network</Typography>
                 {loading && !hasTrend ? (
-                  <LoadingState message="Loading network trend..." minHeight={300} />
+                  <LoadingState message="Loading network trend..." minHeight={isMobile ? 220 : 260} />
                 ) : !hasTrend ? (
-                  <EmptyState title="No network data yet" description="Real-time points will appear after automatic polling." minHeight={300} />
+                  <EmptyState title="No network data yet" description="Real-time points will appear after automatic polling." minHeight={isMobile ? 220 : 260} />
                 ) : (
                   <LineChart
-                    height={320}
-                    margin={{ top: 34, right: 16, bottom: 40, left: 66 }}
+                    height={isMobile ? 248 : 286}
+                    margin={{
+                      top: isMobile ? 20 : 24,
+                      right: isMobile ? 6 : 10,
+                      bottom: isMobile ? 28 : 30,
+                      left: isMobile ? 44 : 52,
+                    }}
                     colors={["#2EE2CD", "#FFC24D"]}
-                    sx={chartStyleSx}
+                    sx={(chartTheme) => chartStyleSx(chartTheme, isMobile)}
                     xAxis={[
                       {
                         data: xAxis,
@@ -254,6 +266,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         tickNumber: xTicks,
                         min: rangeStartDate,
                         max: rangeEndDate,
+                        tickLabelStyle: { fontSize: isMobile ? 10 : 11 },
                         valueFormatter: axisValueFormatter,
                       },
                     ]}
@@ -292,19 +305,24 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
 
         <Grid size={{ xs: 12, lg: 6 }}>
           <Card sx={{ height: "100%" }}>
-            <CardContent>
-              <Stack spacing={1.5}>
+            <CardContent sx={{ p: { xs: 1.25, sm: 1.75 }, "&:last-child": { pb: { xs: 1.25, sm: 1.75 } } }}>
+              <Stack spacing={1}>
                 <Typography variant="h6">CPU</Typography>
                 {loading && !hasTrend ? (
-                  <LoadingState message="Loading CPU trend..." minHeight={270} />
+                  <LoadingState message="Loading CPU trend..." minHeight={isMobile ? 206 : 236} />
                 ) : !hasTrend ? (
-                  <EmptyState title="No CPU data yet" description="Real-time points will appear after automatic polling." minHeight={270} />
+                  <EmptyState title="No CPU data yet" description="Real-time points will appear after automatic polling." minHeight={isMobile ? 206 : 236} />
                 ) : (
                   <LineChart
-                    height={290}
-                    margin={{ top: 30, right: 16, bottom: 40, left: 54 }}
+                    height={isMobile ? 228 : 246}
+                    margin={{
+                      top: isMobile ? 12 : 14,
+                      right: isMobile ? 6 : 10,
+                      bottom: isMobile ? 28 : 30,
+                      left: isMobile ? 40 : 46,
+                    }}
                     colors={["#4FA3FF"]}
-                    sx={chartStyleSx}
+                    sx={(chartTheme) => chartStyleSx(chartTheme, isMobile)}
                     xAxis={[
                       {
                         data: xAxis,
@@ -312,6 +330,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         tickNumber: xTicks,
                         min: rangeStartDate,
                         max: rangeEndDate,
+                        tickLabelStyle: { fontSize: isMobile ? 10 : 11 },
                         valueFormatter: axisValueFormatter,
                       },
                     ]}
@@ -325,7 +344,6 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                     series={[
                       {
                         id: "cpu",
-                        label: "CPU",
                         curve: "monotoneX",
                         showMark: false,
                         area: true,
@@ -343,19 +361,24 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
 
         <Grid size={{ xs: 12, lg: 6 }}>
           <Card sx={{ height: "100%" }}>
-            <CardContent>
-              <Stack spacing={1.5}>
+            <CardContent sx={{ p: { xs: 1.25, sm: 1.75 }, "&:last-child": { pb: { xs: 1.25, sm: 1.75 } } }}>
+              <Stack spacing={1}>
                 <Typography variant="h6">RAM</Typography>
                 {loading && !hasTrend ? (
-                  <LoadingState message="Loading RAM trend..." minHeight={270} />
+                  <LoadingState message="Loading RAM trend..." minHeight={isMobile ? 206 : 236} />
                 ) : !hasTrend ? (
-                  <EmptyState title="No RAM data yet" description="Real-time points will appear after automatic polling." minHeight={270} />
+                  <EmptyState title="No RAM data yet" description="Real-time points will appear after automatic polling." minHeight={isMobile ? 206 : 236} />
                 ) : (
                   <LineChart
-                    height={290}
-                    margin={{ top: 30, right: 16, bottom: 40, left: 54 }}
+                    height={isMobile ? 228 : 246}
+                    margin={{
+                      top: isMobile ? 12 : 14,
+                      right: isMobile ? 6 : 10,
+                      bottom: isMobile ? 28 : 30,
+                      left: isMobile ? 40 : 46,
+                    }}
                     colors={["#58D98C"]}
-                    sx={chartStyleSx}
+                    sx={(chartTheme) => chartStyleSx(chartTheme, isMobile)}
                     xAxis={[
                       {
                         data: xAxis,
@@ -363,6 +386,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         tickNumber: xTicks,
                         min: rangeStartDate,
                         max: rangeEndDate,
+                        tickLabelStyle: { fontSize: isMobile ? 10 : 11 },
                         valueFormatter: axisValueFormatter,
                       },
                     ]}
@@ -376,7 +400,6 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                     series={[
                       {
                         id: "ram",
-                        label: "RAM",
                         curve: "monotoneX",
                         showMark: false,
                         area: true,
