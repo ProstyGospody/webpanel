@@ -379,22 +379,22 @@ export default function DashboardPage() {
               <Card
                 variant="outlined"
                 sx={(theme) => ({
-                  height: { xs: "100%", sm: 132 },
+                  height: { xs: "100%", sm: 116 },
                   borderColor: alpha(theme.palette[tile.tone].main, 0.32),
                   backgroundColor: alpha(theme.palette.background.paper, 0.9),
                 })}
               >
                 <CardContent
                   sx={{
-                    pt: 1.05,
-                    pb: 1.6,
+                    pt: 0.9,
+                    pb: 1.2,
                     px: 2,
                     position: "relative",
                     height: "100%",
-                    minHeight: { xs: 122, sm: 132 },
+                    minHeight: { xs: 108, sm: 116 },
                   }}
                 >
-                  <Stack spacing={0.2} sx={{ pr: { xs: 7, sm: 8 }, alignItems: "flex-start" }}>
+                  <Stack spacing={0.1} sx={{ pr: { xs: 6.5, sm: 7 }, alignItems: "flex-start" }}>
                     <Typography
                       variant="subtitle2"
                       color="text.secondary"
@@ -402,7 +402,7 @@ export default function DashboardPage() {
                         textTransform: "uppercase",
                         letterSpacing: "0.09em",
                         fontWeight: 800,
-                        fontSize: { xs: "0.82rem", sm: "0.9rem" },
+                        fontSize: { xs: "0.78rem", sm: "0.84rem" },
                       }}
                     >
                       {tile.label}
@@ -413,8 +413,8 @@ export default function DashboardPage() {
                         fontWeight: 900,
                         lineHeight: 1.1,
                         fontSize: hasSecondary
-                          ? { xs: "1.35rem", sm: "1.44rem", md: "1.56rem" }
-                          : { xs: "1.55rem", sm: "1.72rem", md: "1.88rem" },
+                          ? { xs: "1.22rem", sm: "1.3rem", md: "1.4rem" }
+                          : { xs: "1.42rem", sm: "1.5rem", md: "1.62rem" },
                         whiteSpace: "nowrap",
                         fontVariantNumeric: "tabular-nums",
                       }}
@@ -427,7 +427,7 @@ export default function DashboardPage() {
                         sx={{
                           fontWeight: 900,
                           lineHeight: 1.1,
-                          fontSize: { xs: "1.26rem", sm: "1.36rem", md: "1.48rem" },
+                          fontSize: { xs: "1.08rem", sm: "1.16rem", md: "1.24rem" },
                           whiteSpace: "nowrap",
                           fontVariantNumeric: "tabular-nums",
                         }}
@@ -441,11 +441,10 @@ export default function DashboardPage() {
                     justifyContent="center"
                     sx={{
                       position: "absolute",
-                      right: 16,
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      width: { xs: 42, sm: 48, md: 54 },
-                      height: { xs: 42, sm: 48, md: 54 },
+                      right: 14,
+                      top: { xs: 12, sm: 10 },
+                      width: { xs: 24, sm: 28, md: 32 },
+                      height: { xs: 24, sm: 28, md: 32 },
                     }}
                   >
                     <Icon
@@ -453,8 +452,8 @@ export default function DashboardPage() {
                       sx={{
                         display: "block",
                         fontSize: hasSecondary
-                          ? { xs: "1.78rem", sm: "2rem", md: "2.2rem" }
-                          : { xs: "2rem", sm: "2.35rem", md: "2.6rem" },
+                          ? { xs: "1.45rem", sm: "1.6rem", md: "1.7rem" }
+                          : { xs: "1.6rem", sm: "1.8rem", md: "1.95rem" },
                       }}
                     />
                   </Stack>
