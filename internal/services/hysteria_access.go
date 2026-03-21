@@ -188,7 +188,7 @@ func (m *HysteriaAccessManager) BuildUserArtifacts(user repository.HysteriaUserV
 }
 
 func (m *HysteriaAccessManager) BuildSubscriptionURL(user repository.HysteriaUserView) string {
-	base := strings.TrimRight(strings.TrimSpace(m.cfg.PublicPanelURL), "/")
+	base := strings.TrimRight(strings.TrimSpace(m.cfg.SubscriptionPublicURL), "/")
 	if base == "" {
 		return ""
 	}

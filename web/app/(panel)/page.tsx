@@ -142,7 +142,6 @@ function normalizeHistorySamples(items: SystemHistoryResponse["items"]): SystemT
 type MetricTile = {
   label: string;
   value: string;
-  caption: string;
   tone: "primary" | "secondary" | "success" | "info" | "warning";
   icon: SvgIconComponent;
 };
@@ -235,42 +234,36 @@ export default function DashboardPage() {
     {
       label: "CPU",
       value: `${cpuPercent.toFixed(1)}%`,
-      caption: "Current load",
       tone: "primary",
       icon: MemoryRoundedIcon,
     },
     {
       label: "RAM",
       value: `${ramPercent.toFixed(1)}%`,
-      caption: "Memory usage",
       tone: "secondary",
       icon: StorageRoundedIcon,
     },
     {
       label: "Online",
       value: `${onlineUsers}`,
-      caption: "Active users",
       tone: "success",
       icon: PeopleAltRoundedIcon,
     },
     {
-      label: "Network In",
-      value: formatRate(networkRx),
-      caption: `Out ${formatRate(networkTx)}`,
+      label: "Network",
+      value: `↓ ${formatRate(networkRx)} ↑ ${formatRate(networkTx)}`,
       tone: "info",
       icon: RouterRoundedIcon,
     },
     {
       label: "Uptime",
       value: uptime,
-      caption: "Service runtime",
       tone: "warning",
       icon: AccessTimeRoundedIcon,
     },
     {
       label: "Traffic",
       value: formatBytes(totalTraffic),
-      caption: "Total RX+TX",
       tone: "primary",
       icon: DataUsageRoundedIcon,
     },
@@ -302,11 +295,15 @@ export default function DashboardPage() {
                       <Typography variant="body2" color="text.secondary">
                         {tile.label}
                       </Typography>
-                      <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.2 }}>
+                      <Typography
+                        variant="h5"
+                        sx={{
+                          fontWeight: 900,
+                          lineHeight: 1.1,
+                          fontSize: { xs: "1.55rem", sm: "1.72rem", md: "1.88rem" },
+                        }}
+                      >
                         {tile.value}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {tile.caption}
                       </Typography>
                     </Stack>
                     <Icon color={tile.tone} />

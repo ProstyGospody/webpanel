@@ -12,6 +12,7 @@ type Config struct {
 	Env                 string
 	ListenAddr          string
 	PublicPanelURL      string
+	SubscriptionPublicURL string
 	PanelPublicHost     string
 	PanelPublicPort     int
 	StorageRoot         string
@@ -48,6 +49,7 @@ func Load() (Config, error) {
 		Env:                 getEnv("APP_ENV", "production"),
 		ListenAddr:          getEnv("PANEL_API_LISTEN_ADDR", "127.0.0.1:18080"),
 		PublicPanelURL:      strings.TrimRight(getEnv("PANEL_PUBLIC_URL", ""), "/"),
+		SubscriptionPublicURL: strings.TrimRight(getEnv("SUBSCRIPTION_PUBLIC_URL", ""), "/"),
 		PanelPublicHost:     getEnv("PANEL_PUBLIC_HOST", "127.0.0.1"),
 		PanelPublicPort:     getEnvInt("PANEL_PUBLIC_PORT", 8443),
 		StorageRoot:         getEnv("PANEL_STORAGE_ROOT", "/var/lib/proxy-panel"),
@@ -97,6 +99,9 @@ func Load() (Config, error) {
 
 	if cfg.PublicPanelURL == "" {
 		cfg.PublicPanelURL = fmt.Sprintf("https://%s:%d", cfg.PanelPublicHost, cfg.PanelPublicPort)
+	}
+	if cfg.SubscriptionPublicURL == "" {
+		cfg.SubscriptionPublicURL = cfg.PublicPanelURL
 	}
 
 	return cfg, nil

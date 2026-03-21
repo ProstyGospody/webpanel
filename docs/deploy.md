@@ -6,6 +6,7 @@
 - Root access (`sudo`)
 - Public DNS records:
   - panel host (`PANEL_PUBLIC_HOST`)
+  - subscription host (`SUBSCRIPTION_PUBLIC_HOST`)
   - Hysteria host (`HY2_DOMAIN`)
 
 ## Open ports
@@ -40,6 +41,7 @@ You can preseed values with environment variables and run:
 ```bash
 PROXY_PANEL_NONINTERACTIVE=1 \
 PANEL_PUBLIC_HOST=panel.example.com \
+SUBSCRIPTION_PUBLIC_HOST=sub.example.com \
 HY2_DOMAIN=hy2.example.com \
 INITIAL_ADMIN_EMAIL=admin@example.com \
 sudo -E bash ./deploy/install.sh --non-interactive

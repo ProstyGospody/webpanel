@@ -38,6 +38,7 @@ ENV_OVERRIDE_KEYS=(
   PANEL_PUBLIC_HOST
   PANEL_PUBLIC_PORT
   PANEL_ACME_EMAIL
+  SUBSCRIPTION_PUBLIC_HOST
   HY2_DOMAIN
   HY2_PORT
   HY2_OBFS_PASSWORD
@@ -90,10 +91,14 @@ is_noninteractive() {
 
 validate_configuration() {
   [[ -n "${PANEL_PUBLIC_HOST}" ]] || fatal "PANEL_PUBLIC_HOST is required"
+  [[ -n "${SUBSCRIPTION_PUBLIC_HOST}" ]] || fatal "SUBSCRIPTION_PUBLIC_HOST is required"
   [[ -n "${HY2_DOMAIN}" ]] || fatal "HY2_DOMAIN is required"
 
   if [[ "${PANEL_PUBLIC_HOST}" == *://* || "${PANEL_PUBLIC_HOST}" == */* ]]; then
     fatal "PANEL_PUBLIC_HOST must be a bare host name or IP, not a URL"
+  fi
+  if [[ "${SUBSCRIPTION_PUBLIC_HOST}" == *://* || "${SUBSCRIPTION_PUBLIC_HOST}" == */* ]]; then
+    fatal "SUBSCRIPTION_PUBLIC_HOST must be a bare host name or IP, not a URL"
   fi
   if [[ "${HY2_DOMAIN}" == *://* || "${HY2_DOMAIN}" == */* ]]; then
     fatal "HY2_DOMAIN must be a bare DNS name, not a URL"
@@ -396,6 +401,7 @@ collect_configuration() {
   prompt_value PANEL_PUBLIC_HOST "Panel public domain or IP" "${PANEL_PUBLIC_HOST:-${default_host}}"
   prompt_value PANEL_PUBLIC_PORT "Panel HTTPS port" "${PANEL_PUBLIC_PORT:-8443}"
   prompt_value PANEL_ACME_EMAIL "ACME email" "${PANEL_ACME_EMAIL:-admin@${PANEL_PUBLIC_HOST}}"
+  prompt_value SUBSCRIPTION_PUBLIC_HOST "Subscription public domain or IP" "${SUBSCRIPTION_PUBLIC_HOST:-${PANEL_PUBLIC_HOST}}"
 
   prompt_value HY2_DOMAIN "Hysteria public domain" "${HY2_DOMAIN:-${PANEL_PUBLIC_HOST}}"
   prompt_value HY2_PORT "Hysteria UDP port" "${HY2_PORT:-443}"
@@ -412,6 +418,7 @@ collect_configuration() {
   PANEL_API_LISTEN_ADDR="127.0.0.1:${PANEL_API_PORT}"
   PANEL_API_INTERNAL_URL="http://127.0.0.1:${PANEL_API_PORT}"
   PANEL_PUBLIC_URL="https://${PANEL_PUBLIC_HOST}:${PANEL_PUBLIC_PORT}"
+  SUBSCRIPTION_PUBLIC_URL="https://${SUBSCRIPTION_PUBLIC_HOST}:${PANEL_PUBLIC_PORT}"
   HY2_STATS_URL="http://127.0.0.1:${HY2_STATS_PORT}"
 
   PANEL_STORAGE_ROOT="${PANEL_STORAGE_ROOT:-/var/lib/proxy-panel}"
@@ -458,6 +465,8 @@ PANEL_WEB_PORT=${PANEL_WEB_PORT}
 PANEL_PUBLIC_HOST=${PANEL_PUBLIC_HOST}
 PANEL_PUBLIC_PORT=${PANEL_PUBLIC_PORT}
 PANEL_PUBLIC_URL=${PANEL_PUBLIC_URL}
+SUBSCRIPTION_PUBLIC_HOST=${SUBSCRIPTION_PUBLIC_HOST}
+SUBSCRIPTION_PUBLIC_URL=${SUBSCRIPTION_PUBLIC_URL}
 PANEL_API_INTERNAL_URL=${PANEL_API_INTERNAL_URL}
 PANEL_ACME_EMAIL=${PANEL_ACME_EMAIL}
 PANEL_STORAGE_ROOT=${PANEL_STORAGE_ROOT}
@@ -509,6 +518,7 @@ EOF
 INITIAL_ADMIN_EMAIL=${INITIAL_ADMIN_EMAIL}
 INITIAL_ADMIN_PASSWORD=${INITIAL_ADMIN_PASSWORD}
 PANEL_PUBLIC_URL=${PANEL_PUBLIC_URL}
+SUBSCRIPTION_PUBLIC_URL=${SUBSCRIPTION_PUBLIC_URL}
 EOF
   chmod 0600 "${CREDENTIALS_FILE}"
 
@@ -518,6 +528,7 @@ PANEL_PUBLIC_PORT=${PANEL_PUBLIC_PORT}
 PANEL_API_PORT=${PANEL_API_PORT}
 PANEL_WEB_PORT=${PANEL_WEB_PORT}
 PANEL_ACME_EMAIL=${PANEL_ACME_EMAIL}
+SUBSCRIPTION_PUBLIC_HOST=${SUBSCRIPTION_PUBLIC_HOST}
 HY2_DOMAIN=${HY2_DOMAIN}
 EOF
   chmod 0640 /etc/caddy/proxy-panel.env
@@ -533,11 +544,33 @@ render_runtime_configs() {
   action "Rendering runtime configs"
 
   install -m 0644 "${SRC_DIR}/config/templates/Caddyfile.tmpl" /etc/caddy/Caddyfile
-  if [[ "${HY2_DOMAIN}" != "${PANEL_PUBLIC_HOST}" ]]; then
+  if [[ "${HY2_DOMAIN}" != "${PANEL_PUBLIC_HOST}" && "${HY2_DOMAIN}" != "${SUBSCRIPTION_PUBLIC_HOST}" ]]; then
     cat >> /etc/caddy/Caddyfile <<EOF
 
 ${HY2_DOMAIN}:${PANEL_PUBLIC_PORT} {
   respond "hysteria-cert-bootstrap" 200
+}
+EOF
+  fi
+  if [[ "${SUBSCRIPTION_PUBLIC_HOST}" != "${PANEL_PUBLIC_HOST}" ]]; then
+    cat >> /etc/caddy/Caddyfile <<EOF
+
+${SUBSCRIPTION_PUBLIC_HOST}:${PANEL_PUBLIC_PORT} {
+  encode gzip zstd
+
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    X-Frame-Options "DENY"
+    X-Content-Type-Options "nosniff"
+    Referrer-Policy "same-origin"
+  }
+
+  @subscription path /api/hysteria/subscription/*
+  handle @subscription {
+    reverse_proxy 127.0.0.1:${PANEL_API_PORT}
+  }
+
+  respond "not found" 404
 }
 EOF
   fi
@@ -547,10 +580,11 @@ EOF
     PANEL_API_PORT="${PANEL_API_PORT}" \
     PANEL_WEB_PORT="${PANEL_WEB_PORT}" \
     PANEL_ACME_EMAIL="${PANEL_ACME_EMAIL}" \
+    SUBSCRIPTION_PUBLIC_HOST="${SUBSCRIPTION_PUBLIC_HOST}" \
     HY2_DOMAIN="${HY2_DOMAIN}" \
     caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/tmp/proxy-panel-caddy-validate.log 2>&1; then
     cat /tmp/proxy-panel-caddy-validate.log >&2 || true
-    fatal "Caddy configuration validation failed; check PANEL_PUBLIC_HOST, PANEL_PUBLIC_PORT, HY2_DOMAIN"
+    fatal "Caddy configuration validation failed; check PANEL_PUBLIC_HOST, SUBSCRIPTION_PUBLIC_HOST, PANEL_PUBLIC_PORT, HY2_DOMAIN"
   fi
 
   cat > "${HY2_DIR}/server.yaml" <<EOF
@@ -710,6 +744,7 @@ print_summary() {
 Deployment completed.
 
 Panel URL: ${PANEL_PUBLIC_URL}
+Subscription URL base: ${SUBSCRIPTION_PUBLIC_URL}
 Initial admin email: ${INITIAL_ADMIN_EMAIL}
 Initial admin password file: ${CREDENTIALS_FILE}
 Generated env file: ${ENV_FILE}
