@@ -18,8 +18,8 @@ const (
 	systemTrendRetention         = 24 * time.Hour
 	systemTrendMaxPoints         = 20000
 	systemTrendDefaultLimit      = 15000
-	systemTrendCollectorInterval = 6 * time.Second
-	systemTrendDefaultStepSec    = 6
+	systemTrendCollectorInterval = 3 * time.Second
+	systemTrendDefaultStepSec    = 3
 	systemTrendMaxStepSec        = 3600
 )
 

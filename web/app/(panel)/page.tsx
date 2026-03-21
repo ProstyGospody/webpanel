@@ -42,7 +42,7 @@ import { APIError, apiFetch } from "@/services/api";
 import { ServiceDetails, ServiceSummary, SystemHistoryResponse, SystemLiveResponse } from "@/types/common";
 import { formatBytes, formatDateTime, formatRate, formatUptime } from "@/utils/format";
 
-const LIVE_POLL_MS = 6000;
+const LIVE_POLL_MS = 3000;
 const TREND_RETENTION_MS = 24 * 60 * 60 * 1000;
 const TREND_HIGH_RES_WINDOW_MS = 2 * 60 * 60 * 1000;
 const TREND_COARSE_BUCKET_MS = 30 * 1000;
@@ -52,7 +52,7 @@ const RANGE_WINDOW = {
   "24h": "24h",
 } as const;
 const RANGE_STEP = {
-  "1h": 6,
+  "1h": 3,
   "24h": 30,
 } as const;
 const RANGE_LIMIT = {
