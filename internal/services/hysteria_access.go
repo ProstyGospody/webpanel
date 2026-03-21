@@ -267,6 +267,19 @@ func mergeServerURIWithDefaults(rawServer string, defaults Hy2ClientProfile) str
 	if err != nil {
 		return rawServer
 	}
+
+	// Keep URI host, but always inherit the current managed port union.
+	defaultHost, defaultPorts := splitServerForClient(strings.TrimSpace(defaults.Server))
+	if validPortUnion(defaultPorts) {
+		uriHost, _ := splitServerAuthority(strings.TrimSpace(u.Host))
+		if strings.TrimSpace(uriHost) == "" {
+			uriHost = strings.TrimSpace(defaultHost)
+		}
+		if strings.TrimSpace(uriHost) != "" {
+			u.Host = joinServerValue(uriHost, defaultPorts)
+		}
+	}
+
 	query := u.Query()
 
 	defaultSNI := strings.TrimSpace(defaults.TLS.SNI)

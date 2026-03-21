@@ -468,6 +468,60 @@ auth:
 	}
 }
 
+func TestHysteriaAccessManagerBuildUserArtifactsURIDomainFollowsManagedListenPort(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "server.yaml")
+	content := `listen: :8443
+acme:
+  domains:
+    - hy2.example.com
+auth:
+  type: userpass
+  userpass: {}`
+	if err := os.WriteFile(configPath, []byte(content), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	repo, err := repository.New(filepath.Join(tmpDir, "storage"), filepath.Join(tmpDir, "audit"), filepath.Join(tmpDir, "run"))
+	if err != nil {
+		t.Fatalf("open repository: %v", err)
+	}
+	t.Cleanup(func() { _ = repo.Close() })
+
+	created, err := repo.CreateHysteriaUser(ctx, "demo-user", "supersecret88", nil, nil)
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	view, err := repo.GetHysteriaUser(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
+
+	manager := NewHysteriaAccessManager(repo, config.Config{
+		Hy2ConfigPath: configPath,
+		Hy2Domain:     "hysteria2://hy2.example.com:443/?sni=cdn.example.com",
+		Hy2Port:       443,
+	}, NewHysteriaConfigManager(configPath))
+
+	artifacts, validation, err := manager.BuildUserArtifacts(view)
+	if err != nil {
+		t.Fatalf("build artifacts: %v", err)
+	}
+	if !validation.Valid {
+		t.Fatalf("expected valid artifacts, got errors: %#v", validation.Errors)
+	}
+	if !strings.Contains(artifacts.URI, "demo-user:supersecret88@hy2.example.com:8443/") {
+		t.Fatalf("expected URI port to follow managed listen :8443, got: %s", artifacts.URI)
+	}
+	if !strings.Contains(artifacts.URI, "sni=cdn.example.com") {
+		t.Fatalf("expected URI query values to be preserved, got: %s", artifacts.URI)
+	}
+	if artifacts.ServerDefaults.Port != 8443 {
+		t.Fatalf("expected inherited defaults port 8443, got: %d", artifacts.ServerDefaults.Port)
+	}
+}
+
 func TestHysteriaAccessManagerBuildUserArtifactsMergesServerDefaultsIntoURIDomain(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
