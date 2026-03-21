@@ -414,27 +414,26 @@ export default function DashboardPage() {
                         lineHeight: 1.1,
                         fontSize: hasSecondary
                           ? { xs: "1.22rem", sm: "1.3rem", md: "1.4rem" }
-                          : { xs: "1.42rem", sm: "1.5rem", md: "1.62rem" },
+                          : { xs: "1.58rem", sm: "1.66rem", md: "1.78rem" },
                         whiteSpace: "nowrap",
                         fontVariantNumeric: "tabular-nums",
                       }}
                     >
                       {tile.value}
                     </Typography>
-                    {tile.valueSecondary ? (
-                      <Typography
-                        variant="h5"
-                        sx={{
-                          fontWeight: 900,
-                          lineHeight: 1.1,
-                          fontSize: { xs: "1.08rem", sm: "1.16rem", md: "1.24rem" },
-                          whiteSpace: "nowrap",
-                          fontVariantNumeric: "tabular-nums",
-                        }}
-                      >
-                        {tile.valueSecondary}
-                      </Typography>
-                    ) : null}
+                    <Typography
+                      variant="h5"
+                      sx={{
+                        fontWeight: 900,
+                        lineHeight: 1.1,
+                        fontSize: { xs: "1.08rem", sm: "1.16rem", md: "1.24rem" },
+                        whiteSpace: "nowrap",
+                        fontVariantNumeric: "tabular-nums",
+                        visibility: hasSecondary ? "visible" : "hidden",
+                      }}
+                    >
+                      {tile.valueSecondary || "\u00A0"}
+                    </Typography>
                   </Stack>
                   <Stack
                     alignItems="center"
