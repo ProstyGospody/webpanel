@@ -314,8 +314,8 @@ export default function DashboardPage() {
   const networkTx = Math.max(0, live?.system.network_tx_bps ?? 0);
   const uptime = formatUptime(live?.system.uptime_seconds ?? 0);
   const totalTraffic = Math.max(0, (live?.hysteria.total_rx_bytes ?? 0) + (live?.hysteria.total_tx_bytes ?? 0));
-  const tcpPackets = Math.max(0, Math.round(live?.system.tcp_packets ?? 0));
-  const udpPackets = Math.max(0, Math.round(live?.system.udp_packets ?? 0));
+  const tcpConnections = Math.max(0, Math.round(live?.hysteria.connections_tcp ?? 0));
+  const udpConnections = Math.max(0, Math.round(live?.hysteria.connections_udp ?? 0));
   const metricTiles: MetricTile[] = [
     {
       label: "CPU",
@@ -356,8 +356,8 @@ export default function DashboardPage() {
     },
     {
       label: "TCP / UDP",
-      value: `TCP ${tcpPackets.toLocaleString()}`,
-      valueSecondary: `UDP ${udpPackets.toLocaleString()}`,
+      value: `TCP ${tcpConnections.toLocaleString()}`,
+      valueSecondary: `UDP ${udpConnections.toLocaleString()}`,
       tone: "info",
       icon: SettingsEthernetRoundedIcon,
     },
