@@ -329,7 +329,12 @@ export default function DashboardPage() {
                         </Typography>
                       ) : null}
                     </Stack>
-                    <Icon color={tile.tone} />
+                    <Icon
+                      color={tile.tone}
+                      sx={{
+                        fontSize: { xs: "1.45rem", sm: "1.7rem", md: "1.95rem" },
+                      }}
+                    />
                   </Stack>
                 </CardContent>
               </Card>
