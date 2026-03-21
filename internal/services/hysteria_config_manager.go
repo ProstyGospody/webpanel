@@ -1724,8 +1724,7 @@ func buildClientURI(profile Hy2ClientProfile) (string, string) {
 
 	u := url.URL{Scheme: "hysteria2", Host: joinServerValue(resolved.Host, resolved.PortUnion), Path: "/"}
 	if strings.TrimSpace(resolved.Auth) != "" {
-		// Hysteria expects auth in URI userinfo "username" part; keep it as a single token.
-		u.User = url.User(strings.TrimSpace(resolved.Auth))
+		u.User = buildURIUserInfo(resolved.Auth)
 	}
 
 	query := url.Values{}
@@ -2393,6 +2392,18 @@ func normalizeCertHash(raw string) string {
 	value = strings.ReplaceAll(value, "-", "")
 	value = strings.ReplaceAll(value, " ", "")
 	return value
+}
+
+func buildURIUserInfo(auth string) *url.Userinfo {
+	credential := strings.TrimSpace(auth)
+	if credential == "" {
+		return nil
+	}
+	username, password, hasPassword := strings.Cut(credential, ":")
+	if hasPassword {
+		return url.UserPassword(username, password)
+	}
+	return url.User(credential)
 }
 
 func isValidPinSHA256(raw string) bool {

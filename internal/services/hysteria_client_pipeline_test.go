@@ -39,7 +39,7 @@ func TestClientArtifactsPlainServerUserpassSocks5(t *testing.T) {
 	if !validation.Valid {
 		t.Fatalf("expected valid artifacts, got errors: %#v", validation.Errors)
 	}
-	if !strings.Contains(artifacts.URI, "alice%3Apass12345@hy2.example.com:443/") {
+	if !strings.Contains(artifacts.URI, "alice:pass12345@hy2.example.com:443/") {
 		t.Fatalf("unexpected URI auth/authority: %s", artifacts.URI)
 	}
 	if strings.Contains(artifacts.URI, "listen=") {
@@ -292,4 +292,3 @@ func TestSplitServerForClientUnderstandsURIMultiPort(t *testing.T) {
 		t.Fatalf("unexpected port union: %s", ports)
 	}
 }
-
