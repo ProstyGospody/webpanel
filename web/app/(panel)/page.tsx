@@ -453,65 +453,60 @@ export default function DashboardPage() {
         onRangeChange={setChartRange}
       />
 
-      <Card>
-        <CardContent>
-          <Stack spacing={2}>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>Managed Services</Typography>
-            {servicesError ? <Alert severity="error">{servicesError}</Alert> : null}
-            {servicesLoading ? (
-              <Stack alignItems="center" justifyContent="center" sx={{ py: 8 }} spacing={1.5}>
-                <CircularProgress size={28} />
-                <Typography color="text.secondary">Loading services...</Typography>
-              </Stack>
-            ) : (
-              <TableContainer>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Service</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell>Version</TableCell>
-                      <TableCell>Last Check</TableCell>
-                      <TableCell align="right">Actions</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {serviceItems.map((item) => (
-                      <TableRow key={item.service_name} hover>
-                        <TableCell>
-                          <Typography sx={{ fontWeight: 700 }}>{item.service_name}</Typography>
-                        </TableCell>
-                        <TableCell><StatusChip status={item.status || "unknown"} /></TableCell>
-                        <TableCell>{item.version || "-"}</TableCell>
-                        <TableCell>{formatDateTime(item.last_check_at)}</TableCell>
-                        <TableCell align="right">
-                          <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                            <Tooltip title="Details & Logs">
-                              <IconButton size="small" onClick={() => void openServiceDetails(item.service_name)} disabled={servicesBusy}>
-                                <PreviewRoundedIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Reload">
-                              <IconButton size="small" onClick={() => setServiceActionState({ name: item.service_name, action: "reload" })} disabled={servicesBusy}>
-                                <SyncRoundedIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Restart">
-                              <IconButton size="small" onClick={() => setServiceActionState({ name: item.service_name, action: "restart" })} disabled={servicesBusy}>
-                                <RestartAltRoundedIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          </Stack>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )}
+      <Stack spacing={1.5}>
+        {servicesError ? <Alert severity="error">{servicesError}</Alert> : null}
+        {servicesLoading ? (
+          <Stack alignItems="center" justifyContent="center" sx={{ py: 8 }} spacing={1.5}>
+            <CircularProgress size={28} />
+            <Typography color="text.secondary">Loading services...</Typography>
           </Stack>
-        </CardContent>
-      </Card>
+        ) : (
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Service</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Version</TableCell>
+                  <TableCell>Last Check</TableCell>
+                  <TableCell align="right">Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {serviceItems.map((item) => (
+                  <TableRow key={item.service_name} hover>
+                    <TableCell>
+                      <Typography sx={{ fontWeight: 700 }}>{item.service_name}</Typography>
+                    </TableCell>
+                    <TableCell><StatusChip status={item.status || "unknown"} /></TableCell>
+                    <TableCell>{item.version || "-"}</TableCell>
+                    <TableCell>{formatDateTime(item.last_check_at)}</TableCell>
+                    <TableCell align="right">
+                      <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                        <Tooltip title="Details & Logs">
+                          <IconButton size="small" onClick={() => void openServiceDetails(item.service_name)} disabled={servicesBusy}>
+                            <PreviewRoundedIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Reload">
+                          <IconButton size="small" onClick={() => setServiceActionState({ name: item.service_name, action: "reload" })} disabled={servicesBusy}>
+                            <SyncRoundedIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Restart">
+                          <IconButton size="small" onClick={() => setServiceActionState({ name: item.service_name, action: "restart" })} disabled={servicesBusy}>
+                            <RestartAltRoundedIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+      </Stack>
 
       <Dialog open={serviceDetailsOpen} onClose={() => setServiceDetailsOpen(false)} fullWidth maxWidth="md">
         <DialogTitle>{serviceDetails?.name || "Service"} details</DialogTitle>

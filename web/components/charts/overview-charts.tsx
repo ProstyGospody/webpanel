@@ -112,6 +112,22 @@ function formatAxisTime(value: unknown, context?: AxisContext, range?: Dashboard
   });
 }
 
+function formatRateAxisCompact(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) {
+    return "0";
+  }
+  if (value >= 1_000_000_000) {
+    return `${(value / 1_000_000_000).toFixed(value >= 10_000_000_000 ? 0 : 1)}G`;
+  }
+  if (value >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(value >= 10_000_000 ? 0 : 1)}M`;
+  }
+  if (value >= 1_000) {
+    return `${(value / 1_000).toFixed(value >= 10_000 ? 0 : 1)}K`;
+  }
+  return `${Math.round(value)}`;
+}
+
 function chartStyleSx(theme: Theme, compact: boolean) {
   return {
     "& .MuiChartsAxis-line, & .MuiChartsAxis-tick": {
@@ -255,7 +271,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                       top: isMobile ? 20 : 24,
                       right: isMobile ? 6 : 10,
                       bottom: isMobile ? 28 : 30,
-                      left: isMobile ? 44 : 52,
+                      left: isMobile ? 32 : 36,
                     }}
                     colors={["#2EE2CD", "#FFC24D"]}
                     sx={(chartTheme) => chartStyleSx(chartTheme, isMobile)}
@@ -272,7 +288,8 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                     ]}
                     yAxis={[
                       {
-                        valueFormatter: (value: unknown) => formatRate(Number(value) || 0),
+                        width: isMobile ? 36 : 42,
+                        valueFormatter: (value: unknown) => formatRateAxisCompact(Number(value) || 0),
                       },
                     ]}
                     series={[
@@ -319,7 +336,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                       top: isMobile ? 12 : 14,
                       right: isMobile ? 6 : 10,
                       bottom: isMobile ? 28 : 30,
-                      left: isMobile ? 40 : 46,
+                      left: isMobile ? 30 : 34,
                     }}
                     colors={["#4FA3FF"]}
                     sx={(chartTheme) => chartStyleSx(chartTheme, isMobile)}
@@ -336,6 +353,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                     ]}
                     yAxis={[
                       {
+                        width: isMobile ? 30 : 34,
                         min: 0,
                         max: 100,
                         valueFormatter: (value: unknown) => `${Math.max(0, Math.round(Number(value) || 0))}%`,
@@ -375,7 +393,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                       top: isMobile ? 12 : 14,
                       right: isMobile ? 6 : 10,
                       bottom: isMobile ? 28 : 30,
-                      left: isMobile ? 40 : 46,
+                      left: isMobile ? 30 : 34,
                     }}
                     colors={["#58D98C"]}
                     sx={(chartTheme) => chartStyleSx(chartTheme, isMobile)}
@@ -392,6 +410,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                     ]}
                     yAxis={[
                       {
+                        width: isMobile ? 30 : 34,
                         min: 0,
                         max: 100,
                         valueFormatter: (value: unknown) => `${Math.max(0, Math.round(Number(value) || 0))}%`,
