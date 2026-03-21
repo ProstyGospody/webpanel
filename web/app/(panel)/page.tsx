@@ -291,9 +291,15 @@ export default function DashboardPage() {
                   backgroundColor: alpha(theme.palette.background.paper, 0.9),
                 })}
               >
-                <CardContent sx={{ py: 1.6, px: 2 }}>
-                  <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1.5}>
-                    <Stack spacing={0.2}>
+                <CardContent
+                  sx={{
+                    py: 1.6,
+                    px: 2,
+                    position: "relative",
+                    minHeight: { xs: 104, sm: 112 },
+                  }}
+                >
+                  <Stack spacing={0.2} sx={{ pr: { xs: 7, sm: 8 } }}>
                       <Typography
                         variant="subtitle2"
                         color="text.secondary"
@@ -328,11 +334,24 @@ export default function DashboardPage() {
                           {tile.valueSecondary}
                         </Typography>
                       ) : null}
-                    </Stack>
+                  </Stack>
+                  <Stack
+                    alignItems="center"
+                    justifyContent="center"
+                    sx={{
+                      position: "absolute",
+                      right: 16,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      width: { xs: 40, sm: 48, md: 52 },
+                      height: { xs: 40, sm: 48, md: 52 },
+                    }}
+                  >
                     <Icon
                       color={tile.tone}
                       sx={{
-                        fontSize: { xs: "1.9rem", sm: "2.2rem", md: "2.5rem" },
+                        display: "block",
+                        fontSize: { xs: "2rem", sm: "2.35rem", md: "2.6rem" },
                       }}
                     />
                   </Stack>
