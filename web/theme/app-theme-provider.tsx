@@ -23,8 +23,10 @@ export function useAppThemeMode(): ThemeModeContextState {
 
 export function AppThemeProvider({ children }: { children: ReactNode }) {
   const [mode, setMode] = useState<ThemeMode>("dark");
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     const stored = typeof window !== "undefined" ? window.localStorage.getItem(STORAGE_KEY) : null;
     if (stored === "light" || stored === "dark") {
       setMode(stored);
@@ -42,6 +44,14 @@ export function AppThemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const theme = useMemo(() => (mode === "light" ? panelLightTheme : panelTheme), [mode]);
+
+  if (!mounted) {
+    return (
+      <ThemeProvider theme={panelTheme}>
+        <CssBaseline />
+      </ThemeProvider>
+    );
+  }
 
   return (
     <ThemeModeContext.Provider value={{ mode, toggleMode }}>

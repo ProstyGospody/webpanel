@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -21,6 +22,9 @@ type SystemMetrics struct {
 
 type SystemMetricsCollector struct {
 	SampleDelay time.Duration
+	mu          sync.Mutex
+	lastCPU     float64
+	hasLastCPU  bool
 }
 
 type cpuSample struct {
@@ -30,18 +34,22 @@ type cpuSample struct {
 
 func NewSystemMetricsCollector() *SystemMetricsCollector {
 	return &SystemMetricsCollector{
-		SampleDelay: 150 * time.Millisecond,
+		SampleDelay: 300 * time.Millisecond,
 	}
 }
 
 func (c *SystemMetricsCollector) Snapshot(ctx context.Context) (SystemMetrics, error) {
 	if c.SampleDelay <= 0 {
-		c.SampleDelay = 150 * time.Millisecond
+		c.SampleDelay = 300 * time.Millisecond
 	}
 
 	cpuUsage, err := c.readCPUUsage(ctx)
 	if err != nil {
-		return SystemMetrics{}, err
+		if fallbackCPU, ok := c.lastCPUValue(); ok {
+			cpuUsage = fallbackCPU
+		} else {
+			return SystemMetrics{}, err
+		}
 	}
 
 	totalMemory, availableMemory, err := readMemoryInfo()
@@ -72,6 +80,19 @@ func (c *SystemMetricsCollector) Snapshot(ctx context.Context) (SystemMetrics, e
 		UptimeSeconds:     uptime,
 		CollectedAt:       time.Now().UTC(),
 	}, nil
+}
+
+func (c *SystemMetricsCollector) lastCPUValue() (float64, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.lastCPU, c.hasLastCPU
+}
+
+func (c *SystemMetricsCollector) setLastCPUValue(value float64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.lastCPU = value
+	c.hasLastCPU = true
 }
 
 func (c *SystemMetricsCollector) readCPUUsage(ctx context.Context) (float64, error) {
@@ -107,11 +128,12 @@ func (c *SystemMetricsCollector) readCPUUsage(ctx context.Context) (float64, err
 
 	usage := (float64(busy) * 100) / float64(deltaTotal)
 	if usage < 0 {
-		return 0, nil
+		usage = 0
 	}
 	if usage > 100 {
-		return 100, nil
+		usage = 100
 	}
+	c.setLastCPUValue(usage)
 	return usage, nil
 }
 
