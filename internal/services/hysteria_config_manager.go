@@ -50,6 +50,7 @@ type Hy2Settings struct {
 	Listen                string               `json:"listen"`
 	TLSEnabled            bool                 `json:"tlsEnabled"`
 	TLSMode               string               `json:"tlsMode"`
+	ClientTLSInsecure     bool                 `json:"clientTLSInsecure"`
 	TLS                   *Hy2ServerTLS        `json:"tls,omitempty"`
 	ACME                  *Hy2ServerACME       `json:"acme,omitempty"`
 	Auth                  Hy2ServerAuth        `json:"auth"`
@@ -456,7 +457,7 @@ func (m *HysteriaConfigManager) DefaultClientProfileFromSettings(settings Hy2Set
 		Server:   publicHost + ":" + listenPorts,
 		Auth:     strings.TrimSpace(auth),
 		AuthType: strings.ToLower(strings.TrimSpace(settings.Auth.Type)),
-		TLS:      Hy2ClientTLS{SNI: sni},
+		TLS:      Hy2ClientTLS{SNI: sni, Insecure: settings.TLSEnabled && settings.ClientTLSInsecure},
 		Socks5:   &Hy2ClientSocks5Mode{Listen: "127.0.0.1:1080"},
 	}
 	if settings.TLSEnabled {
@@ -592,12 +593,13 @@ func defaultSettings(fallbackHost string, fallbackPort int) Hy2Settings {
 		domains = append(domains, host)
 	}
 	return Hy2Settings{
-		Listen:      fmt.Sprintf(":%d", port),
-		TLSEnabled:  true,
-		TLSMode:     "acme",
-		ACME:        &Hy2ServerACME{Domains: domains, Email: ""},
-		Auth:        Hy2ServerAuth{Type: "userpass", UserPass: map[string]string{}},
-		QUICEnabled: false,
+		Listen:            fmt.Sprintf(":%d", port),
+		TLSEnabled:        true,
+		TLSMode:           "acme",
+		ClientTLSInsecure: false,
+		ACME:              &Hy2ServerACME{Domains: domains, Email: ""},
+		Auth:              Hy2ServerAuth{Type: "userpass", UserPass: map[string]string{}},
+		QUICEnabled:       false,
 	}
 }
 
@@ -643,6 +645,7 @@ func parseSettingsFromMap(root map[string]any, fallbackHost string, fallbackPort
 	if m, ok := toStringAnyMap(root["bandwidth"]); ok {
 		settings.Bandwidth = parseServerBandwidth(m)
 	}
+	settings.ClientTLSInsecure = toBool(root["clientTLSInsecure"])
 	settings.IgnoreClientBandwidth = toBool(root["ignoreClientBandwidth"])
 	settings.DisableUDP = toBool(root["disableUDP"])
 	settings.UDPIdleTimeout = strings.TrimSpace(toString(root["udpIdleTimeout"]))
@@ -1164,6 +1167,9 @@ func buildSettingsMap(settings Hy2Settings) map[string]any {
 	}
 	if m := buildServerBandwidthMap(settings.Bandwidth); len(m) > 0 {
 		out["bandwidth"] = m
+	}
+	if settings.ClientTLSInsecure {
+		out["clientTLSInsecure"] = true
 	}
 	if settings.IgnoreClientBandwidth {
 		out["ignoreClientBandwidth"] = true
@@ -2660,6 +2666,7 @@ func buildServerSchema() *schemaNode {
 				"down": emptySchema,
 			},
 		},
+		"clientTLSInsecure":     emptySchema,
 		"ignoreClientBandwidth": emptySchema,
 		"disableUDP":            emptySchema,
 		"udpIdleTimeout":        emptySchema,

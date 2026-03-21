@@ -50,6 +50,6 @@ export function setClientEnabled(clientID: string, enabled: boolean): Promise<{ 
   });
 }
 
-export function qrURL(clientID: string, size = 360): string {
-  return `/api/hysteria/users/${clientID}/qr?size=${size}`;
+export function qrURL(clientID: string, size = 360, kind: "access" | "subscription" = "access"): string {
+  return `/api/hysteria/users/${clientID}/qr?size=${size}&kind=${kind === "subscription" ? "subscription" : "access"}`;
 }

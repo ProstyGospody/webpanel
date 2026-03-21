@@ -174,11 +174,12 @@ func TestDefaultClientProfileFromSettingsUsesACMEDomainWhenFallbackWildcard(t *t
 	manager := NewHysteriaConfigManager("/tmp/unused")
 
 	settings := Hy2Settings{
-		Listen:     "0.0.0.0:443",
-		TLSEnabled: true,
-		TLSMode:    "acme",
-		ACME:       &Hy2ServerACME{Domains: []string{"hy2.example.com"}, Email: "admin@example.com"},
-		Auth:       Hy2ServerAuth{Type: "password", Password: "secret"},
+		Listen:            "0.0.0.0:443",
+		TLSEnabled:        true,
+		TLSMode:           "acme",
+		ClientTLSInsecure: true,
+		ACME:              &Hy2ServerACME{Domains: []string{"hy2.example.com"}, Email: "admin@example.com"},
+		Auth:              Hy2ServerAuth{Type: "password", Password: "secret"},
 	}
 
 	profile := manager.DefaultClientProfileFromSettings(settings, "0.0.0.0", 443, "token")
@@ -187,6 +188,9 @@ func TestDefaultClientProfileFromSettingsUsesACMEDomainWhenFallbackWildcard(t *t
 	}
 	if profile.TLS.SNI != "hy2.example.com" {
 		t.Fatalf("expected ACME domain SNI, got: %s", profile.TLS.SNI)
+	}
+	if !profile.TLS.Insecure {
+		t.Fatalf("expected default client tls.insecure to inherit server setting")
 	}
 }
 
@@ -271,5 +275,47 @@ auth:
 	}
 	if !strings.Contains(next, "udpIdleTimeout: 90s") {
 		t.Fatalf("udpIdleTimeout is missing: %s", next)
+	}
+}
+
+func TestHysteriaConfigManagerApplySettingsClientTLSInsecureFlag(t *testing.T) {
+	cfg := `listen: :443
+acme:
+  domains:
+    - hy2.example.com
+auth:
+  type: password
+  password: old-secret
+`
+
+	manager := NewHysteriaConfigManager("/tmp/unused")
+	withInsecure, validation := manager.ApplySettings(cfg, Hy2Settings{
+		Listen:            ":443",
+		TLSEnabled:        true,
+		TLSMode:           "acme",
+		ClientTLSInsecure: true,
+		ACME:              &Hy2ServerACME{Domains: []string{"hy2.example.com"}, Email: "admin@example.com"},
+		Auth:              Hy2ServerAuth{Type: "password", Password: "new-secret"},
+	})
+	if !validation.Valid {
+		t.Fatalf("apply validation failed: %#v", validation.Errors)
+	}
+	if !strings.Contains(withInsecure, "clientTLSInsecure: true") {
+		t.Fatalf("expected clientTLSInsecure in config: %s", withInsecure)
+	}
+
+	withoutInsecure, validation := manager.ApplySettings(withInsecure, Hy2Settings{
+		Listen:            ":443",
+		TLSEnabled:        true,
+		TLSMode:           "acme",
+		ClientTLSInsecure: false,
+		ACME:              &Hy2ServerACME{Domains: []string{"hy2.example.com"}, Email: "admin@example.com"},
+		Auth:              Hy2ServerAuth{Type: "password", Password: "new-secret"},
+	})
+	if !validation.Valid {
+		t.Fatalf("apply validation failed: %#v", validation.Errors)
+	}
+	if strings.Contains(withoutInsecure, "clientTLSInsecure: true") {
+		t.Fatalf("expected clientTLSInsecure to be removed when disabled: %s", withoutInsecure)
 	}
 }

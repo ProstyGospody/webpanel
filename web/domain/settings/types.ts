@@ -14,6 +14,7 @@ export type Hy2Settings = {
   listen: string;
   tlsEnabled: boolean;
   tlsMode: "acme" | "tls" | "conflict" | string;
+  clientTLSInsecure?: boolean;
   tls?: { cert?: string; key?: string };
   acme?: { domains?: string[]; email?: string };
   obfs?: { type?: string; salamander?: { password?: string } };

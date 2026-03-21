@@ -16,6 +16,7 @@ export function toSettingsDraft(settings: Hy2Settings): Hy2Settings {
     listen: normalizeListenForDraft(settings.listen),
     tlsEnabled: settings.tlsEnabled,
     tlsMode: settings.tlsMode || "acme",
+    clientTLSInsecure: Boolean(settings.clientTLSInsecure),
     tls: settings.tls || { cert: "", key: "" },
     acme: settings.acme || { domains: [], email: "" },
     obfs: settings.obfs || undefined,
@@ -62,6 +63,8 @@ export function normalizeSettingsDraft(draft: Hy2Settings): Hy2Settings {
   if (next.udpIdleTimeout) {
     next.udpIdleTimeout = next.udpIdleTimeout.trim();
   }
+
+  next.clientTLSInsecure = Boolean(next.clientTLSInsecure);
 
   return next;
 }

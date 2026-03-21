@@ -149,6 +149,21 @@ export function ServerSettingsForm({
         </AccordionSummary>
         <AccordionDetails>
           <Stack spacing={2}>
+            <Typography variant="subtitle2" color="text.secondary">Client Defaults</Typography>
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, md: 4 }}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={Boolean(draft.clientTLSInsecure)}
+                      onChange={(event) => onDraftChange({ ...draft, clientTLSInsecure: event.target.checked })}
+                    />
+                  }
+                  label="TLS Insecure"
+                />
+              </Grid>
+            </Grid>
+
             <Typography variant="subtitle2" color="text.secondary">Bandwidth</Typography>
             <Grid container spacing={2}>
               <Grid size={{ xs: 12, md: 4 }}>

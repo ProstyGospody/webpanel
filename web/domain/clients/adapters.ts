@@ -9,7 +9,6 @@ type ClientFormValues = {
   username: string;
   note: string;
   authSecret: string;
-  insecure: boolean;
 };
 
 export function defaultsSummary(defaults: HysteriaClientDefaults | null): string {
@@ -28,18 +27,15 @@ export function defaultsSummary(defaults: HysteriaClientDefaults | null): string
   return parts.join(" | ");
 }
 
-export function formFromClient(client: HysteriaClient | null, defaults: HysteriaClientDefaults | null): ClientFormValues {
-  const inheritedInsecure = Boolean(defaults?.client_params.insecure);
-  const overrideInsecure = client?.client_overrides?.insecure;
+export function formFromClient(client: HysteriaClient | null): ClientFormValues {
   return {
     username: client?.username || "",
     note: client?.note || "",
     authSecret: "",
-    insecure: typeof overrideInsecure === "boolean" ? overrideInsecure : inheritedInsecure,
   };
 }
 
-export function toCreateRequest(values: ClientFormValues, defaults: HysteriaClientDefaults | null): HysteriaClientCreateRequest {
+export function toCreateRequest(values: ClientFormValues): HysteriaClientCreateRequest {
   const payload: HysteriaClientCreateRequest = {
     username: values.username,
   };
@@ -49,14 +45,10 @@ export function toCreateRequest(values: ClientFormValues, defaults: HysteriaClie
   if (values.authSecret.trim()) {
     payload.auth_secret = values.authSecret.trim();
   }
-  const inheritedInsecure = Boolean(defaults?.client_params.insecure);
-  if (values.insecure !== inheritedInsecure) {
-    payload.client_overrides = { insecure: values.insecure };
-  }
   return payload;
 }
 
-export function toUpdateRequest(values: ClientFormValues, defaults: HysteriaClientDefaults | null): HysteriaClientUpdateRequest {
+export function toUpdateRequest(values: ClientFormValues): HysteriaClientUpdateRequest {
   const payload: HysteriaClientUpdateRequest = {
     username: values.username,
   };
@@ -66,8 +58,7 @@ export function toUpdateRequest(values: ClientFormValues, defaults: HysteriaClie
   if (values.authSecret.trim()) {
     payload.auth_secret = values.authSecret.trim();
   }
-  const inheritedInsecure = Boolean(defaults?.client_params.insecure);
-  payload.client_overrides = values.insecure !== inheritedInsecure ? { insecure: values.insecure } : {};
+  payload.client_overrides = {};
   return payload;
 }
 
@@ -108,7 +99,7 @@ export function buildClientConfigPreview(
 
   const lines = ["server: " + authority, "auth: " + `${username}:${secret}`];
   const sni = defaults?.client_params.sni?.trim() || "";
-  const insecure = values.insecure;
+  const insecure = Boolean(defaults?.client_params.insecure);
   const pin = defaults?.client_params.pinSHA256?.trim() || "";
   if (sni || insecure || pin) {
     lines.push("tls:");

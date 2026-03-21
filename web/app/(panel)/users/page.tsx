@@ -106,10 +106,10 @@ export default function UsersPage() {
     setFormError("");
     try {
       if (formMode === "create") {
-        await createClient(toCreateRequest(values, defaults));
+        await createClient(toCreateRequest(values));
         notice.notify("User created");
       } else if (editingClient) {
-        await updateClient(editingClient.id, toUpdateRequest(values, defaults));
+        await updateClient(editingClient.id, toUpdateRequest(values));
         notice.notify("User updated");
       }
       setFormOpen(false);
