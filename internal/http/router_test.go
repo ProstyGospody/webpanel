@@ -33,6 +33,12 @@ func TestRouterExposesHysteriaRoutesAndDropsLegacyRoutes(t *testing.T) {
 	if subResp.Code == http.StatusNotFound || subResp.Code == http.StatusUnauthorized {
 		t.Fatalf("expected subscription route to be exposed without auth middleware, got %d", subResp.Code)
 	}
+	legacySubReq := httptest.NewRequest(http.MethodGet, "/hysteria/subscription/demo-token", nil)
+	legacySubResp := httptest.NewRecorder()
+	router.ServeHTTP(legacySubResp, legacySubReq)
+	if legacySubResp.Code == http.StatusNotFound || legacySubResp.Code == http.StatusUnauthorized {
+		t.Fatalf("expected legacy subscription route alias to be exposed without auth middleware, got %d", legacySubResp.Code)
+	}
 
 	for _, path := range []string{"/api/clients", "/api/hy2/accounts", "/api/legacy/access", "/api/legacy/settings"} {
 		req := httptest.NewRequest(http.MethodGet, path, nil)

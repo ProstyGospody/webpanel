@@ -27,6 +27,7 @@ func NewRouter(
 
 	r.Get("/healthz", h.Healthz)
 	r.Get("/readyz", h.Readyz)
+	r.Get("/hysteria/subscription/{token}", h.HysteriaUserSubscription)
 
 	r.Route("/api", func(api chi.Router) {
 		api.Get("/hysteria/subscription/{token}", h.HysteriaUserSubscription)

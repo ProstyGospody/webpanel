@@ -565,7 +565,7 @@ ${SUBSCRIPTION_PUBLIC_HOST}:${PANEL_PUBLIC_PORT} {
     Referrer-Policy "same-origin"
   }
 
-  @subscription path /api/hysteria/subscription/*
+  @subscription path /api/hysteria/subscription/* /hysteria/subscription/*
   handle @subscription {
     reverse_proxy 127.0.0.1:${PANEL_API_PORT}
   }

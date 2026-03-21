@@ -183,9 +183,6 @@ func (r *Repository) TouchHysteriaUserLastSeen(ctx context.Context, id string, s
 		}
 		ts := seenAt.UTC()
 		user.LastSeenAt = &ts
-		if ts.After(user.UpdatedAt) {
-			user.UpdatedAt = ts
-		}
 		return r.writeHysteriaUserNoLock(user)
 	})
 }
@@ -326,6 +323,5 @@ func (r *Repository) hysteriaUserViewNoLock(user HysteriaUser) HysteriaUserView 
 	}
 	return item
 }
-
 
 
