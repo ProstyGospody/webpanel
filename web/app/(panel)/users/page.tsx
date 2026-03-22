@@ -336,7 +336,14 @@ export default function UsersPage() {
       <PageHeader
         title="Users"
         actions={
-          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" justifyContent="flex-end">
+          <Stack
+            direction="row"
+            spacing={1}
+            alignItems="center"
+            flexWrap="nowrap"
+            justifyContent="flex-end"
+            sx={{ width: "100%", minWidth: 0 }}
+          >
             <Button
               variant="text"
               onClick={openCreate}
@@ -398,9 +405,9 @@ export default function UsersPage() {
               placeholder="Search"
               size="small"
               sx={(theme) => ({
-                minWidth: { xs: 240, lg: 340 },
-                maxWidth: { lg: 580 },
-                flexGrow: 1,
+                minWidth: { xs: 120, sm: 220, lg: 300 },
+                maxWidth: { lg: 520 },
+                flex: { xs: "1 1 140px", sm: "1 1 260px", lg: "1 1 360px" },
                 "& .MuiOutlinedInput-root": {
                   borderRadius: 999,
                   backgroundColor: alpha(theme.palette.primary.main, 0.07),
