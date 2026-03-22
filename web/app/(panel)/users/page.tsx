@@ -336,7 +336,7 @@ export default function UsersPage() {
       <PageHeader
         title="Users"
         actions={
-          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" sx={{ width: "100%" }}>
+          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" justifyContent="flex-end">
             <Button
               variant="text"
               onClick={openCreate}
@@ -438,7 +438,6 @@ export default function UsersPage() {
               size="small"
               sx={(theme) => ({
                 flexShrink: 0,
-                ml: { lg: "auto" },
                 border: `1px solid ${alpha(theme.palette.primary.main, 0.34)}`,
                 borderRadius: 999,
                 p: 0.35,
