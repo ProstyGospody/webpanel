@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { MouseEvent } from "react";
 
 import { Card, CardContent, Grid, Stack, ToggleButton, ToggleButtonGroup, Typography, useMediaQuery } from "@mui/material";
@@ -190,6 +190,7 @@ function chartStyleSx(theme: Theme, compact: boolean) {
 export function OverviewCharts({ loading, samples, range, onRangeChange }: OverviewChartsProps) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"), { noSsr: true });
+  const networkAxisMaxRef = useRef(1);
   const rangeMs = range === "24h" ? DAY_MS : HOUR_MS;
   const maxPoints = range === "24h" ? 480 : 360;
   const xTicks = range === "24h" ? (isMobile ? 6 : 10) : (isMobile ? 4 : 7);
@@ -218,7 +219,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
     return formatAxisTime(value, { location: "tick", defaultTickLabel: context?.defaultTickLabel }, range);
   };
 
-  const points = useMemo(() => {
+  const windowPoints = useMemo(() => {
     const filtered = samples
       .map(parsePoint)
       .filter((point): point is PreparedPoint => point !== null)
@@ -243,19 +244,25 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
       });
     }
 
-    return downsample(filtered, maxPoints);
-  }, [samples, rangeStartMs, rangeEndMs, maxPoints]);
+    return filtered;
+  }, [samples, rangeStartMs, rangeEndMs]);
 
-  const hasTrend = points.length > 1;
+  const points = useMemo(() => downsample(windowPoints, maxPoints), [windowPoints, maxPoints]);
+  const hasTrend = windowPoints.length > 1;
 
   const xAxis = points.map((point) => point.date);
   const networkRx = points.map((point) => point.rx);
   const networkTx = points.map((point) => point.tx);
   const cpu = points.map((point) => point.cpu);
   const ram = points.map((point) => point.ram);
+
+  useEffect(() => {
+    networkAxisMaxRef.current = 1;
+  }, [range]);
+
   const networkAxisMax = useMemo(() => {
     let peak = 0;
-    for (const point of points) {
+    for (const point of windowPoints) {
       if (point.rx > peak) {
         peak = point.rx;
       }
@@ -263,8 +270,22 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
         peak = point.tx;
       }
     }
-    return roundAxisCeil((peak > 0 ? peak : 1) * 1.15);
-  }, [points]);
+    const target = roundAxisCeil((peak > 0 ? peak : 1) * 1.15);
+    const previous = networkAxisMaxRef.current > 0 ? networkAxisMaxRef.current : target;
+
+    let next = target;
+    if (target < previous) {
+      const significantDrop = target <= previous * 0.6;
+      if (!significantDrop) {
+        next = previous;
+      } else {
+        next = Math.max(target, roundAxisCeil(previous * 0.85));
+      }
+    }
+
+    networkAxisMaxRef.current = next;
+    return next;
+  }, [windowPoints]);
 
   const handleRangeChange = (_event: MouseEvent<HTMLElement>, nextRange: DashboardChartRange | null) => {
     if (nextRange) {
@@ -346,6 +367,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         width: isMobile ? 36 : 42,
                         min: 0,
                         max: networkAxisMax,
+                        tickNumber: 5,
                         valueFormatter: (value: unknown) => formatRateAxisCompact(Number(value) || 0),
                       },
                     ]}
@@ -414,6 +436,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         width: isMobile ? 30 : 34,
                         min: 0,
                         max: 100,
+                        tickNumber: 5,
                         valueFormatter: (value: unknown) => `${Math.max(0, Math.round(Number(value) || 0))}%`,
                       },
                     ]}
@@ -472,6 +495,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         width: isMobile ? 30 : 34,
                         min: 0,
                         max: 100,
+                        tickNumber: 5,
                         valueFormatter: (value: unknown) => `${Math.max(0, Math.round(Number(value) || 0))}%`,
                       },
                     ]}

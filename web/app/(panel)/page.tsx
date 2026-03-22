@@ -426,7 +426,7 @@ export default function DashboardPage() {
                         lineHeight: 1.1,
                         fontSize: hasSecondary
                           ? { xs: "1.22rem", sm: "1.3rem", md: "1.4rem" }
-                          : { xs: "1.9rem", sm: "2.05rem", md: "2.24rem" },
+                          : { xs: "2.06rem", sm: "2.24rem", md: "2.46rem" },
                         whiteSpace: "nowrap",
                         fontVariantNumeric: "tabular-nums",
                       }}
