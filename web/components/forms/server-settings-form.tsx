@@ -35,17 +35,15 @@ export function ServerSettingsForm({
     <Stack
       spacing={2}
       sx={(theme) => ({
-        "& .MuiFormLabel-root": {
-          color: alpha(theme.palette.text.secondary, 0.92),
-          fontSize: "0.78rem",
-          fontWeight: 600,
+        "& .MuiInputLabel-root": {
+          color: alpha(theme.palette.text.secondary, 0.9),
         },
-        "& .MuiFormLabel-root.Mui-focused": {
+        "& .MuiInputLabel-root.Mui-focused": {
           color: theme.palette.primary.light,
         },
         "& .MuiOutlinedInput-root": {
-          borderRadius: 999,
-          backgroundColor: alpha(theme.palette.background.default, 0.56),
+          borderRadius: 14,
+          backgroundColor: alpha(theme.palette.background.default, 0.42),
           transition: theme.transitions.create(["border-color", "box-shadow", "background-color"], {
             duration: theme.transitions.duration.shorter,
           }),
@@ -53,55 +51,63 @@ export function ServerSettingsForm({
             borderColor: alpha(theme.palette.primary.main, 0.36),
           },
           "&:hover .MuiOutlinedInput-notchedOutline": {
-            borderColor: alpha(theme.palette.primary.light, 0.74),
+            borderColor: alpha(theme.palette.primary.light, 0.62),
           },
           "&.Mui-focused": {
-            boxShadow: `0 0 0 3px ${alpha(theme.palette.primary.main, 0.16)}`,
+            boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.16)}`,
           },
           "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
             borderColor: theme.palette.primary.main,
           },
-          "& .MuiInputBase-input": {
-            paddingTop: 10,
-            paddingBottom: 10,
-          },
-          "& .MuiSelect-select": {
-            paddingTop: 10.5,
-            paddingBottom: 10.5,
-          },
+        },
+        "& .MuiOutlinedInput-root:not(.MuiInputBase-multiline)": {
+          height: 44,
+        },
+        "& .MuiInputBase-inputSizeSmall": {
+          padding: "0 14px",
+        },
+        "& .MuiSelect-select.MuiInputBase-inputSizeSmall": {
+          display: "flex",
+          alignItems: "center",
+          minHeight: "unset",
+          padding: "0 36px 0 14px",
         },
         "& .MuiOutlinedInput-root.MuiInputBase-multiline": {
-          borderRadius: 2,
+          borderRadius: 12,
+          padding: theme.spacing(1, 1.25),
+        },
+        "& .MuiOutlinedInput-root.MuiInputBase-multiline .MuiInputBase-input": {
+          padding: 0,
         },
         "& .MuiFormHelperText-root": {
           marginLeft: 4,
-          color: alpha(theme.palette.text.secondary, 0.85),
+          color: alpha(theme.palette.text.secondary, 0.8),
         },
         "& .MuiAccordion-root": {
           overflow: "hidden",
-          borderRadius: 2.5,
-          border: `1px solid ${alpha(theme.palette.primary.main, 0.32)}`,
-          backgroundColor: alpha(theme.palette.background.default, 0.56),
-          backgroundImage: `linear-gradient(180deg, ${alpha(theme.palette.primary.main, 0.08)} 0%, ${alpha(theme.palette.background.default, 0.34)} 100%)`,
+          borderRadius: 1.5,
+          border: `1px solid ${alpha(theme.palette.primary.main, 0.26)}`,
+          backgroundColor: alpha(theme.palette.background.default, 0.38),
+          backgroundImage: `linear-gradient(180deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, ${alpha(theme.palette.background.default, 0.24)} 100%)`,
         },
         "& .MuiAccordionSummary-root": {
-          minHeight: 50,
+          minHeight: 46,
           paddingInline: theme.spacing(2),
         },
         "& .MuiAccordionSummary-root.Mui-expanded": {
-          minHeight: 50,
+          minHeight: 46,
         },
         "& .MuiAccordionSummary-content, & .MuiAccordionSummary-content.Mui-expanded": {
-          margin: `${theme.spacing(1.2)} 0`,
+          margin: `${theme.spacing(1)} 0`,
         },
         "& .MuiAccordionSummary-expandIconWrapper": {
-          color: alpha(theme.palette.primary.light, 0.9),
+          color: alpha(theme.palette.primary.light, 0.78),
         },
         "& .MuiAccordionDetails-root": {
-          borderTop: `1px solid ${alpha(theme.palette.primary.main, 0.22)}`,
+          borderTop: `1px solid ${alpha(theme.palette.primary.main, 0.16)}`,
         },
         "& .MuiSelect-icon": {
-          color: alpha(theme.palette.primary.light, 0.9),
+          color: alpha(theme.palette.primary.light, 0.78),
         },
         "& .MuiFormControlLabel-label": {
           color: theme.palette.text.secondary,
