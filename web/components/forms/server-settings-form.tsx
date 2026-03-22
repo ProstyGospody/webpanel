@@ -15,6 +15,7 @@ import {
   Typography,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
+import { useEffect } from "react";
 
 import { Hy2Settings } from "@/domain/settings/types";
 
@@ -30,6 +31,12 @@ export function ServerSettingsForm({
   const acmeDomains = (draft.acme?.domains || []).join(", ");
   const obfsType = draft.obfs?.type === "salamander" ? "salamander" : "none";
   const masqueradeType = draft.masquerade?.type || "none";
+
+  useEffect(() => {
+    if (obfsType !== "none" && masqueradeType !== "none") {
+      onDraftChange({ ...draft, masquerade: undefined });
+    }
+  }, [draft, masqueradeType, obfsType, onDraftChange]);
 
   return (
     <Stack
@@ -122,7 +129,7 @@ export function ServerSettingsForm({
       })}
     >
       <Grid container spacing={2}>
-        <Grid size={{ xs: 12, md: 4 }}>
+        <Grid size={{ xs: 12, md: 3 }}>
           <TextField
             label="Listen"
             value={draft.listen}
@@ -130,7 +137,7 @@ export function ServerSettingsForm({
             fullWidth
           />
         </Grid>
-        <Grid size={{ xs: 12, md: 4 }}>
+        <Grid size={{ xs: 12, md: 3 }}>
           <FormControl fullWidth>
             <InputLabel id="tls-mode-label">TLS Mode</InputLabel>
             <Select
@@ -144,7 +151,7 @@ export function ServerSettingsForm({
             </Select>
           </FormControl>
         </Grid>
-        <Grid size={{ xs: 12, md: 4 }}>
+        <Grid size={{ xs: 12, md: 3 }}>
           <FormControl fullWidth>
             <InputLabel id="obfs-label">OBFS</InputLabel>
             <Select
@@ -153,7 +160,11 @@ export function ServerSettingsForm({
               value={obfsType}
               onChange={(event) => {
                 if (event.target.value === "salamander") {
-                  onDraftChange({ ...draft, obfs: { type: "salamander", salamander: { password: draft.obfs?.salamander?.password || "" } } });
+                  onDraftChange({
+                    ...draft,
+                    obfs: { type: "salamander", salamander: { password: draft.obfs?.salamander?.password || "" } },
+                    masquerade: undefined,
+                  });
                   return;
                 }
                 onDraftChange({ ...draft, obfs: undefined });
@@ -161,6 +172,29 @@ export function ServerSettingsForm({
             >
               <MenuItem value="none">Disabled</MenuItem>
               <MenuItem value="salamander">Salamander</MenuItem>
+            </Select>
+          </FormControl>
+        </Grid>
+        <Grid size={{ xs: 12, md: 3 }}>
+          <FormControl fullWidth>
+            <InputLabel id="masq-label">Masquerade</InputLabel>
+            <Select
+              labelId="masq-label"
+              label="Masquerade"
+              value={masqueradeType}
+              onChange={(event) => {
+                const value = event.target.value;
+                if (value === "none") {
+                  onDraftChange({ ...draft, masquerade: undefined });
+                  return;
+                }
+                onDraftChange({ ...draft, obfs: undefined, masquerade: { ...(draft.masquerade || {}), type: value } });
+              }}
+            >
+              <MenuItem value="none">Disabled</MenuItem>
+              <MenuItem value="proxy">Proxy</MenuItem>
+              <MenuItem value="file">File</MenuItem>
+              <MenuItem value="string">String</MenuItem>
             </Select>
           </FormControl>
         </Grid>
@@ -288,19 +322,19 @@ export function ServerSettingsForm({
 
             <Typography variant="subtitle2" color="text.secondary">Transport</Typography>
             <Grid container spacing={2}>
-              <Grid size={{ xs: 12, md: 3 }}>
+              <Grid size={{ xs: 12, md: 4 }}>
                 <FormControlLabel
                   control={<Switch checked={Boolean(draft.disableUDP)} onChange={(event) => onDraftChange({ ...draft, disableUDP: event.target.checked })} />}
                   label="Disable UDP"
                 />
               </Grid>
-              <Grid size={{ xs: 12, md: 3 }}>
+              <Grid size={{ xs: 12, md: 4 }}>
                 <FormControlLabel
                   control={<Switch checked={Boolean(draft.speedTest)} onChange={(event) => onDraftChange({ ...draft, speedTest: event.target.checked })} />}
                   label="Speed Test"
                 />
               </Grid>
-              <Grid size={{ xs: 12, md: 3 }}>
+              <Grid size={{ xs: 12, md: 4 }}>
                 <TextField
                   label="UDP Idle Timeout"
                   value={draft.udpIdleTimeout || ""}
@@ -308,29 +342,6 @@ export function ServerSettingsForm({
                   fullWidth
                   placeholder="90s"
                 />
-              </Grid>
-              <Grid size={{ xs: 12, md: 3 }}>
-                <FormControl fullWidth>
-                  <InputLabel id="masq-label">Masquerade</InputLabel>
-                  <Select
-                    labelId="masq-label"
-                    label="Masquerade"
-                    value={masqueradeType}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      if (value === "none") {
-                        onDraftChange({ ...draft, masquerade: undefined });
-                        return;
-                      }
-                      onDraftChange({ ...draft, masquerade: { ...(draft.masquerade || {}), type: value } });
-                    }}
-                  >
-                    <MenuItem value="none">Disabled</MenuItem>
-                    <MenuItem value="proxy">Proxy</MenuItem>
-                    <MenuItem value="file">File</MenuItem>
-                    <MenuItem value="string">String</MenuItem>
-                  </Select>
-                </FormControl>
               </Grid>
             </Grid>
 
@@ -429,7 +440,17 @@ export function ServerSettingsForm({
         </AccordionDetails>
       </Accordion>
 
-      <Accordion>
+      <Accordion
+        sx={{
+          borderRadius: "0 !important",
+          "& .MuiAccordionSummary-root": {
+            borderRadius: "0 !important",
+          },
+          "& .MuiAccordionDetails-root": {
+            borderRadius: "0 !important",
+          },
+        }}
+      >
         <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
           <Typography>Advanced YAML</Typography>
         </AccordionSummary>
@@ -439,14 +460,22 @@ export function ServerSettingsForm({
             minRows={18}
             fullWidth
             value={rawYaml}
+            sx={{
+              "& .MuiOutlinedInput-root": {
+                borderRadius: "0 !important",
+              },
+              "& .MuiOutlinedInput-notchedOutline": {
+                borderRadius: "0 !important",
+              },
+            }}
             InputProps={{
               readOnly: true,
               sx: (theme) => ({
                 ...theme.typography.code,
                 lineHeight: 1.5,
-                borderRadius: 0,
+                borderRadius: "0 !important",
                 "& .MuiOutlinedInput-notchedOutline": {
-                  borderRadius: 0,
+                  borderRadius: "0 !important",
                 },
               }),
             }}
