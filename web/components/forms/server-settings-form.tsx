@@ -31,7 +31,18 @@ export function ServerSettingsForm({
   const masqueradeType = draft.masquerade?.type || "none";
 
   return (
-    <Stack spacing={2}>
+    <Stack
+      spacing={2}
+      sx={(theme) => ({
+        "& .MuiOutlinedInput-root": {
+          backgroundColor: "transparent",
+        },
+        "& .MuiAccordion-root": {
+          backgroundColor: "transparent",
+          borderColor: theme.palette.divider,
+        },
+      })}
+    >
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, md: 4 }}>
           <TextField

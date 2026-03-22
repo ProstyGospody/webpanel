@@ -7,8 +7,6 @@ import SaveRoundedIcon from "@mui/icons-material/SaveRounded";
 import {
   Alert,
   Button,
-  Card,
-  CardContent,
   CircularProgress,
   IconButton,
   Snackbar,
@@ -216,11 +214,7 @@ export default function ConfigPage() {
       {validation?.errors?.length ? <Alert severity="error">{validation.errors.join(" | ")}</Alert> : null}
       {validation?.warnings?.length ? <Alert severity="warning">{validation.warnings.join(" | ")}</Alert> : null}
 
-      <Card>
-        <CardContent>
-          <ServerSettingsForm draft={draft} rawYaml={rawYaml} onDraftChange={setDraft} />
-        </CardContent>
-      </Card>
+      <ServerSettingsForm draft={draft} rawYaml={rawYaml} onDraftChange={setDraft} />
 
       <ConfirmDialog
         open={applyDialog}
