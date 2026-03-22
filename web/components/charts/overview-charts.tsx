@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useMemo } from "react";
 import type { MouseEvent } from "react";
 
 import { Card, CardContent, Grid, Stack, ToggleButton, ToggleButtonGroup, Typography, useMediaQuery } from "@mui/material";
@@ -25,22 +25,71 @@ type OverviewChartsProps = {
   onRangeChange: (range: DashboardChartRange) => void;
 };
 
-type PreparedPoint = {
+type ParsedPoint = {
   timestampMs: number;
-  date: Date;
   cpu: number;
   ram: number;
   rx: number;
   tx: number;
 };
 
-type AxisContext = {
-  location?: string;
-  defaultTickLabel?: string;
+type ChartPoint = {
+  date: Date;
+  cpu: number | null;
+  ram: number | null;
+  rx: number | null;
+  tx: number | null;
+};
+
+type RangeConfig = {
+  windowMs: number;
+  stepMs: number;
+  ticksDesktop: number;
+  ticksMobile: number;
+};
+
+type PreparedChart = {
+  points: ChartPoint[];
+  startDate: Date;
+  endDate: Date;
 };
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
+
+const RANGE_CONFIG: Record<DashboardChartRange, RangeConfig> = {
+  "1h": {
+    windowMs: HOUR_MS,
+    stepMs: 15 * 1000,
+    ticksDesktop: 8,
+    ticksMobile: 5,
+  },
+  "24h": {
+    windowMs: DAY_MS,
+    stepMs: 2 * 60 * 1000,
+    ticksDesktop: 10,
+    ticksMobile: 6,
+  },
+};
+
+const NETWORK_AXIS_STEPS = [
+  64 * 1024,
+  128 * 1024,
+  256 * 1024,
+  512 * 1024,
+  1024 * 1024,
+  2 * 1024 * 1024,
+  4 * 1024 * 1024,
+  8 * 1024 * 1024,
+  16 * 1024 * 1024,
+  32 * 1024 * 1024,
+  64 * 1024 * 1024,
+  128 * 1024 * 1024,
+  256 * 1024 * 1024,
+  512 * 1024 * 1024,
+  1024 * 1024 * 1024,
+  2 * 1024 * 1024 * 1024,
+];
 
 function clampPercent(value: number): number {
   if (!Number.isFinite(value)) {
@@ -49,7 +98,7 @@ function clampPercent(value: number): number {
   return Math.max(0, Math.min(100, value));
 }
 
-function parsePoint(sample: SystemTrendSample): PreparedPoint | null {
+function parseSample(sample: SystemTrendSample): ParsedPoint | null {
   const timestampMs = Date.parse(sample.timestamp || "");
   if (Number.isNaN(timestampMs)) {
     return null;
@@ -57,7 +106,6 @@ function parsePoint(sample: SystemTrendSample): PreparedPoint | null {
 
   return {
     timestampMs,
-    date: new Date(timestampMs),
     cpu: clampPercent(sample.cpu_usage_percent),
     ram: clampPercent(sample.memory_used_percent),
     rx: Math.max(0, sample.network_rx_bps || 0),
@@ -65,49 +113,28 @@ function parsePoint(sample: SystemTrendSample): PreparedPoint | null {
   };
 }
 
-function downsample<T>(items: T[], maxPoints: number): T[] {
-  if (items.length <= maxPoints) {
-    return items;
+function toDate(value: unknown): Date | null {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
   }
-  const step = Math.ceil(items.length / maxPoints);
-  return items.filter((_, index) => index % step === 0 || index === items.length - 1);
+  if (typeof value === "number" || typeof value === "string") {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  return null;
 }
 
-function formatAxisTime(value: unknown, context?: AxisContext, range?: DashboardChartRange): string {
-  const date =
-    value instanceof Date
-      ? value
-      : typeof value === "number"
-        ? new Date(value)
-        : typeof value === "string"
-          ? new Date(value)
-          : null;
-
-  if (!date || Number.isNaN(date.getTime())) {
-    return typeof context?.defaultTickLabel === "string" ? context.defaultTickLabel : "";
+function formatTickTime(value: unknown, range: DashboardChartRange): string {
+  const date = toDate(value);
+  if (!date) {
+    return "";
   }
 
-  if (context?.location === "tooltip") {
-    return date.toLocaleString([], {
-      day: "2-digit",
-      month: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
-  }
-
-  if (range === "24h") {
-    return date.toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
-  }
-
+  const showSeconds = range === "1h";
   return date.toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
+    second: showSeconds ? "2-digit" : undefined,
     hour12: false,
   });
 }
@@ -126,26 +153,6 @@ function formatRateAxisCompact(value: number): string {
     return `${(value / 1_000).toFixed(value >= 10_000 ? 0 : 1)}K`;
   }
   return `${Math.round(value)}`;
-}
-
-function roundAxisCeil(value: number): number {
-  if (!Number.isFinite(value) || value <= 0) {
-    return 1;
-  }
-  const exponent = Math.floor(Math.log10(value));
-  const magnitude = 10 ** exponent;
-  const normalized = value / magnitude;
-
-  if (normalized <= 1) {
-    return magnitude;
-  }
-  if (normalized <= 2) {
-    return 2 * magnitude;
-  }
-  if (normalized <= 5) {
-    return 5 * magnitude;
-  }
-  return 10 * magnitude;
 }
 
 function chartStyleSx(theme: Theme, compact: boolean) {
@@ -187,105 +194,123 @@ function chartStyleSx(theme: Theme, compact: boolean) {
   };
 }
 
+function buildPreparedChart(samples: SystemTrendSample[], range: DashboardChartRange): PreparedChart {
+  const config = RANGE_CONFIG[range];
+  const parsed = samples
+    .map(parseSample)
+    .filter((item): item is ParsedPoint => item !== null)
+    .sort((a, b) => a.timestampMs - b.timestampMs);
+
+  const nowAligned = Math.floor(Date.now() / config.stepMs) * config.stepMs;
+  const latestMs = parsed.length ? parsed[parsed.length - 1].timestampMs : nowAligned;
+  const endMs = Math.floor(latestMs / config.stepMs) * config.stepMs;
+
+  const bucketCount = Math.floor(config.windowMs / config.stepMs) + 1;
+  const startMs = endMs - (bucketCount - 1) * config.stepMs;
+
+  const buckets = Array.from({ length: bucketCount }, () => ({
+    count: 0,
+    cpu: 0,
+    ram: 0,
+    rx: 0,
+    tx: 0,
+  }));
+
+  for (const point of parsed) {
+    if (point.timestampMs < startMs || point.timestampMs > endMs) {
+      continue;
+    }
+
+    const index = Math.floor((point.timestampMs - startMs) / config.stepMs);
+    if (index < 0 || index >= buckets.length) {
+      continue;
+    }
+
+    const bucket = buckets[index];
+    bucket.count += 1;
+    bucket.cpu += point.cpu;
+    bucket.ram += point.ram;
+    bucket.rx += point.rx;
+    bucket.tx += point.tx;
+  }
+
+  const points: ChartPoint[] = buckets.map((bucket, index) => {
+    const date = new Date(startMs + index * config.stepMs);
+    if (bucket.count === 0) {
+      return {
+        date,
+        cpu: null,
+        ram: null,
+        rx: null,
+        tx: null,
+      };
+    }
+
+    return {
+      date,
+      cpu: bucket.cpu / bucket.count,
+      ram: bucket.ram / bucket.count,
+      rx: bucket.rx / bucket.count,
+      tx: bucket.tx / bucket.count,
+    };
+  });
+
+  return {
+    points,
+    startDate: new Date(startMs),
+    endDate: new Date(endMs),
+  };
+}
+
+function resolveNetworkAxisMax(points: ChartPoint[]): number {
+  let peak = 0;
+  for (const point of points) {
+    if (point.rx !== null && point.rx > peak) {
+      peak = point.rx;
+    }
+    if (point.tx !== null && point.tx > peak) {
+      peak = point.tx;
+    }
+  }
+
+  const target = Math.max(1, peak * 1.12);
+  for (const step of NETWORK_AXIS_STEPS) {
+    if (target <= step) {
+      return step;
+    }
+  }
+
+  const lastStep = NETWORK_AXIS_STEPS[NETWORK_AXIS_STEPS.length - 1];
+  return Math.ceil(target / lastStep) * lastStep;
+}
+
+function hasEnoughTrendPoints(points: ChartPoint[]): boolean {
+  let withData = 0;
+  for (const point of points) {
+    if (point.cpu !== null || point.ram !== null || point.rx !== null || point.tx !== null) {
+      withData += 1;
+      if (withData > 1) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 export function OverviewCharts({ loading, samples, range, onRangeChange }: OverviewChartsProps) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"), { noSsr: true });
-  const networkAxisMaxRef = useRef(1);
-  const rangeMs = range === "24h" ? DAY_MS : HOUR_MS;
-  const maxPoints = range === "24h" ? 480 : 360;
-  const xTicks = range === "24h" ? (isMobile ? 6 : 10) : (isMobile ? 4 : 7);
-  const latestSampleMs = useMemo(() => {
-    let maxTs = 0;
-    for (const sample of samples) {
-      const ts = Date.parse(sample.timestamp || "");
-      if (!Number.isNaN(ts) && ts > maxTs) {
-        maxTs = ts;
-      }
-    }
-    return maxTs;
-  }, [samples]);
-  const rangeStepMs = range === "24h" ? 30 * 1000 : 3 * 1000;
-  const nowMs = Date.now();
-  const staleThresholdMs = rangeStepMs * 2;
-  const anchorMs = latestSampleMs > 0 && nowMs - latestSampleMs <= staleThresholdMs ? latestSampleMs : nowMs;
-  const rangeEndMs = Math.floor(anchorMs / rangeStepMs) * rangeStepMs;
-  const rangeStartMs = rangeEndMs - rangeMs;
-  const rangeStartDate = new Date(rangeStartMs);
-  const rangeEndDate = new Date(rangeEndMs);
-  const axisValueFormatter = (value: unknown, context?: AxisContext) => {
-    if (context?.location === "tooltip") {
-      return formatAxisTime(value, context, range);
-    }
-    return formatAxisTime(value, { location: "tick", defaultTickLabel: context?.defaultTickLabel }, range);
-  };
+  const rangeConfig = RANGE_CONFIG[range];
 
-  const windowPoints = useMemo(() => {
-    const filtered = samples
-      .map(parsePoint)
-      .filter((point): point is PreparedPoint => point !== null)
-      .filter((point) => point.timestampMs >= rangeStartMs && point.timestampMs <= rangeEndMs)
-      .sort((a, b) => a.timestampMs - b.timestampMs);
+  const prepared = useMemo(() => buildPreparedChart(samples, range), [samples, range]);
+  const hasTrend = useMemo(() => hasEnoughTrendPoints(prepared.points), [prepared.points]);
+  const networkAxisMax = useMemo(() => resolveNetworkAxisMax(prepared.points), [prepared.points]);
 
-    if (filtered.length > 1 && filtered[0].timestampMs > rangeStartMs) {
-      const first = filtered[0];
-      filtered.unshift({
-        ...first,
-        timestampMs: rangeStartMs,
-        date: new Date(rangeStartMs),
-      });
-    }
-
-    if (filtered.length > 1 && filtered[filtered.length - 1].timestampMs < rangeEndMs) {
-      const last = filtered[filtered.length - 1];
-      filtered.push({
-        ...last,
-        timestampMs: rangeEndMs,
-        date: new Date(rangeEndMs),
-      });
-    }
-
-    return filtered;
-  }, [samples, rangeStartMs, rangeEndMs]);
-
-  const points = useMemo(() => downsample(windowPoints, maxPoints), [windowPoints, maxPoints]);
-  const hasTrend = windowPoints.length > 1;
-
-  const xAxis = points.map((point) => point.date);
-  const networkRx = points.map((point) => point.rx);
-  const networkTx = points.map((point) => point.tx);
-  const cpu = points.map((point) => point.cpu);
-  const ram = points.map((point) => point.ram);
-
-  useEffect(() => {
-    networkAxisMaxRef.current = 1;
-  }, [range]);
-
-  const networkAxisMax = useMemo(() => {
-    let peak = 0;
-    for (const point of windowPoints) {
-      if (point.rx > peak) {
-        peak = point.rx;
-      }
-      if (point.tx > peak) {
-        peak = point.tx;
-      }
-    }
-    const target = roundAxisCeil((peak > 0 ? peak : 1) * 1.15);
-    const previous = networkAxisMaxRef.current > 0 ? networkAxisMaxRef.current : target;
-
-    let next = target;
-    if (target < previous) {
-      const significantDrop = target <= previous * 0.6;
-      if (!significantDrop) {
-        next = previous;
-      } else {
-        next = Math.max(target, roundAxisCeil(previous * 0.85));
-      }
-    }
-
-    networkAxisMaxRef.current = next;
-    return next;
-  }, [windowPoints]);
+  const xAxis = prepared.points.map((point) => point.date);
+  const networkRx = prepared.points.map((point) => point.rx);
+  const networkTx = prepared.points.map((point) => point.tx);
+  const cpu = prepared.points.map((point) => point.cpu);
+  const ram = prepared.points.map((point) => point.ram);
 
   const handleRangeChange = (_event: MouseEvent<HTMLElement>, nextRange: DashboardChartRange | null) => {
     if (nextRange) {
@@ -355,11 +380,11 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                       {
                         data: xAxis,
                         scaleType: "time",
-                        tickNumber: xTicks,
-                        min: rangeStartDate,
-                        max: rangeEndDate,
+                        tickNumber: isMobile ? rangeConfig.ticksMobile : rangeConfig.ticksDesktop,
+                        min: prepared.startDate,
+                        max: prepared.endDate,
                         tickLabelStyle: { fontSize: isMobile ? 10 : 11 },
-                        valueFormatter: axisValueFormatter,
+                        valueFormatter: (value: unknown) => formatTickTime(value, range),
                       },
                     ]}
                     yAxis={[
@@ -424,11 +449,11 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                       {
                         data: xAxis,
                         scaleType: "time",
-                        tickNumber: xTicks,
-                        min: rangeStartDate,
-                        max: rangeEndDate,
+                        tickNumber: isMobile ? rangeConfig.ticksMobile : rangeConfig.ticksDesktop,
+                        min: prepared.startDate,
+                        max: prepared.endDate,
                         tickLabelStyle: { fontSize: isMobile ? 10 : 11 },
-                        valueFormatter: axisValueFormatter,
+                        valueFormatter: (value: unknown) => formatTickTime(value, range),
                       },
                     ]}
                     yAxis={[
@@ -443,6 +468,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                     series={[
                       {
                         id: "cpu",
+                        label: "CPU",
                         curve: "monotoneX",
                         showMark: false,
                         area: true,
@@ -483,11 +509,11 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                       {
                         data: xAxis,
                         scaleType: "time",
-                        tickNumber: xTicks,
-                        min: rangeStartDate,
-                        max: rangeEndDate,
+                        tickNumber: isMobile ? rangeConfig.ticksMobile : rangeConfig.ticksDesktop,
+                        min: prepared.startDate,
+                        max: prepared.endDate,
                         tickLabelStyle: { fontSize: isMobile ? 10 : 11 },
-                        valueFormatter: axisValueFormatter,
+                        valueFormatter: (value: unknown) => formatTickTime(value, range),
                       },
                     ]}
                     yAxis={[
@@ -502,6 +528,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                     series={[
                       {
                         id: "ram",
+                        label: "RAM",
                         curve: "monotoneX",
                         showMark: false,
                         area: true,
