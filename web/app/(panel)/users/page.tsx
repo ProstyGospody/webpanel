@@ -5,15 +5,18 @@ import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import QrCode2RoundedIcon from "@mui/icons-material/QrCode2Rounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
+import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import {
   Alert,
   Box,
   Button,
   Card,
   CardContent,
+  Checkbox,
   CircularProgress,
   Fab,
   IconButton,
+  InputAdornment,
   Snackbar,
   Stack,
   Switch,
@@ -22,17 +25,22 @@ import {
   TableCell,
   TableContainer,
   TableHead,
+  TablePagination,
   TableRow,
+  TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Tooltip,
   Typography,
 } from "@mui/material";
-import { useCallback, useEffect, useState } from "react";
+import type { MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { PageHeader } from "@/components/ui/page-header";
-import { StatusChip } from "@/components/ui/status-chip";
 import { ClientArtifactsDialog } from "@/components/dialogs/client-artifacts-dialog";
 import { ConfirmDialog } from "@/components/dialogs/confirm-dialog";
 import { ClientFormDialog } from "@/components/forms/client-form-dialog";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatusChip } from "@/components/ui/status-chip";
 import { toCreateRequest, toUpdateRequest, type ClientFormValues } from "@/domain/clients/adapters";
 import {
   createClient,
@@ -44,15 +52,24 @@ import {
   updateClient,
 } from "@/domain/clients/services";
 import { HysteriaClient, HysteriaClientDefaults, HysteriaUserPayload } from "@/domain/clients/types";
+import { useNotice } from "@/hooks/use-notice";
 import { APIError } from "@/services/api";
 import { formatBytes, formatDateTime } from "@/utils/format";
-import { useNotice } from "@/hooks/use-notice";
+
+type ClientFilter = "all" | "online" | "enabled" | "disabled";
+
+const rowsPerPageOptions = [10, 25, 50, 100];
 
 export default function UsersPage() {
   const [clients, setClients] = useState<HysteriaClient[]>([]);
   const [defaults, setDefaults] = useState<HysteriaClientDefaults | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filter, setFilter] = useState<ClientFilter>("all");
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [selectedClientIDs, setSelectedClientIDs] = useState<string[]>([]);
 
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<"create" | "edit">("create");
@@ -62,6 +79,8 @@ export default function UsersPage() {
 
   const [deleteTarget, setDeleteTarget] = useState<HysteriaClient | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleteBusy, setBulkDeleteBusy] = useState(false);
 
   const [artifactOpen, setArtifactOpen] = useState(false);
   const [artifactLoading, setArtifactLoading] = useState(false);
@@ -86,6 +105,58 @@ export default function UsersPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [searchQuery, filter]);
+
+  useEffect(() => {
+    const existing = new Set(clients.map((client) => client.id));
+    setSelectedClientIDs((current) => current.filter((id) => existing.has(id)));
+  }, [clients]);
+
+  const filteredClients = useMemo(() => {
+    const needle = searchQuery.trim().toLowerCase();
+    return [...clients]
+      .sort((a, b) => a.username.localeCompare(b.username, undefined, { sensitivity: "base" }))
+      .filter((client) => {
+        if (filter === "online" && client.online_count <= 0) {
+          return false;
+        }
+        if (filter === "enabled" && !client.enabled) {
+          return false;
+        }
+        if (filter === "disabled" && client.enabled) {
+          return false;
+        }
+
+        if (!needle) {
+          return true;
+        }
+
+        const haystack = [client.username, client.username_normalized, client.note || "", client.id].join(" ").toLowerCase();
+        return haystack.includes(needle);
+      });
+  }, [clients, filter, searchQuery]);
+
+  const selectedSet = useMemo(() => new Set(selectedClientIDs), [selectedClientIDs]);
+  const filteredIDs = useMemo(() => filteredClients.map((client) => client.id), [filteredClients]);
+  const selectedFilteredCount = useMemo(() => filteredIDs.reduce((sum, id) => sum + (selectedSet.has(id) ? 1 : 0), 0), [filteredIDs, selectedSet]);
+
+  const allFilteredSelected = filteredIDs.length > 0 && selectedFilteredCount === filteredIDs.length;
+  const someFilteredSelected = selectedFilteredCount > 0 && !allFilteredSelected;
+
+  const pagedClients = useMemo(() => {
+    const start = page * rowsPerPage;
+    return filteredClients.slice(start, start + rowsPerPage);
+  }, [filteredClients, page, rowsPerPage]);
+
+  useEffect(() => {
+    const maxPage = Math.max(0, Math.ceil(filteredClients.length / rowsPerPage) - 1);
+    if (page > maxPage) {
+      setPage(maxPage);
+    }
+  }, [filteredClients.length, page, rowsPerPage]);
 
   function openCreate() {
     setFormMode("create");
@@ -123,7 +194,9 @@ export default function UsersPage() {
   }
 
   async function removeClient() {
-    if (!deleteTarget) return;
+    if (!deleteTarget) {
+      return;
+    }
     setDeleteBusy(true);
     try {
       await deleteClient(deleteTarget.id);
@@ -134,6 +207,48 @@ export default function UsersPage() {
       setError(err instanceof APIError ? err.message : "Failed to delete user");
     } finally {
       setDeleteBusy(false);
+    }
+  }
+
+  async function deleteSelectedClients() {
+    if (!selectedClientIDs.length) {
+      return;
+    }
+
+    const targetIDs = [...selectedClientIDs];
+    const failedIDs: string[] = [];
+    let firstError = "";
+    let deletedCount = 0;
+
+    setBulkDeleteBusy(true);
+    setError("");
+    try {
+      for (const id of targetIDs) {
+        try {
+          await deleteClient(id);
+          deletedCount += 1;
+        } catch (err) {
+          failedIDs.push(id);
+          if (!firstError) {
+            firstError = err instanceof APIError ? err.message : "Failed to delete selected users";
+          }
+        }
+      }
+
+      if (deletedCount > 0) {
+        notice.notify(deletedCount === 1 ? "1 user deleted" : `${deletedCount} users deleted`);
+      }
+
+      if (failedIDs.length > 0) {
+        setSelectedClientIDs(failedIDs);
+        setError(firstError || `Deleted ${deletedCount} of ${targetIDs.length} users`);
+      } else {
+        setSelectedClientIDs([]);
+      }
+    } finally {
+      setBulkDeleteBusy(false);
+      setBulkDeleteOpen(false);
+      await load();
     }
   }
 
@@ -170,6 +285,49 @@ export default function UsersPage() {
     }
   }
 
+  function toggleClientSelection(clientID: string, checked: boolean) {
+    setSelectedClientIDs((current) => {
+      if (checked) {
+        if (current.includes(clientID)) {
+          return current;
+        }
+        return [...current, clientID];
+      }
+      return current.filter((id) => id !== clientID);
+    });
+  }
+
+  function toggleSelectFiltered(checked: boolean) {
+    if (checked) {
+      setSelectedClientIDs((current) => {
+        const next = new Set(current);
+        for (const id of filteredIDs) {
+          next.add(id);
+        }
+        return Array.from(next);
+      });
+      return;
+    }
+
+    const filteredSet = new Set(filteredIDs);
+    setSelectedClientIDs((current) => current.filter((id) => !filteredSet.has(id)));
+  }
+
+  function handleFilterChange(_event: MouseEvent<HTMLElement>, next: ClientFilter | null) {
+    if (next) {
+      setFilter(next);
+    }
+  }
+
+  function handleRowsPerPageChange(value: string) {
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return;
+    }
+    setRowsPerPage(parsed);
+    setPage(0);
+  }
+
   return (
     <Stack spacing={3}>
       <PageHeader
@@ -196,62 +354,158 @@ export default function UsersPage() {
               <Typography color="text.secondary">Loading users...</Typography>
             </Stack>
           ) : (
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>User</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell>Traffic</TableCell>
-                    <TableCell>Last Seen</TableCell>
-                    <TableCell align="right">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {clients.map((client) => (
-                    <TableRow key={client.id} hover>
-                      <TableCell>
-                        <Stack spacing={0.25}>
-                          <Box sx={{ cursor: "pointer" }} onClick={() => void openArtifacts(client)}>
-                            <Typography sx={{ fontWeight: 700 }}>{client.username}</Typography>
-                          </Box>
-                          <Typography variant="caption" color="text.secondary">{client.note || "-"}</Typography>
-                        </Stack>
+            <Stack spacing={1.5}>
+              <Stack direction={{ xs: "column", lg: "row" }} spacing={1.25} justifyContent="space-between" alignItems={{ xs: "stretch", lg: "center" }}>
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ flexGrow: 1 }}>
+                  <TextField
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder="Search by username, note, or id"
+                    size="small"
+                    sx={{ minWidth: { xs: "100%", sm: 280 }, maxWidth: { xs: "100%", lg: 420 } }}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchRoundedIcon fontSize="small" />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                  <ToggleButtonGroup
+                    exclusive
+                    value={filter}
+                    onChange={handleFilterChange}
+                    size="small"
+                    sx={{ alignSelf: { xs: "stretch", sm: "center" } }}
+                  >
+                    <ToggleButton value="all">All</ToggleButton>
+                    <ToggleButton value="online">Online</ToggleButton>
+                    <ToggleButton value="enabled">Enabled</ToggleButton>
+                    <ToggleButton value="disabled">Disabled</ToggleButton>
+                  </ToggleButtonGroup>
+                </Stack>
+
+                <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="center">
+                  <Typography variant="body2" color="text.secondary">
+                    {filteredClients.length} users
+                  </Typography>
+                  <Button
+                    color="error"
+                    variant="outlined"
+                    startIcon={<DeleteOutlineRoundedIcon />}
+                    disabled={!selectedClientIDs.length}
+                    onClick={() => setBulkDeleteOpen(true)}
+                  >
+                    Delete selected ({selectedClientIDs.length})
+                  </Button>
+                </Stack>
+              </Stack>
+
+              <TableContainer sx={{ borderRadius: 2, overflowX: "auto" }}>
+                <Table size="small" sx={{ minWidth: 860, tableLayout: "fixed" }}>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell padding="checkbox" sx={{ width: 48 }}>
+                        <Checkbox
+                          checked={allFilteredSelected}
+                          indeterminate={someFilteredSelected}
+                          onChange={(event) => toggleSelectFiltered(event.target.checked)}
+                          inputProps={{ "aria-label": "select filtered users" }}
+                        />
                       </TableCell>
-                      <TableCell>
-                        <Stack direction="row" spacing={1} alignItems="center">
-                          <Switch size="small" checked={client.enabled} onChange={() => void toggleEnabled(client)} />
-                          <StatusChip status={client.enabled ? "enabled" : "disabled"} />
-                        </Stack>
-                      </TableCell>
-                      <TableCell>{formatBytes(client.last_tx_bytes + client.last_rx_bytes)}</TableCell>
-                      <TableCell>{formatDateTime(client.last_seen_at || client.updated_at)}</TableCell>
-                      <TableCell align="right">
-                        <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                          <Tooltip title="Show QR">
-                            <span>
-                              <IconButton size="small" onClick={() => void openArtifacts(client)} disabled={!client.enabled}>
-                                <QrCode2RoundedIcon fontSize="small" />
-                              </IconButton>
-                            </span>
-                          </Tooltip>
-                          <Tooltip title="Edit">
-                            <IconButton size="small" onClick={() => openEdit(client)}>
-                              <EditRoundedIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Delete">
-                            <IconButton size="small" color="error" onClick={() => setDeleteTarget(client)}>
-                              <DeleteOutlineRoundedIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        </Stack>
-                      </TableCell>
+                      <TableCell sx={{ width: 64 }}>#</TableCell>
+                      <TableCell sx={{ width: "30%" }}>User</TableCell>
+                      <TableCell sx={{ width: "24%" }}>Status</TableCell>
+                      <TableCell sx={{ width: "14%" }}>Traffic</TableCell>
+                      <TableCell sx={{ width: "18%" }}>Last Seen</TableCell>
+                      <TableCell align="right" sx={{ width: 168 }}>Actions</TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                  </TableHead>
+                  <TableBody>
+                    {pagedClients.length ? (
+                      pagedClients.map((client, index) => (
+                        <TableRow key={client.id} hover sx={{ "& td": { verticalAlign: "middle" } }}>
+                          <TableCell padding="checkbox">
+                            <Checkbox
+                              checked={selectedSet.has(client.id)}
+                              onChange={(event) => toggleClientSelection(client.id, event.target.checked)}
+                              inputProps={{ "aria-label": `select ${client.username}` }}
+                            />
+                          </TableCell>
+                          <TableCell>{page * rowsPerPage + index + 1}</TableCell>
+                          <TableCell>
+                            <Stack spacing={0.25}>
+                              <Box sx={{ cursor: "pointer" }} onClick={() => void openArtifacts(client)}>
+                                <Typography sx={{ fontWeight: 700 }} noWrap>{client.username}</Typography>
+                              </Box>
+                              <Typography variant="caption" color="text.secondary" noWrap>{client.note || "-"}</Typography>
+                            </Stack>
+                          </TableCell>
+                          <TableCell>
+                            <Stack spacing={0.4}>
+                              <Stack direction="row" spacing={1} alignItems="center">
+                                <Switch size="small" checked={client.enabled} onChange={() => void toggleEnabled(client)} />
+                                <StatusChip status={client.enabled ? "enabled" : "disabled"} />
+                              </Stack>
+                              <Typography
+                                variant="caption"
+                                sx={(theme) => ({
+                                  color: client.online_count > 0 ? theme.palette.success.main : theme.palette.text.secondary,
+                                  fontWeight: client.online_count > 0 ? 700 : 500,
+                                })}
+                              >
+                                {client.online_count > 0 ? `online ${client.online_count}` : "offline"}
+                              </Typography>
+                            </Stack>
+                          </TableCell>
+                          <TableCell>{formatBytes(client.last_tx_bytes + client.last_rx_bytes)}</TableCell>
+                          <TableCell>{formatDateTime(client.last_seen_at || client.updated_at)}</TableCell>
+                          <TableCell align="right">
+                            <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                              <Tooltip title="Show QR">
+                                <span>
+                                  <IconButton size="small" onClick={() => void openArtifacts(client)} disabled={!client.enabled}>
+                                    <QrCode2RoundedIcon fontSize="small" />
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
+                              <Tooltip title="Edit">
+                                <IconButton size="small" onClick={() => openEdit(client)}>
+                                  <EditRoundedIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Delete">
+                                <IconButton size="small" color="error" onClick={() => setDeleteTarget(client)}>
+                                  <DeleteOutlineRoundedIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </Stack>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={7}>
+                          <Typography color="text.secondary" sx={{ py: 2 }}>
+                            {clients.length ? "No users match the current filters." : "No users yet."}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+
+              <TablePagination
+                component="div"
+                count={filteredClients.length}
+                page={page}
+                onPageChange={(_event, nextPage) => setPage(nextPage)}
+                rowsPerPage={rowsPerPage}
+                rowsPerPageOptions={rowsPerPageOptions}
+                onRowsPerPageChange={(event) => handleRowsPerPageChange(event.target.value)}
+              />
+            </Stack>
           )}
         </CardContent>
       </Card>
@@ -275,6 +529,16 @@ export default function UsersPage() {
         confirmText="Delete"
         onClose={() => setDeleteTarget(null)}
         onConfirm={() => void removeClient()}
+      />
+
+      <ConfirmDialog
+        open={bulkDeleteOpen}
+        title="Delete selected users"
+        description={`Delete ${selectedClientIDs.length} selected users and remove access?`}
+        busy={bulkDeleteBusy}
+        confirmText="Delete selected"
+        onClose={() => setBulkDeleteOpen(false)}
+        onConfirm={() => void deleteSelectedClients()}
       />
 
       <ClientArtifactsDialog

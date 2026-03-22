@@ -68,6 +68,13 @@ function clampPercent(value: number): number {
   return Math.max(0, Math.min(100, value));
 }
 
+function formatPacketRate(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) {
+    return "0/s";
+  }
+  return `${Math.round(value).toLocaleString()}/s`;
+}
+
 function toTrendSample(live: SystemLiveResponse): SystemTrendSample {
   const sourceTimestamp = live.system.collected_at || live.collected_at;
   const timestampMs = Date.parse(sourceTimestamp || "");
@@ -326,8 +333,8 @@ export default function DashboardPage() {
   const networkTx = Math.max(0, live?.system.network_tx_bps ?? 0);
   const uptime = formatUptime(live?.system.uptime_seconds ?? 0);
   const totalTraffic = Math.max(0, (live?.hysteria.total_rx_bytes ?? 0) + (live?.hysteria.total_tx_bytes ?? 0));
-  const tcpConnections = Math.max(0, Math.round(live?.system.tcp_sockets ?? 0));
-  const udpConnections = Math.max(0, Math.round(live?.system.udp_sockets ?? 0));
+  const tcpPacketsRate = Math.max(0, live?.system.tcp_packets_per_sec ?? 0);
+  const udpPacketsRate = Math.max(0, live?.system.udp_packets_per_sec ?? 0);
   const metricTiles: MetricTile[] = [
     {
       label: "CPU",
@@ -349,8 +356,8 @@ export default function DashboardPage() {
     },
     {
       label: "NETWORK",
-      value: `↓ ${formatRate(networkRx)}`,
-      valueSecondary: `↑ ${formatRate(networkTx)}`,
+      value: `RX ${formatRate(networkRx)}`,
+      valueSecondary: `TX ${formatRate(networkTx)}`,
       tone: "info",
       icon: RouterRoundedIcon,
     },
@@ -367,9 +374,9 @@ export default function DashboardPage() {
       icon: DataUsageRoundedIcon,
     },
     {
-      label: "TCP / UDP",
-      value: `TCP ${tcpConnections.toLocaleString()}`,
-      valueSecondary: `UDP ${udpConnections.toLocaleString()}`,
+      label: "PACKETS",
+      value: `TCP ${formatPacketRate(tcpPacketsRate)}`,
+      valueSecondary: `UDP ${formatPacketRate(udpPacketsRate)}`,
       tone: "info",
       icon: SettingsEthernetRoundedIcon,
     },
@@ -391,22 +398,22 @@ export default function DashboardPage() {
               <Card
                 variant="outlined"
                 sx={(theme) => ({
-                  height: { xs: "100%", sm: 116 },
+                  height: { xs: "100%", sm: 102 },
                   borderColor: alpha(theme.palette[tile.tone].main, 0.32),
                   backgroundColor: alpha(theme.palette.background.paper, 0.9),
                 })}
               >
                 <CardContent
                   sx={{
-                    pt: 0.9,
-                    pb: 1.2,
-                    px: 2,
+                    pt: 0.8,
+                    pb: 1,
+                    px: 1.6,
                     position: "relative",
                     height: "100%",
-                    minHeight: { xs: 108, sm: 116 },
+                    minHeight: { xs: 96, sm: 102 },
                   }}
                 >
-                  <Stack spacing={0.1} sx={{ pr: { xs: 6.5, sm: 7 }, alignItems: "flex-start" }}>
+                  <Stack spacing={0.05} sx={{ pr: { xs: 6, sm: 6.4 }, alignItems: "flex-start" }}>
                     <Typography
                       variant="subtitle2"
                       color="text.secondary"
@@ -414,7 +421,7 @@ export default function DashboardPage() {
                         textTransform: "uppercase",
                         letterSpacing: "0.09em",
                         fontWeight: 800,
-                        fontSize: { xs: "0.78rem", sm: "0.84rem" },
+                        fontSize: { xs: "0.72rem", sm: "0.76rem" },
                       }}
                     >
                       {tile.label}
@@ -425,8 +432,8 @@ export default function DashboardPage() {
                         fontWeight: 900,
                         lineHeight: 1.1,
                         fontSize: hasSecondary
-                          ? { xs: "1.22rem", sm: "1.3rem", md: "1.4rem" }
-                          : { xs: "2.2rem", sm: "2.38rem", md: "2.62rem" },
+                          ? { xs: "1.08rem", sm: "1.15rem", md: "1.22rem" }
+                          : { xs: "1.76rem", sm: "1.88rem", md: "2.02rem" },
                         whiteSpace: "nowrap",
                         fontVariantNumeric: "tabular-nums",
                       }}
@@ -438,7 +445,7 @@ export default function DashboardPage() {
                       sx={{
                         fontWeight: 900,
                         lineHeight: 1.1,
-                        fontSize: { xs: "1.08rem", sm: "1.16rem", md: "1.24rem" },
+                        fontSize: { xs: "0.94rem", sm: "1.01rem", md: "1.08rem" },
                         whiteSpace: "nowrap",
                         fontVariantNumeric: "tabular-nums",
                         visibility: hasSecondary ? "visible" : "hidden",
@@ -452,10 +459,10 @@ export default function DashboardPage() {
                     justifyContent="center"
                     sx={{
                       position: "absolute",
-                      right: 14,
-                      top: { xs: 12, sm: 10 },
-                      width: { xs: 24, sm: 28, md: 32 },
-                      height: { xs: 24, sm: 28, md: 32 },
+                      right: 12,
+                      top: { xs: 10, sm: 9 },
+                      width: { xs: 22, sm: 24, md: 26 },
+                      height: { xs: 22, sm: 24, md: 26 },
                     }}
                   >
                     <Icon
@@ -463,8 +470,8 @@ export default function DashboardPage() {
                       sx={{
                         display: "block",
                         fontSize: hasSecondary
-                          ? { xs: "1.45rem", sm: "1.6rem", md: "1.7rem" }
-                          : { xs: "1.6rem", sm: "1.8rem", md: "1.95rem" },
+                          ? { xs: "1.32rem", sm: "1.42rem", md: "1.5rem" }
+                          : { xs: "1.45rem", sm: "1.56rem", md: "1.64rem" },
                       }}
                     />
                   </Stack>
@@ -490,47 +497,61 @@ export default function DashboardPage() {
             <Typography color="text.secondary">Loading services...</Typography>
           </Stack>
         ) : (
-          <TableContainer>
-            <Table size="small">
+          <TableContainer sx={{ borderRadius: 2, overflowX: "auto" }}>
+            <Table size="small" sx={{ minWidth: 680, tableLayout: "fixed" }}>
               <TableHead>
                 <TableRow>
-                  <TableCell>Service</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Version</TableCell>
-                  <TableCell>Last Check</TableCell>
-                  <TableCell align="right">Actions</TableCell>
+                  <TableCell sx={{ width: "30%" }}>Service</TableCell>
+                  <TableCell sx={{ width: "20%" }}>Status</TableCell>
+                  <TableCell sx={{ width: "22%" }}>Version</TableCell>
+                  <TableCell sx={{ width: "20%" }}>Last Check</TableCell>
+                  <TableCell align="right" sx={{ width: 128 }}>Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {serviceItems.map((item) => (
-                  <TableRow key={item.service_name} hover>
-                    <TableCell>
-                      <Typography sx={{ fontWeight: 700 }}>{item.service_name}</Typography>
-                    </TableCell>
-                    <TableCell><StatusChip status={item.status || "unknown"} /></TableCell>
-                    <TableCell>{item.version || "-"}</TableCell>
-                    <TableCell>{formatDateTime(item.last_check_at)}</TableCell>
-                    <TableCell align="right">
-                      <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                        <Tooltip title="Details & Logs">
-                          <IconButton size="small" onClick={() => void openServiceDetails(item.service_name)} disabled={servicesBusy}>
-                            <PreviewRoundedIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Reload">
-                          <IconButton size="small" onClick={() => setServiceActionState({ name: item.service_name, action: "reload" })} disabled={servicesBusy}>
-                            <SyncRoundedIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Restart">
-                          <IconButton size="small" onClick={() => setServiceActionState({ name: item.service_name, action: "restart" })} disabled={servicesBusy}>
-                            <RestartAltRoundedIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </Stack>
+                {serviceItems.length ? (
+                  serviceItems.map((item) => (
+                    <TableRow key={item.service_name} hover sx={{ "& td": { verticalAlign: "middle" } }}>
+                      <TableCell>
+                        <Typography sx={{ fontWeight: 700 }} noWrap>{item.service_name}</Typography>
+                      </TableCell>
+                      <TableCell><StatusChip status={item.status || "unknown"} /></TableCell>
+                      <TableCell>
+                        <Typography color="text.secondary" noWrap>{item.version || "-"}</Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography color="text.secondary" noWrap>{formatDateTime(item.last_check_at)}</Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                          <Tooltip title="Details & Logs">
+                            <IconButton size="small" onClick={() => void openServiceDetails(item.service_name)} disabled={servicesBusy}>
+                              <PreviewRoundedIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Reload">
+                            <IconButton size="small" onClick={() => setServiceActionState({ name: item.service_name, action: "reload" })} disabled={servicesBusy}>
+                              <SyncRoundedIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Restart">
+                            <IconButton size="small" onClick={() => setServiceActionState({ name: item.service_name, action: "restart" })} disabled={servicesBusy}>
+                              <RestartAltRoundedIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Stack>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={5}>
+                      <Typography color="text.secondary" sx={{ py: 2 }}>
+                        Service activity is not available yet.
+                      </Typography>
                     </TableCell>
                   </TableRow>
-                ))}
+                )}
               </TableBody>
             </Table>
           </TableContainer>

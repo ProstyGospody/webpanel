@@ -407,13 +407,6 @@ export const panelLightTheme = createTheme(panelTheme, {
         }),
       },
     },
-    MuiSvgIcon: {
-      styleOverrides: {
-        root: () => ({
-          color: "inherit",
-        }),
-      },
-    },
     MuiChip: {
       styleOverrides: {
         root: ({ theme }: { theme: Theme }) => ({

@@ -1,7 +1,6 @@
 package services
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"os"
@@ -21,10 +20,11 @@ type SystemMetrics struct {
 }
 
 type SystemMetricsCollector struct {
-	SampleDelay time.Duration
-	mu          sync.Mutex
-	lastCPU     float64
-	hasLastCPU  bool
+	mu               sync.Mutex
+	lastCPU          float64
+	hasLastCPU       bool
+	lastCPUSample    cpuSample
+	hasLastCPUSample bool
 }
 
 type cpuSample struct {
@@ -33,14 +33,14 @@ type cpuSample struct {
 }
 
 func NewSystemMetricsCollector() *SystemMetricsCollector {
-	return &SystemMetricsCollector{
-		SampleDelay: 300 * time.Millisecond,
-	}
+	return &SystemMetricsCollector{}
 }
 
 func (c *SystemMetricsCollector) Snapshot(ctx context.Context) (SystemMetrics, error) {
-	if c.SampleDelay <= 0 {
-		c.SampleDelay = 300 * time.Millisecond
+	select {
+	case <-ctx.Done():
+		return SystemMetrics{}, ctx.Err()
+	default:
 	}
 
 	cpuUsage, err := c.readCPUUsage(ctx)
@@ -96,84 +96,110 @@ func (c *SystemMetricsCollector) setLastCPUValue(value float64) {
 }
 
 func (c *SystemMetricsCollector) readCPUUsage(ctx context.Context) (float64, error) {
-	first, err := readCPUSample()
-	if err != nil {
-		return 0, err
-	}
-
-	timer := time.NewTimer(c.SampleDelay)
-	defer timer.Stop()
-
 	select {
 	case <-ctx.Done():
 		return 0, ctx.Err()
-	case <-timer.C:
+	default:
 	}
 
-	second, err := readCPUSample()
+	current, err := readCPUSample()
 	if err != nil {
 		return 0, err
 	}
 
-	deltaTotal := second.total - first.total
-	deltaIdle := second.idle - first.idle
-	if deltaTotal <= 0 {
-		return 0, fmt.Errorf("invalid cpu sample delta")
+	c.mu.Lock()
+	prev := c.lastCPUSample
+	hasPrev := c.hasLastCPUSample
+	lastCPU := c.lastCPU
+	hasLast := c.hasLastCPU
+
+	if hasPrev && current.total <= prev.total {
+		c.mu.Unlock()
+		if hasLast {
+			return lastCPU, nil
+		}
+		return 0, nil
 	}
 
-	busy := deltaTotal - deltaIdle
-	if busy < 0 {
-		busy = 0
+	c.lastCPUSample = current
+	c.hasLastCPUSample = true
+	c.mu.Unlock()
+
+	if !hasPrev {
+		if hasLast {
+			return lastCPU, nil
+		}
+		return 0, nil
 	}
 
-	usage := (float64(busy) * 100) / float64(deltaTotal)
-	if usage < 0 {
-		usage = 0
-	}
-	if usage > 100 {
-		usage = 100
+	usage, err := calculateCPUUsage(prev, current)
+	if err != nil {
+		return 0, err
 	}
 	c.setLastCPUValue(usage)
 	return usage, nil
 }
 
 func readCPUSample() (cpuSample, error) {
-	file, err := os.Open("/proc/stat")
+	content, err := os.ReadFile("/proc/stat")
 	if err != nil {
-		return cpuSample{}, fmt.Errorf("open /proc/stat: %w", err)
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if !strings.HasPrefix(line, "cpu ") {
-			continue
-		}
-		fields := strings.Fields(line)
-		if len(fields) < 5 {
-			return cpuSample{}, fmt.Errorf("invalid cpu line")
-		}
-
-		var total int64
-		var idle int64
-		for idx := 1; idx < len(fields); idx++ {
-			value, err := strconv.ParseInt(fields[idx], 10, 64)
-			if err != nil {
-				return cpuSample{}, fmt.Errorf("parse cpu field: %w", err)
-			}
-			total += value
-			if idx == 4 || idx == 5 {
-				idle += value
-			}
-		}
-		return cpuSample{total: total, idle: idle}, nil
-	}
-
-	if err := scanner.Err(); err != nil {
 		return cpuSample{}, fmt.Errorf("read /proc/stat: %w", err)
 	}
-	return cpuSample{}, fmt.Errorf("cpu line not found in /proc/stat")
+
+	firstLine := strings.SplitN(string(content), "\n", 2)[0]
+	sample, err := parseCPUSampleLine(firstLine)
+	if err != nil {
+		return cpuSample{}, err
+	}
+	return sample, nil
+}
+
+func parseCPUSampleLine(line string) (cpuSample, error) {
+	fields := strings.Fields(strings.TrimSpace(line))
+	if len(fields) < 5 || fields[0] != "cpu" {
+		return cpuSample{}, fmt.Errorf("invalid cpu line")
+	}
+
+	var total int64
+	var idle int64
+
+	for idx, raw := range fields[1:] {
+		value, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil {
+			return cpuSample{}, fmt.Errorf("parse cpu field: %w", err)
+		}
+		total += value
+		if idx == 3 || idx == 4 {
+			idle += value
+		}
+	}
+
+	return cpuSample{total: total, idle: idle}, nil
+}
+
+func calculateCPUUsage(previous cpuSample, current cpuSample) (float64, error) {
+	deltaTotal := current.total - previous.total
+	if deltaTotal <= 0 {
+		return 0, fmt.Errorf("invalid cpu sample delta")
+	}
+
+	deltaIdle := current.idle - previous.idle
+	if deltaIdle < 0 {
+		deltaIdle = 0
+	}
+	if deltaIdle > deltaTotal {
+		deltaIdle = deltaTotal
+	}
+
+	busy := deltaTotal - deltaIdle
+	usage := (float64(busy) * 100) / float64(deltaTotal)
+	if usage < 0 {
+		return 0, nil
+	}
+	if usage > 100 {
+		return 100, nil
+	}
+	return usage, nil
 }
 
 func readMemoryInfo() (totalBytes int64, availableBytes int64, err error) {

@@ -124,17 +124,15 @@ function toDate(value: unknown): Date | null {
   return null;
 }
 
-function formatTickTime(value: unknown, range: DashboardChartRange): string {
+function formatTickTime(value: unknown): string {
   const date = toDate(value);
   if (!date) {
     return "";
   }
 
-  const showSeconds = range === "1h";
   return date.toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
-    second: showSeconds ? "2-digit" : undefined,
     hour12: false,
   });
 }
@@ -384,7 +382,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         min: prepared.startDate,
                         max: prepared.endDate,
                         tickLabelStyle: { fontSize: isMobile ? 10 : 11 },
-                        valueFormatter: (value: unknown) => formatTickTime(value, range),
+                        valueFormatter: (value: unknown) => formatTickTime(value),
                       },
                     ]}
                     yAxis={[
@@ -453,7 +451,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         min: prepared.startDate,
                         max: prepared.endDate,
                         tickLabelStyle: { fontSize: isMobile ? 10 : 11 },
-                        valueFormatter: (value: unknown) => formatTickTime(value, range),
+                        valueFormatter: (value: unknown) => formatTickTime(value),
                       },
                     ]}
                     yAxis={[
@@ -513,7 +511,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                         min: prepared.startDate,
                         max: prepared.endDate,
                         tickLabelStyle: { fontSize: isMobile ? 10 : 11 },
-                        valueFormatter: (value: unknown) => formatTickTime(value, range),
+                        valueFormatter: (value: unknown) => formatTickTime(value),
                       },
                     ]}
                     yAxis={[
