@@ -342,7 +342,7 @@ export default function UsersPage() {
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="Search by username, note, or id"
               size="small"
-              sx={{ minWidth: { xs: 220, lg: 280 }, maxWidth: 420 }}
+              sx={{ minWidth: { xs: 220, lg: 240 }, maxWidth: { lg: 360 }, flexGrow: 1 }}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -351,7 +351,7 @@ export default function UsersPage() {
                 ),
               }}
             />
-            <ToggleButtonGroup exclusive value={filter} onChange={handleFilterChange} size="small">
+            <ToggleButtonGroup exclusive value={filter} onChange={handleFilterChange} size="small" sx={{ flexShrink: 0 }}>
               <ToggleButton value="all">All</ToggleButton>
               <ToggleButton value="online">Online</ToggleButton>
               <ToggleButton value="enabled">Enabled</ToggleButton>
@@ -363,10 +363,16 @@ export default function UsersPage() {
               startIcon={<DeleteOutlineRoundedIcon />}
               disabled={!selectedClientIDs.length}
               onClick={() => setBulkDeleteOpen(true)}
+              sx={{ minWidth: { xs: "100%", lg: 168 }, whiteSpace: "nowrap", flexShrink: 0 }}
             >
               Delete selected ({selectedClientIDs.length})
             </Button>
-            <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={openCreate}>
+            <Button
+              variant="contained"
+              startIcon={<AddRoundedIcon />}
+              onClick={openCreate}
+              sx={{ minWidth: { xs: "100%", lg: 168 }, whiteSpace: "nowrap", flexShrink: 0 }}
+            >
               Add user
             </Button>
           </Stack>
