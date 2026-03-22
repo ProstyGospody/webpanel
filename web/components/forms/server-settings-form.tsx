@@ -444,6 +444,10 @@ export function ServerSettingsForm({
               sx: (theme) => ({
                 ...theme.typography.code,
                 lineHeight: 1.5,
+                borderRadius: 0,
+                "& .MuiOutlinedInput-notchedOutline": {
+                  borderRadius: 0,
+                },
               }),
             }}
             helperText="Generated preview"
