@@ -406,7 +406,7 @@ export default function DashboardPage() {
                     minHeight: { xs: 76, sm: 82 },
                   }}
                 >
-                  <Stack spacing={0} sx={{ pr: { xs: 4.8, sm: 5.2 }, alignItems: "flex-start" }}>
+                  <Stack spacing={0} sx={{ pr: { xs: 5.6, sm: 6 }, alignItems: "flex-start" }}>
                     <Typography
                       variant="subtitle2"
                       color="text.secondary"
@@ -414,7 +414,7 @@ export default function DashboardPage() {
                         textTransform: "uppercase",
                         letterSpacing: "0.09em",
                         fontWeight: 800,
-                        fontSize: { xs: "0.62rem", sm: "0.66rem" },
+                        fontSize: { xs: "0.72rem", sm: "0.78rem", md: "0.82rem" },
                       }}
                     >
                       {tile.label}
@@ -453,9 +453,9 @@ export default function DashboardPage() {
                     sx={{
                       position: "absolute",
                       right: 8,
-                      top: { xs: 6, sm: 6 },
-                      width: { xs: 18, sm: 20, md: 22 },
-                      height: { xs: 18, sm: 20, md: 22 },
+                      top: { xs: 5, sm: 5 },
+                      width: { xs: 22, sm: 24, md: 26 },
+                      height: { xs: 22, sm: 24, md: 26 },
                     }}
                   >
                     <Icon
@@ -463,8 +463,8 @@ export default function DashboardPage() {
                       sx={{
                         display: "block",
                         fontSize: hasSecondary
-                          ? { xs: "1.1rem", sm: "1.18rem", md: "1.26rem" }
-                          : { xs: "1.16rem", sm: "1.24rem", md: "1.32rem" },
+                          ? { xs: "1.28rem", sm: "1.36rem", md: "1.44rem" }
+                          : { xs: "1.34rem", sm: "1.42rem", md: "1.5rem" },
                       }}
                     />
                   </Stack>

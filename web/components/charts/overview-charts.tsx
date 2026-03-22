@@ -357,7 +357,6 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
           <Card sx={{ height: "100%" }}>
             <CardContent sx={{ p: { xs: 1.25, sm: 1.75 }, "&:last-child": { pb: { xs: 1.25, sm: 1.75 } } }}>
               <Stack spacing={1}>
-                <Typography variant="h6">Network</Typography>
                 {loading && !hasTrend ? (
                   <LoadingState message="Loading network trend..." minHeight={isMobile ? 220 : 260} />
                 ) : !hasTrend ? (
@@ -426,7 +425,6 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
           <Card sx={{ height: "100%" }}>
             <CardContent sx={{ p: { xs: 1.25, sm: 1.75 }, "&:last-child": { pb: { xs: 1.25, sm: 1.75 } } }}>
               <Stack spacing={1}>
-                <Typography variant="h6">CPU</Typography>
                 {loading && !hasTrend ? (
                   <LoadingState message="Loading CPU trend..." minHeight={isMobile ? 206 : 236} />
                 ) : !hasTrend ? (
@@ -486,7 +484,6 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
           <Card sx={{ height: "100%" }}>
             <CardContent sx={{ p: { xs: 1.25, sm: 1.75 }, "&:last-child": { pb: { xs: 1.25, sm: 1.75 } } }}>
               <Stack spacing={1}>
-                <Typography variant="h6">RAM</Typography>
                 {loading && !hasTrend ? (
                   <LoadingState message="Loading RAM trend..." minHeight={isMobile ? 206 : 236} />
                 ) : !hasTrend ? (
