@@ -68,13 +68,6 @@ function clampPercent(value: number): number {
   return Math.max(0, Math.min(100, value));
 }
 
-function formatPacketRate(value: number): string {
-  if (!Number.isFinite(value) || value <= 0) {
-    return "0/s";
-  }
-  return `${Math.round(value).toLocaleString()}/s`;
-}
-
 function toTrendSample(live: SystemLiveResponse): SystemTrendSample {
   const sourceTimestamp = live.system.collected_at || live.collected_at;
   const timestampMs = Date.parse(sourceTimestamp || "");
@@ -333,8 +326,8 @@ export default function DashboardPage() {
   const networkTx = Math.max(0, live?.system.network_tx_bps ?? 0);
   const uptime = formatUptime(live?.system.uptime_seconds ?? 0);
   const totalTraffic = Math.max(0, (live?.hysteria.total_rx_bytes ?? 0) + (live?.hysteria.total_tx_bytes ?? 0));
-  const tcpPacketsRate = Math.max(0, live?.system.tcp_packets_per_sec ?? 0);
-  const udpPacketsRate = Math.max(0, live?.system.udp_packets_per_sec ?? 0);
+  const tcpConnections = Math.max(0, Math.round(live?.system.tcp_sockets ?? 0));
+  const udpConnections = Math.max(0, Math.round(live?.system.udp_sockets ?? 0));
   const metricTiles: MetricTile[] = [
     {
       label: "CPU",
@@ -375,8 +368,8 @@ export default function DashboardPage() {
     },
     {
       label: "PACKETS",
-      value: `TCP ${formatPacketRate(tcpPacketsRate)}`,
-      valueSecondary: `UDP ${formatPacketRate(udpPacketsRate)}`,
+      value: `TCP ${tcpConnections.toLocaleString()}`,
+      valueSecondary: `UDP ${udpConnections.toLocaleString()}`,
       tone: "info",
       icon: SettingsEthernetRoundedIcon,
     },
@@ -398,22 +391,22 @@ export default function DashboardPage() {
               <Card
                 variant="outlined"
                 sx={(theme) => ({
-                  height: { xs: "100%", sm: 102 },
+                  height: { xs: "100%", sm: 90 },
                   borderColor: alpha(theme.palette[tile.tone].main, 0.32),
                   backgroundColor: alpha(theme.palette.background.paper, 0.9),
                 })}
               >
                 <CardContent
                   sx={{
-                    pt: 0.8,
-                    pb: 1,
-                    px: 1.6,
+                    pt: 0.6,
+                    pb: 0.8,
+                    px: 1.3,
                     position: "relative",
                     height: "100%",
-                    minHeight: { xs: 96, sm: 102 },
+                    minHeight: { xs: 84, sm: 90 },
                   }}
                 >
-                  <Stack spacing={0.05} sx={{ pr: { xs: 6, sm: 6.4 }, alignItems: "flex-start" }}>
+                  <Stack spacing={0.02} sx={{ pr: { xs: 5.2, sm: 5.6 }, alignItems: "flex-start" }}>
                     <Typography
                       variant="subtitle2"
                       color="text.secondary"
@@ -421,7 +414,7 @@ export default function DashboardPage() {
                         textTransform: "uppercase",
                         letterSpacing: "0.09em",
                         fontWeight: 800,
-                        fontSize: { xs: "0.72rem", sm: "0.76rem" },
+                        fontSize: { xs: "0.66rem", sm: "0.7rem" },
                       }}
                     >
                       {tile.label}
@@ -432,8 +425,8 @@ export default function DashboardPage() {
                         fontWeight: 900,
                         lineHeight: 1.1,
                         fontSize: hasSecondary
-                          ? { xs: "1.08rem", sm: "1.15rem", md: "1.22rem" }
-                          : { xs: "1.76rem", sm: "1.88rem", md: "2.02rem" },
+                          ? { xs: "0.9rem", sm: "0.98rem", md: "1.06rem" }
+                          : { xs: "1.4rem", sm: "1.5rem", md: "1.62rem" },
                         whiteSpace: "nowrap",
                         fontVariantNumeric: "tabular-nums",
                       }}
@@ -445,7 +438,7 @@ export default function DashboardPage() {
                       sx={{
                         fontWeight: 900,
                         lineHeight: 1.1,
-                        fontSize: { xs: "0.94rem", sm: "1.01rem", md: "1.08rem" },
+                        fontSize: { xs: "0.8rem", sm: "0.87rem", md: "0.94rem" },
                         whiteSpace: "nowrap",
                         fontVariantNumeric: "tabular-nums",
                         visibility: hasSecondary ? "visible" : "hidden",
@@ -459,10 +452,10 @@ export default function DashboardPage() {
                     justifyContent="center"
                     sx={{
                       position: "absolute",
-                      right: 12,
-                      top: { xs: 10, sm: 9 },
-                      width: { xs: 22, sm: 24, md: 26 },
-                      height: { xs: 22, sm: 24, md: 26 },
+                      right: 10,
+                      top: { xs: 8, sm: 7 },
+                      width: { xs: 20, sm: 22, md: 24 },
+                      height: { xs: 20, sm: 22, md: 24 },
                     }}
                   >
                     <Icon
@@ -470,8 +463,8 @@ export default function DashboardPage() {
                       sx={{
                         display: "block",
                         fontSize: hasSecondary
-                          ? { xs: "1.32rem", sm: "1.42rem", md: "1.5rem" }
-                          : { xs: "1.45rem", sm: "1.56rem", md: "1.64rem" },
+                          ? { xs: "1.18rem", sm: "1.26rem", md: "1.34rem" }
+                          : { xs: "1.26rem", sm: "1.34rem", md: "1.42rem" },
                       }}
                     />
                   </Stack>

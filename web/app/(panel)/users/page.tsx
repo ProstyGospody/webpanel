@@ -4,7 +4,6 @@ import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import QrCode2RoundedIcon from "@mui/icons-material/QrCode2Rounded";
-import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import {
   Alert,
@@ -14,7 +13,6 @@ import {
   CardContent,
   Checkbox,
   CircularProgress,
-  Fab,
   IconButton,
   InputAdornment,
   Snackbar,
@@ -104,6 +102,11 @@ export default function UsersPage() {
 
   useEffect(() => {
     void load();
+  }, [load]);
+
+  useEffect(() => {
+    const timer = setInterval(() => void load(), 15000);
+    return () => clearInterval(timer);
   }, [load]);
 
   useEffect(() => {
@@ -333,14 +336,40 @@ export default function UsersPage() {
       <PageHeader
         title="Users"
         actions={
-          <>
-            <Button variant="outlined" startIcon={<RefreshRoundedIcon />} onClick={() => void load()}>
-              Reload
+          <Stack direction={{ xs: "column", lg: "row" }} spacing={1} alignItems={{ xs: "stretch", lg: "center" }}>
+            <TextField
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search by username, note, or id"
+              size="small"
+              sx={{ minWidth: { xs: 220, lg: 280 }, maxWidth: 420 }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchRoundedIcon fontSize="small" />
+                  </InputAdornment>
+                ),
+              }}
+            />
+            <ToggleButtonGroup exclusive value={filter} onChange={handleFilterChange} size="small">
+              <ToggleButton value="all">All</ToggleButton>
+              <ToggleButton value="online">Online</ToggleButton>
+              <ToggleButton value="enabled">Enabled</ToggleButton>
+              <ToggleButton value="disabled">Disabled</ToggleButton>
+            </ToggleButtonGroup>
+            <Button
+              color="error"
+              variant="outlined"
+              startIcon={<DeleteOutlineRoundedIcon />}
+              disabled={!selectedClientIDs.length}
+              onClick={() => setBulkDeleteOpen(true)}
+            >
+              Delete selected ({selectedClientIDs.length})
             </Button>
-            <Fab color="primary" size="medium" aria-label="create user" onClick={openCreate}>
-              <AddRoundedIcon />
-            </Fab>
-          </>
+            <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={openCreate}>
+              Add user
+            </Button>
+          </Stack>
         }
       />
 
@@ -355,54 +384,14 @@ export default function UsersPage() {
             </Stack>
           ) : (
             <Stack spacing={1.5}>
-              <Stack direction={{ xs: "column", lg: "row" }} spacing={1.25} justifyContent="space-between" alignItems={{ xs: "stretch", lg: "center" }}>
-                <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ flexGrow: 1 }}>
-                  <TextField
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
-                    placeholder="Search by username, note, or id"
-                    size="small"
-                    sx={{ minWidth: { xs: "100%", sm: 280 }, maxWidth: { xs: "100%", lg: 420 } }}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <SearchRoundedIcon fontSize="small" />
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
-                  <ToggleButtonGroup
-                    exclusive
-                    value={filter}
-                    onChange={handleFilterChange}
-                    size="small"
-                    sx={{ alignSelf: { xs: "stretch", sm: "center" } }}
-                  >
-                    <ToggleButton value="all">All</ToggleButton>
-                    <ToggleButton value="online">Online</ToggleButton>
-                    <ToggleButton value="enabled">Enabled</ToggleButton>
-                    <ToggleButton value="disabled">Disabled</ToggleButton>
-                  </ToggleButtonGroup>
-                </Stack>
-
-                <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="center">
-                  <Typography variant="body2" color="text.secondary">
-                    {filteredClients.length} users
-                  </Typography>
-                  <Button
-                    color="error"
-                    variant="outlined"
-                    startIcon={<DeleteOutlineRoundedIcon />}
-                    disabled={!selectedClientIDs.length}
-                    onClick={() => setBulkDeleteOpen(true)}
-                  >
-                    Delete selected ({selectedClientIDs.length})
-                  </Button>
-                </Stack>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Typography variant="body2" color="text.secondary">
+                  {filteredClients.length} users
+                </Typography>
               </Stack>
 
               <TableContainer sx={{ borderRadius: 2, overflowX: "auto" }}>
-                <Table size="small" sx={{ minWidth: 860, tableLayout: "fixed" }}>
+                <Table size="small" sx={{ minWidth: 960, tableLayout: "fixed" }}>
                   <TableHead>
                     <TableRow>
                       <TableCell padding="checkbox" sx={{ width: 48 }}>
@@ -414,10 +403,11 @@ export default function UsersPage() {
                         />
                       </TableCell>
                       <TableCell sx={{ width: 64 }}>#</TableCell>
-                      <TableCell sx={{ width: "30%" }}>User</TableCell>
-                      <TableCell sx={{ width: "24%" }}>Status</TableCell>
-                      <TableCell sx={{ width: "14%" }}>Traffic</TableCell>
-                      <TableCell sx={{ width: "18%" }}>Last Seen</TableCell>
+                      <TableCell sx={{ width: "25%" }}>User</TableCell>
+                      <TableCell sx={{ width: "13%" }}>Online</TableCell>
+                      <TableCell sx={{ width: "20%" }}>State</TableCell>
+                      <TableCell sx={{ width: "12%" }}>Traffic</TableCell>
+                      <TableCell sx={{ width: "16%" }}>Last Seen</TableCell>
                       <TableCell align="right" sx={{ width: 168 }}>Actions</TableCell>
                     </TableRow>
                   </TableHead>
@@ -442,20 +432,25 @@ export default function UsersPage() {
                             </Stack>
                           </TableCell>
                           <TableCell>
-                            <Stack spacing={0.4}>
-                              <Stack direction="row" spacing={1} alignItems="center">
-                                <Switch size="small" checked={client.enabled} onChange={() => void toggleEnabled(client)} />
-                                <StatusChip status={client.enabled ? "enabled" : "disabled"} />
-                              </Stack>
+                            <Stack spacing={0.1}>
                               <Typography
-                                variant="caption"
                                 sx={(theme) => ({
                                   color: client.online_count > 0 ? theme.palette.success.main : theme.palette.text.secondary,
-                                  fontWeight: client.online_count > 0 ? 700 : 500,
+                                  fontWeight: 800,
+                                  fontVariantNumeric: "tabular-nums",
                                 })}
                               >
-                                {client.online_count > 0 ? `online ${client.online_count}` : "offline"}
+                                {client.online_count.toLocaleString()}
                               </Typography>
+                              <Typography variant="caption" color={client.online_count > 0 ? "success.main" : "text.secondary"}>
+                                {client.online_count > 0 ? "online" : "offline"}
+                              </Typography>
+                            </Stack>
+                          </TableCell>
+                          <TableCell>
+                            <Stack direction="row" spacing={1} alignItems="center">
+                              <Switch size="small" checked={client.enabled} onChange={() => void toggleEnabled(client)} />
+                              <StatusChip status={client.enabled ? "enabled" : "disabled"} />
                             </Stack>
                           </TableCell>
                           <TableCell>{formatBytes(client.last_tx_bytes + client.last_rx_bytes)}</TableCell>
@@ -485,7 +480,7 @@ export default function UsersPage() {
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={7}>
+                        <TableCell colSpan={8}>
                           <Typography color="text.secondary" sx={{ py: 2 }}>
                             {clients.length ? "No users match the current filters." : "No users yet."}
                           </Typography>
