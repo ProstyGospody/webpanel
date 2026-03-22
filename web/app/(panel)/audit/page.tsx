@@ -48,9 +48,9 @@ export default function AuditPage() {
       {error ? <Alert severity="error">{error}</Alert> : null}
 
       <Card>
-        <CardContent>
+        <CardContent sx={{ p: 0, "&:last-child": { pb: 0 } }}>
           {loading ? (
-            <Stack alignItems="center" justifyContent="center" sx={{ py: 8 }} spacing={1.5}>
+            <Stack alignItems="center" justifyContent="center" sx={{ py: 8, px: 2 }} spacing={1.5}>
               <CircularProgress size={28} />
               <Typography color="text.secondary">Loading audit records...</Typography>
             </Stack>

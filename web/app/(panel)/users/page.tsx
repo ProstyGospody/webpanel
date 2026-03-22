@@ -478,15 +478,15 @@ export default function UsersPage() {
       {error ? <Alert severity="error">{error}</Alert> : null}
 
       <Card>
-        <CardContent>
+        <CardContent sx={{ p: 0, "&:last-child": { pb: 0 } }}>
           {loading ? (
-            <Stack alignItems="center" justifyContent="center" sx={{ py: 8 }} spacing={1.5}>
+            <Stack alignItems="center" justifyContent="center" sx={{ py: 8, px: 2 }} spacing={1.5}>
               <CircularProgress size={28} />
               <Typography color="text.secondary">Loading users...</Typography>
             </Stack>
           ) : (
-            <Stack spacing={1.5}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Stack spacing={0}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ px: 2, py: 1.5 }}>
                 <Typography variant="body2" color="text.secondary">
                   {filteredClients.length} users
                 </Typography>
@@ -595,6 +595,7 @@ export default function UsersPage() {
                 rowsPerPage={rowsPerPage}
                 rowsPerPageOptions={rowsPerPageOptions}
                 onRowsPerPageChange={(event) => handleRowsPerPageChange(event.target.value)}
+                sx={{ px: 0.5 }}
               />
             </Stack>
           )}
