@@ -10,8 +10,10 @@ import {
   Card,
   CardContent,
   CircularProgress,
+  IconButton,
   Snackbar,
   Stack,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import { alpha, type Theme } from "@mui/material/styles";
@@ -69,16 +71,30 @@ export default function ConfigPage() {
       backgroundColor: alpha(theme.palette.primary.main, 0.14),
     },
   });
-  const containedActionButtonSx = {
+  const saveIconButtonSx = (theme: Theme) => ({
+    width: 42,
     height: 42,
-    px: 2.1,
     borderRadius: 999,
-    fontWeight: 700,
-    boxShadow: "none",
+    border: `1px solid ${alpha(theme.palette.primary.main, 0.34)}`,
+    backgroundColor: theme.palette.primary.main,
+    color: theme.palette.primary.contrastText,
+    flexShrink: 0,
     "&:hover": {
-      boxShadow: "none",
+      backgroundColor: theme.palette.primary.dark,
     },
-  } as const;
+  });
+  const applyIconButtonSx = (theme: Theme) => ({
+    width: 42,
+    height: 42,
+    borderRadius: 999,
+    border: `1px solid ${alpha(theme.palette.secondary.main, 0.34)}`,
+    backgroundColor: theme.palette.secondary.main,
+    color: theme.palette.secondary.contrastText,
+    flexShrink: 0,
+    "&:hover": {
+      backgroundColor: theme.palette.secondary.dark,
+    },
+  });
 
   const load = useCallback(async () => {
     setError("");
@@ -178,36 +194,20 @@ export default function ConfigPage() {
             >
               Validate
             </Button>
-            <Button
-              variant="contained"
-              startIcon={<SaveRoundedIcon />}
-              onClick={() => void saveDraft()}
-              disabled={busy || applying}
-              sx={(theme) => ({
-                ...containedActionButtonSx,
-                backgroundColor: theme.palette.primary.main,
-                color: theme.palette.primary.contrastText,
-                "&:hover": {
-                  ...containedActionButtonSx["&:hover"],
-                  backgroundColor: theme.palette.primary.dark,
-                },
-              })}
-            >
-              Save
-            </Button>
-            <Button
-              color="secondary"
-              variant="contained"
-              startIcon={<PlayArrowRoundedIcon />}
-              onClick={() => setApplyDialog(true)}
-              disabled={busy || applying}
-              sx={(theme) => ({
-                ...containedActionButtonSx,
-                color: theme.palette.secondary.contrastText,
-              })}
-            >
-              Apply
-            </Button>
+            <Tooltip title="Save">
+              <span>
+                <IconButton aria-label="Save" onClick={() => void saveDraft()} disabled={busy || applying} sx={saveIconButtonSx}>
+                  <SaveRoundedIcon />
+                </IconButton>
+              </span>
+            </Tooltip>
+            <Tooltip title="Apply">
+              <span>
+                <IconButton aria-label="Apply" onClick={() => setApplyDialog(true)} disabled={busy || applying} sx={applyIconButtonSx}>
+                  <PlayArrowRoundedIcon />
+                </IconButton>
+              </span>
+            </Tooltip>
           </Stack>
         }
       />
