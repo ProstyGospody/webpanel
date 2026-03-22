@@ -31,6 +31,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import type { MouseEvent } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -342,7 +343,28 @@ export default function UsersPage() {
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="Search by username, note, or id"
               size="small"
-              sx={{ minWidth: { xs: 220, lg: 240 }, maxWidth: { lg: 360 }, flexGrow: 1 }}
+              sx={(theme) => ({
+                minWidth: { xs: 220, lg: 240 },
+                maxWidth: { lg: 360 },
+                flexGrow: 1,
+                "& .MuiOutlinedInput-root": {
+                  borderRadius: 999,
+                  backgroundColor: alpha(theme.palette.primary.main, 0.12),
+                  "& .MuiOutlinedInput-notchedOutline": {
+                    borderColor: alpha(theme.palette.primary.main, 0.34),
+                  },
+                  "&:hover .MuiOutlinedInput-notchedOutline": {
+                    borderColor: alpha(theme.palette.primary.main, 0.48),
+                  },
+                  "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                    borderColor: theme.palette.primary.main,
+                    borderWidth: 1,
+                  },
+                },
+                "& .MuiInputBase-input::placeholder": {
+                  opacity: 0.9,
+                },
+              })}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -351,7 +373,34 @@ export default function UsersPage() {
                 ),
               }}
             />
-            <ToggleButtonGroup exclusive value={filter} onChange={handleFilterChange} size="small" sx={{ flexShrink: 0 }}>
+            <ToggleButtonGroup
+              exclusive
+              value={filter}
+              onChange={handleFilterChange}
+              size="small"
+              sx={(theme) => ({
+                flexShrink: 0,
+                border: `1px solid ${alpha(theme.palette.primary.main, 0.34)}`,
+                borderRadius: 999,
+                p: 0.35,
+                backgroundColor: alpha(theme.palette.primary.main, 0.12),
+                "& .MuiToggleButtonGroup-grouped": {
+                  border: 0,
+                  borderRadius: 999,
+                  px: 1.8,
+                  textTransform: "none",
+                  fontWeight: 700,
+                  color: theme.palette.text.secondary,
+                },
+                "& .MuiToggleButtonGroup-grouped.Mui-selected": {
+                  color: theme.palette.primary.contrastText,
+                  backgroundColor: theme.palette.primary.main,
+                },
+                "& .MuiToggleButtonGroup-grouped.Mui-selected:hover": {
+                  backgroundColor: theme.palette.primary.dark,
+                },
+              })}
+            >
               <ToggleButton value="all">All</ToggleButton>
               <ToggleButton value="online">Online</ToggleButton>
               <ToggleButton value="enabled">Enabled</ToggleButton>
@@ -396,11 +445,11 @@ export default function UsersPage() {
                 </Typography>
               </Stack>
 
-              <TableContainer sx={{ borderRadius: 2, overflowX: "auto" }}>
-                <Table size="small" sx={{ minWidth: 960, tableLayout: "fixed" }}>
+              <TableContainer>
+                <Table>
                   <TableHead>
                     <TableRow>
-                      <TableCell padding="checkbox" sx={{ width: 48 }}>
+                      <TableCell padding="checkbox">
                         <Checkbox
                           checked={allFilteredSelected}
                           indeterminate={someFilteredSelected}
@@ -408,19 +457,19 @@ export default function UsersPage() {
                           inputProps={{ "aria-label": "select filtered users" }}
                         />
                       </TableCell>
-                      <TableCell sx={{ width: 64 }}>#</TableCell>
-                      <TableCell sx={{ width: "25%" }}>User</TableCell>
-                      <TableCell sx={{ width: "13%" }}>Online</TableCell>
-                      <TableCell sx={{ width: "20%" }}>State</TableCell>
-                      <TableCell sx={{ width: "12%" }}>Traffic</TableCell>
-                      <TableCell sx={{ width: "16%" }}>Last Seen</TableCell>
-                      <TableCell align="right" sx={{ width: 168 }}>Actions</TableCell>
+                      <TableCell>#</TableCell>
+                      <TableCell>User</TableCell>
+                      <TableCell>Online</TableCell>
+                      <TableCell>State</TableCell>
+                      <TableCell>Traffic</TableCell>
+                      <TableCell>Last Seen</TableCell>
+                      <TableCell align="right">Actions</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {pagedClients.length ? (
                       pagedClients.map((client, index) => (
-                        <TableRow key={client.id} hover sx={{ "& td": { verticalAlign: "middle" } }}>
+                        <TableRow key={client.id} hover>
                           <TableCell padding="checkbox">
                             <Checkbox
                               checked={selectedSet.has(client.id)}
@@ -432,9 +481,9 @@ export default function UsersPage() {
                           <TableCell>
                             <Stack spacing={0.25}>
                               <Box sx={{ cursor: "pointer" }} onClick={() => void openArtifacts(client)}>
-                                <Typography sx={{ fontWeight: 700 }} noWrap>{client.username}</Typography>
+                                <Typography sx={{ fontWeight: 700 }}>{client.username}</Typography>
                               </Box>
-                              <Typography variant="caption" color="text.secondary" noWrap>{client.note || "-"}</Typography>
+                              <Typography variant="caption" color="text.secondary">{client.note || "-"}</Typography>
                             </Stack>
                           </TableCell>
                           <TableCell>

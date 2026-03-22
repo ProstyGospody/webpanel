@@ -391,22 +391,22 @@ export default function DashboardPage() {
               <Card
                 variant="outlined"
                 sx={(theme) => ({
-                  height: { xs: "100%", sm: 90 },
+                  height: { xs: "100%", sm: 82 },
                   borderColor: alpha(theme.palette[tile.tone].main, 0.32),
                   backgroundColor: alpha(theme.palette.background.paper, 0.9),
                 })}
               >
                 <CardContent
                   sx={{
-                    pt: 0.6,
-                    pb: 0.8,
-                    px: 1.3,
+                    pt: 0.4,
+                    pb: 0.55,
+                    px: 1.15,
                     position: "relative",
                     height: "100%",
-                    minHeight: { xs: 84, sm: 90 },
+                    minHeight: { xs: 76, sm: 82 },
                   }}
                 >
-                  <Stack spacing={0.02} sx={{ pr: { xs: 5.2, sm: 5.6 }, alignItems: "flex-start" }}>
+                  <Stack spacing={0} sx={{ pr: { xs: 4.8, sm: 5.2 }, alignItems: "flex-start" }}>
                     <Typography
                       variant="subtitle2"
                       color="text.secondary"
@@ -414,7 +414,7 @@ export default function DashboardPage() {
                         textTransform: "uppercase",
                         letterSpacing: "0.09em",
                         fontWeight: 800,
-                        fontSize: { xs: "0.66rem", sm: "0.7rem" },
+                        fontSize: { xs: "0.62rem", sm: "0.66rem" },
                       }}
                     >
                       {tile.label}
@@ -423,10 +423,10 @@ export default function DashboardPage() {
                       variant="h5"
                       sx={{
                         fontWeight: 900,
-                        lineHeight: 1.1,
+                        lineHeight: 1.03,
                         fontSize: hasSecondary
-                          ? { xs: "0.9rem", sm: "0.98rem", md: "1.06rem" }
-                          : { xs: "1.4rem", sm: "1.5rem", md: "1.62rem" },
+                          ? { xs: "1.02rem", sm: "1.12rem", md: "1.22rem" }
+                          : { xs: "1.54rem", sm: "1.66rem", md: "1.8rem" },
                         whiteSpace: "nowrap",
                         fontVariantNumeric: "tabular-nums",
                       }}
@@ -437,8 +437,8 @@ export default function DashboardPage() {
                       variant="h5"
                       sx={{
                         fontWeight: 900,
-                        lineHeight: 1.1,
-                        fontSize: { xs: "0.8rem", sm: "0.87rem", md: "0.94rem" },
+                        lineHeight: 1.03,
+                        fontSize: { xs: "0.9rem", sm: "0.98rem", md: "1.06rem" },
                         whiteSpace: "nowrap",
                         fontVariantNumeric: "tabular-nums",
                         visibility: hasSecondary ? "visible" : "hidden",
@@ -452,10 +452,10 @@ export default function DashboardPage() {
                     justifyContent="center"
                     sx={{
                       position: "absolute",
-                      right: 10,
-                      top: { xs: 8, sm: 7 },
-                      width: { xs: 20, sm: 22, md: 24 },
-                      height: { xs: 20, sm: 22, md: 24 },
+                      right: 8,
+                      top: { xs: 6, sm: 6 },
+                      width: { xs: 18, sm: 20, md: 22 },
+                      height: { xs: 18, sm: 20, md: 22 },
                     }}
                   >
                     <Icon
@@ -463,8 +463,8 @@ export default function DashboardPage() {
                       sx={{
                         display: "block",
                         fontSize: hasSecondary
-                          ? { xs: "1.18rem", sm: "1.26rem", md: "1.34rem" }
-                          : { xs: "1.26rem", sm: "1.34rem", md: "1.42rem" },
+                          ? { xs: "1.1rem", sm: "1.18rem", md: "1.26rem" }
+                          : { xs: "1.16rem", sm: "1.24rem", md: "1.32rem" },
                       }}
                     />
                   </Stack>
@@ -490,31 +490,25 @@ export default function DashboardPage() {
             <Typography color="text.secondary">Loading services...</Typography>
           </Stack>
         ) : (
-          <TableContainer sx={{ borderRadius: 2, overflowX: "auto" }}>
-            <Table size="small" sx={{ minWidth: 680, tableLayout: "fixed" }}>
+          <TableContainer>
+            <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell sx={{ width: "30%" }}>Service</TableCell>
-                  <TableCell sx={{ width: "20%" }}>Status</TableCell>
-                  <TableCell sx={{ width: "22%" }}>Version</TableCell>
-                  <TableCell sx={{ width: "20%" }}>Last Check</TableCell>
-                  <TableCell align="right" sx={{ width: 128 }}>Actions</TableCell>
+                  <TableCell>Service</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Version</TableCell>
+                  <TableCell>Last Check</TableCell>
+                  <TableCell align="right">Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {serviceItems.length ? (
                   serviceItems.map((item) => (
-                    <TableRow key={item.service_name} hover sx={{ "& td": { verticalAlign: "middle" } }}>
-                      <TableCell>
-                        <Typography sx={{ fontWeight: 700 }} noWrap>{item.service_name}</Typography>
-                      </TableCell>
+                    <TableRow key={item.service_name} hover>
+                      <TableCell>{item.service_name}</TableCell>
                       <TableCell><StatusChip status={item.status || "unknown"} /></TableCell>
-                      <TableCell>
-                        <Typography color="text.secondary" noWrap>{item.version || "-"}</Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography color="text.secondary" noWrap>{formatDateTime(item.last_check_at)}</Typography>
-                      </TableCell>
+                      <TableCell>{item.version || "-"}</TableCell>
+                      <TableCell>{formatDateTime(item.last_check_at)}</TableCell>
                       <TableCell align="right">
                         <Stack direction="row" spacing={0.5} justifyContent="flex-end">
                           <Tooltip title="Details & Logs">

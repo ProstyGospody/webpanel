@@ -50,20 +50,31 @@ export default function AuditPage() {
       <Card>
         <CardContent>
           {loading ? (
-            <Stack alignItems="center" justifyContent="center" sx={{ py: 8 }} spacing={1.5}><CircularProgress size={28} /><Typography color="text.secondary">Loading audit records...</Typography></Stack>
+            <Stack alignItems="center" justifyContent="center" sx={{ py: 8 }} spacing={1.5}>
+              <CircularProgress size={28} />
+              <Typography color="text.secondary">Loading audit records...</Typography>
+            </Stack>
           ) : (
             <TableContainer>
-              <Table size="small">
-                <TableHead><TableRow><TableCell>Timestamp</TableCell><TableCell>Actor</TableCell><TableCell>Action</TableCell><TableCell>Entity</TableCell><TableCell>Payload</TableCell></TableRow></TableHead>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Timestamp</TableCell>
+                    <TableCell>Actor</TableCell>
+                    <TableCell>Action</TableCell>
+                    <TableCell>Entity</TableCell>
+                    <TableCell>Payload</TableCell>
+                  </TableRow>
+                </TableHead>
                 <TableBody>
                   {items.map((item) => (
                     <TableRow key={item.id} hover>
                       <TableCell>{formatDateTime(item.created_at)}</TableCell>
                       <TableCell>{item.admin_email || "system"}</TableCell>
-                      <TableCell><Typography sx={{ fontWeight: 700 }}>{item.action}</Typography></TableCell>
+                      <TableCell>{item.action}</TableCell>
                       <TableCell>{item.entity_type}{item.entity_id ? `:${item.entity_id}` : ""}</TableCell>
                       <TableCell>
-                        <Typography component="pre" variant="code" sx={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", maxWidth: 460 }}>
+                        <Typography component="pre" variant="code" sx={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                           {item.payload_json || "{}"}
                         </Typography>
                       </TableCell>

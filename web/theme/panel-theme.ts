@@ -204,45 +204,6 @@ export const panelTheme = createTheme({
         fullWidth: true,
       },
     },
-    MuiTableContainer: {
-      styleOverrides: {
-        root: {
-          borderRadius: 12,
-        },
-      },
-    },
-    MuiTableHead: {
-      styleOverrides: {
-        root: ({ theme }) => ({
-          backgroundColor: alpha(theme.palette.primary.main, 0.08),
-        }),
-      },
-    },
-    MuiTableCell: {
-      styleOverrides: {
-        root: ({ theme }) => ({
-          borderColor: alpha(theme.palette.divider, 0.85),
-          paddingTop: theme.spacing(1.25),
-          paddingBottom: theme.spacing(1.25),
-        }),
-        head: ({ theme }) => ({
-          fontSize: "0.78rem",
-          fontWeight: 700,
-          textTransform: "uppercase",
-          letterSpacing: "0.04em",
-          color: theme.palette.text.secondary,
-        }),
-      },
-    },
-    MuiTableRow: {
-      styleOverrides: {
-        root: ({ theme }) => ({
-          "&:hover": {
-            backgroundColor: alpha(theme.palette.primary.main, 0.05),
-          },
-        }),
-      },
-    },
     MuiChip: {
       styleOverrides: {
         root: ({ theme }) => ({
