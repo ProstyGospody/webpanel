@@ -264,6 +264,18 @@ export default function DashboardPage() {
     return () => clearInterval(timer);
   }, [loadServices]);
 
+  useEffect(() => {
+    if (historyLoading || trendSamples.length > 0) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      void loadHistory(chartRange);
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, [historyLoading, trendSamples.length, loadHistory, chartRange]);
+
   const warningMessages = useMemo(() => {
     return live?.errors || [];
   }, [live]);
@@ -414,7 +426,7 @@ export default function DashboardPage() {
                         lineHeight: 1.1,
                         fontSize: hasSecondary
                           ? { xs: "1.22rem", sm: "1.3rem", md: "1.4rem" }
-                          : { xs: "1.58rem", sm: "1.66rem", md: "1.78rem" },
+                          : { xs: "1.9rem", sm: "2.05rem", md: "2.24rem" },
                         whiteSpace: "nowrap",
                         fontVariantNumeric: "tabular-nums",
                       }}

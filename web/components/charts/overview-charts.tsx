@@ -128,6 +128,26 @@ function formatRateAxisCompact(value: number): string {
   return `${Math.round(value)}`;
 }
 
+function roundAxisCeil(value: number): number {
+  if (!Number.isFinite(value) || value <= 0) {
+    return 1;
+  }
+  const exponent = Math.floor(Math.log10(value));
+  const magnitude = 10 ** exponent;
+  const normalized = value / magnitude;
+
+  if (normalized <= 1) {
+    return magnitude;
+  }
+  if (normalized <= 2) {
+    return 2 * magnitude;
+  }
+  if (normalized <= 5) {
+    return 5 * magnitude;
+  }
+  return 10 * magnitude;
+}
+
 function chartStyleSx(theme: Theme, compact: boolean) {
   return {
     "& .MuiChartsAxis-line, & .MuiChartsAxis-tick": {
@@ -173,8 +193,21 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
   const rangeMs = range === "24h" ? DAY_MS : HOUR_MS;
   const maxPoints = range === "24h" ? 480 : 360;
   const xTicks = range === "24h" ? (isMobile ? 6 : 10) : (isMobile ? 4 : 7);
+  const latestSampleMs = useMemo(() => {
+    let maxTs = 0;
+    for (const sample of samples) {
+      const ts = Date.parse(sample.timestamp || "");
+      if (!Number.isNaN(ts) && ts > maxTs) {
+        maxTs = ts;
+      }
+    }
+    return maxTs;
+  }, [samples]);
+  const rangeStepMs = range === "24h" ? 30 * 1000 : 3 * 1000;
   const nowMs = Date.now();
-  const rangeEndMs = range === "24h" ? Math.floor(nowMs / HOUR_MS) * HOUR_MS : nowMs;
+  const staleThresholdMs = rangeStepMs * 2;
+  const anchorMs = latestSampleMs > 0 && nowMs - latestSampleMs <= staleThresholdMs ? latestSampleMs : nowMs;
+  const rangeEndMs = Math.floor(anchorMs / rangeStepMs) * rangeStepMs;
   const rangeStartMs = rangeEndMs - rangeMs;
   const rangeStartDate = new Date(rangeStartMs);
   const rangeEndDate = new Date(rangeEndMs);
@@ -192,12 +225,21 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
       .filter((point) => point.timestampMs >= rangeStartMs && point.timestampMs <= rangeEndMs)
       .sort((a, b) => a.timestampMs - b.timestampMs);
 
-    if (filtered.length > 0 && filtered[0].timestampMs > rangeStartMs) {
+    if (filtered.length > 1 && filtered[0].timestampMs > rangeStartMs) {
       const first = filtered[0];
       filtered.unshift({
         ...first,
         timestampMs: rangeStartMs,
         date: new Date(rangeStartMs),
+      });
+    }
+
+    if (filtered.length > 1 && filtered[filtered.length - 1].timestampMs < rangeEndMs) {
+      const last = filtered[filtered.length - 1];
+      filtered.push({
+        ...last,
+        timestampMs: rangeEndMs,
+        date: new Date(rangeEndMs),
       });
     }
 
@@ -211,6 +253,18 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
   const networkTx = points.map((point) => point.tx);
   const cpu = points.map((point) => point.cpu);
   const ram = points.map((point) => point.ram);
+  const networkAxisMax = useMemo(() => {
+    let peak = 0;
+    for (const point of points) {
+      if (point.rx > peak) {
+        peak = point.rx;
+      }
+      if (point.tx > peak) {
+        peak = point.tx;
+      }
+    }
+    return roundAxisCeil((peak > 0 ? peak : 1) * 1.15);
+  }, [points]);
 
   const handleRangeChange = (_event: MouseEvent<HTMLElement>, nextRange: DashboardChartRange | null) => {
     if (nextRange) {
@@ -266,6 +320,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                   <EmptyState title="No network data yet" description="Real-time points will appear after automatic polling." minHeight={isMobile ? 220 : 260} />
                 ) : (
                   <LineChart
+                    skipAnimation
                     height={isMobile ? 248 : 286}
                     margin={{
                       top: isMobile ? 20 : 24,
@@ -289,6 +344,8 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                     yAxis={[
                       {
                         width: isMobile ? 36 : 42,
+                        min: 0,
+                        max: networkAxisMax,
                         valueFormatter: (value: unknown) => formatRateAxisCompact(Number(value) || 0),
                       },
                     ]}
@@ -331,6 +388,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                   <EmptyState title="No CPU data yet" description="Real-time points will appear after automatic polling." minHeight={isMobile ? 206 : 236} />
                 ) : (
                   <LineChart
+                    skipAnimation
                     height={isMobile ? 228 : 246}
                     margin={{
                       top: isMobile ? 12 : 14,
@@ -388,6 +446,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
                   <EmptyState title="No RAM data yet" description="Real-time points will appear after automatic polling." minHeight={isMobile ? 206 : 236} />
                 ) : (
                   <LineChart
+                    skipAnimation
                     height={isMobile ? 228 : 246}
                     margin={{
                       top: isMobile ? 12 : 14,
