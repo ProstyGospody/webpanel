@@ -349,8 +349,8 @@ export default function DashboardPage() {
     },
     {
       label: "NETWORK",
-      value: `RX ${formatRate(networkRx)}`,
-      valueSecondary: `TX ${formatRate(networkTx)}`,
+      value: `↓ ${formatRate(networkRx)}`,
+      valueSecondary: `↑ ${formatRate(networkTx)}`,
       tone: "info",
       icon: RouterRoundedIcon,
     },

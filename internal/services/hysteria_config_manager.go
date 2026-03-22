@@ -33,6 +33,7 @@ type Hy2ConfigSummary struct {
 	BandwidthUp           string `json:"bandwidthUp,omitempty"`
 	BandwidthDown         string `json:"bandwidthDown,omitempty"`
 	IgnoreClientBandwidth bool   `json:"ignoreClientBandwidth"`
+	SpeedTest             bool   `json:"speedTest"`
 	DisableUDP            bool   `json:"disableUDP"`
 	UDPIdleTimeout        string `json:"udpIdleTimeout,omitempty"`
 	RawOnlyPathsCount     int    `json:"rawOnlyPathsCount"`
@@ -58,6 +59,7 @@ type Hy2Settings struct {
 	Masquerade            *Hy2ServerMasquerade `json:"masquerade,omitempty"`
 	Bandwidth             *Hy2ServerBandwidth  `json:"bandwidth,omitempty"`
 	IgnoreClientBandwidth bool                 `json:"ignoreClientBandwidth"`
+	SpeedTest             bool                 `json:"speedTest"`
 	DisableUDP            bool                 `json:"disableUDP"`
 	UDPIdleTimeout        string               `json:"udpIdleTimeout,omitempty"`
 	QUICEnabled           bool                 `json:"quicEnabled"`
@@ -647,6 +649,7 @@ func parseSettingsFromMap(root map[string]any, fallbackHost string, fallbackPort
 	}
 	settings.ClientTLSInsecure = toBool(root["clientTLSInsecure"])
 	settings.IgnoreClientBandwidth = toBool(root["ignoreClientBandwidth"])
+	settings.SpeedTest = toBool(root["speedTest"]) || toBool(root["speedtest"])
 	settings.DisableUDP = toBool(root["disableUDP"])
 	settings.UDPIdleTimeout = strings.TrimSpace(toString(root["udpIdleTimeout"]))
 	if m, ok := toStringAnyMap(root["quic"]); ok {
@@ -1173,6 +1176,9 @@ func buildSettingsMap(settings Hy2Settings) map[string]any {
 	}
 	if settings.IgnoreClientBandwidth {
 		out["ignoreClientBandwidth"] = true
+	}
+	if settings.SpeedTest {
+		out["speedTest"] = true
 	}
 	if settings.DisableUDP {
 		out["disableUDP"] = true
@@ -2567,6 +2573,7 @@ func configSummaryFromSettings(settings Hy2Settings, rawOnlyPathsCount int) Hy2C
 		BandwidthUp:           bandwidthUp,
 		BandwidthDown:         bandwidthDown,
 		IgnoreClientBandwidth: settings.IgnoreClientBandwidth,
+		SpeedTest:             settings.SpeedTest,
 		DisableUDP:            settings.DisableUDP,
 		UDPIdleTimeout:        strings.TrimSpace(settings.UDPIdleTimeout),
 		RawOnlyPathsCount:     rawOnlyPathsCount,
@@ -2668,6 +2675,7 @@ func buildServerSchema() *schemaNode {
 		},
 		"clientTLSInsecure":     emptySchema,
 		"ignoreClientBandwidth": emptySchema,
+		"speedTest":             emptySchema,
 		"disableUDP":            emptySchema,
 		"udpIdleTimeout":        emptySchema,
 	}}

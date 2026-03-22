@@ -29,6 +29,7 @@ export type Hy2Settings = {
   };
   bandwidth?: Hy2ServerBandwidth;
   ignoreClientBandwidth?: boolean;
+  speedTest?: boolean;
   disableUDP?: boolean;
   udpIdleTimeout?: string;
   quicEnabled: boolean;

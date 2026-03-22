@@ -199,13 +199,19 @@ export function ServerSettingsForm({
 
             <Typography variant="subtitle2" color="text.secondary">Transport</Typography>
             <Grid container spacing={2}>
-              <Grid size={{ xs: 12, md: 4 }}>
+              <Grid size={{ xs: 12, md: 3 }}>
                 <FormControlLabel
                   control={<Switch checked={Boolean(draft.disableUDP)} onChange={(event) => onDraftChange({ ...draft, disableUDP: event.target.checked })} />}
                   label="Disable UDP"
                 />
               </Grid>
-              <Grid size={{ xs: 12, md: 4 }}>
+              <Grid size={{ xs: 12, md: 3 }}>
+                <FormControlLabel
+                  control={<Switch checked={Boolean(draft.speedTest)} onChange={(event) => onDraftChange({ ...draft, speedTest: event.target.checked })} />}
+                  label="Speed Test"
+                />
+              </Grid>
+              <Grid size={{ xs: 12, md: 3 }}>
                 <TextField
                   label="UDP Idle Timeout"
                   value={draft.udpIdleTimeout || ""}
@@ -214,7 +220,7 @@ export function ServerSettingsForm({
                   placeholder="90s"
                 />
               </Grid>
-              <Grid size={{ xs: 12, md: 4 }}>
+              <Grid size={{ xs: 12, md: 3 }}>
                 <FormControl fullWidth>
                   <InputLabel id="masq-label">Masquerade</InputLabel>
                   <Select

@@ -1,6 +1,5 @@
 "use client";
 
-import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import QrCode2RoundedIcon from "@mui/icons-material/QrCode2Rounded";
@@ -337,19 +336,74 @@ export default function UsersPage() {
       <PageHeader
         title="Users"
         actions={
-          <Stack direction={{ xs: "column", lg: "row" }} spacing={1} alignItems={{ xs: "stretch", lg: "center" }}>
+          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" sx={{ width: "100%" }}>
+            <Button
+              variant="text"
+              onClick={openCreate}
+              aria-label="Add user"
+              sx={(theme) => ({
+                minWidth: 42,
+                width: 42,
+                height: 42,
+                p: 0,
+                borderRadius: 999,
+                border: `1px solid ${alpha(theme.palette.primary.main, 0.34)}`,
+                backgroundColor: theme.palette.primary.main,
+                color: theme.palette.primary.contrastText,
+                fontWeight: 800,
+                fontSize: "1.25rem",
+                lineHeight: 1,
+                flexShrink: 0,
+                "&:hover": {
+                  backgroundColor: theme.palette.primary.dark,
+                },
+              })}
+            >
+              +
+            </Button>
+
+            <Tooltip title={`Delete selected (${selectedClientIDs.length})`}>
+              <span>
+                <IconButton
+                  color="error"
+                  disabled={!selectedClientIDs.length}
+                  onClick={() => setBulkDeleteOpen(true)}
+                  aria-label="Delete selected users"
+                  sx={(theme) => ({
+                    width: 42,
+                    height: 42,
+                    borderRadius: 999,
+                    border: `1px solid ${alpha(theme.palette.error.main, 0.32)}`,
+                    backgroundColor: alpha(theme.palette.error.main, theme.palette.mode === "light" ? 0.08 : 0.12),
+                    color: theme.palette.mode === "light" ? alpha(theme.palette.error.dark, 0.92) : alpha(theme.palette.error.light, 0.92),
+                    flexShrink: 0,
+                    "&.Mui-disabled": {
+                      color:
+                        theme.palette.mode === "light"
+                          ? alpha(theme.palette.error.dark, 0.6)
+                          : alpha(theme.palette.error.light, 0.6),
+                      borderColor: alpha(theme.palette.error.main, 0.32),
+                      backgroundColor: alpha(theme.palette.error.main, theme.palette.mode === "light" ? 0.08 : 0.12),
+                    },
+                  })}
+                >
+                  <DeleteOutlineRoundedIcon />
+                </IconButton>
+              </span>
+            </Tooltip>
+
             <TextField
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search by username, note, or id"
+              placeholder="Search"
               size="small"
               sx={(theme) => ({
-                minWidth: { xs: 220, lg: 240 },
-                maxWidth: { lg: 360 },
+                minWidth: { xs: 240, lg: 340 },
+                maxWidth: { lg: 580 },
                 flexGrow: 1,
                 "& .MuiOutlinedInput-root": {
                   borderRadius: 999,
-                  backgroundColor: alpha(theme.palette.primary.main, 0.12),
+                  backgroundColor: alpha(theme.palette.primary.main, 0.07),
                   "& .MuiOutlinedInput-notchedOutline": {
                     borderColor: alpha(theme.palette.primary.main, 0.34),
                   },
@@ -362,7 +416,11 @@ export default function UsersPage() {
                   },
                 },
                 "& .MuiInputBase-input::placeholder": {
-                  opacity: 0.9,
+                  color: alpha(theme.palette.text.secondary, 0.78),
+                  opacity: 1,
+                },
+                "& .MuiInputAdornment-root .MuiSvgIcon-root": {
+                  color: alpha(theme.palette.text.secondary, 0.78),
                 },
               })}
               InputProps={{
@@ -380,6 +438,7 @@ export default function UsersPage() {
               size="small"
               sx={(theme) => ({
                 flexShrink: 0,
+                ml: { lg: "auto" },
                 border: `1px solid ${alpha(theme.palette.primary.main, 0.34)}`,
                 borderRadius: 999,
                 p: 0.35,
@@ -406,24 +465,6 @@ export default function UsersPage() {
               <ToggleButton value="enabled">Enabled</ToggleButton>
               <ToggleButton value="disabled">Disabled</ToggleButton>
             </ToggleButtonGroup>
-            <Button
-              color="error"
-              variant="outlined"
-              startIcon={<DeleteOutlineRoundedIcon />}
-              disabled={!selectedClientIDs.length}
-              onClick={() => setBulkDeleteOpen(true)}
-              sx={{ minWidth: { xs: "100%", lg: 168 }, whiteSpace: "nowrap", flexShrink: 0 }}
-            >
-              Delete selected ({selectedClientIDs.length})
-            </Button>
-            <Button
-              variant="contained"
-              startIcon={<AddRoundedIcon />}
-              onClick={openCreate}
-              sx={{ minWidth: { xs: "100%", lg: 168 }, whiteSpace: "nowrap", flexShrink: 0 }}
-            >
-              Add user
-            </Button>
           </Stack>
         }
       />
@@ -487,20 +528,14 @@ export default function UsersPage() {
                             </Stack>
                           </TableCell>
                           <TableCell>
-                            <Stack spacing={0.1}>
-                              <Typography
-                                sx={(theme) => ({
-                                  color: client.online_count > 0 ? theme.palette.success.main : theme.palette.text.secondary,
-                                  fontWeight: 800,
-                                  fontVariantNumeric: "tabular-nums",
-                                })}
-                              >
-                                {client.online_count.toLocaleString()}
-                              </Typography>
-                              <Typography variant="caption" color={client.online_count > 0 ? "success.main" : "text.secondary"}>
-                                {client.online_count > 0 ? "online" : "offline"}
-                              </Typography>
-                            </Stack>
+                            <Typography
+                              sx={(theme) => ({
+                                color: client.online_count > 0 ? theme.palette.success.main : theme.palette.text.secondary,
+                                fontWeight: 700,
+                              })}
+                            >
+                              {client.online_count > 0 ? "Online" : "Offline"}
+                            </Typography>
                           </TableCell>
                           <TableCell>
                             <Stack direction="row" spacing={1} alignItems="center">
@@ -509,7 +544,7 @@ export default function UsersPage() {
                             </Stack>
                           </TableCell>
                           <TableCell>{formatBytes(client.last_tx_bytes + client.last_rx_bytes)}</TableCell>
-                          <TableCell>{formatDateTime(client.last_seen_at || client.updated_at)}</TableCell>
+                          <TableCell>{formatDateTime(client.last_seen_at || client.updated_at, { includeSeconds: false })}</TableCell>
                           <TableCell align="right">
                             <Stack direction="row" spacing={0.5} justifyContent="flex-end">
                               <Tooltip title="Show QR">

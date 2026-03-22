@@ -13,13 +13,16 @@ export function formatRate(bytesPerSecond: number): string {
   return `${formatBytes(bytesPerSecond)}/s`;
 }
 
-export function formatDateTime(value?: string | null): string {
+export function formatDateTime(value?: string | null, options?: { includeSeconds?: boolean }): string {
   if (!value) {
     return "-";
   }
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return "-";
+  }
+  if (options?.includeSeconds === false) {
+    return `${date.toLocaleDateString()}, ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
   }
   return date.toLocaleString();
 }

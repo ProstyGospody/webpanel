@@ -319,3 +319,47 @@ auth:
 		t.Fatalf("expected clientTLSInsecure to be removed when disabled: %s", withoutInsecure)
 	}
 }
+
+func TestHysteriaConfigManagerApplySettingsSpeedTestFlag(t *testing.T) {
+	cfg := `listen: :443
+acme:
+  domains:
+    - hy2.example.com
+auth:
+  type: password
+  password: old-secret
+`
+
+	manager := NewHysteriaConfigManager("/tmp/unused")
+	withSpeedTest, validation := manager.ApplySettings(cfg, Hy2Settings{
+		Listen:      ":443",
+		TLSEnabled:  true,
+		TLSMode:     "acme",
+		ACME:        &Hy2ServerACME{Domains: []string{"hy2.example.com"}, Email: "admin@example.com"},
+		Auth:        Hy2ServerAuth{Type: "password", Password: "new-secret"},
+		SpeedTest:   true,
+		QUICEnabled: false,
+	})
+	if !validation.Valid {
+		t.Fatalf("apply validation failed: %#v", validation.Errors)
+	}
+	if !strings.Contains(withSpeedTest, "speedTest: true") {
+		t.Fatalf("expected speedTest in config: %s", withSpeedTest)
+	}
+
+	withoutSpeedTest, validation := manager.ApplySettings(withSpeedTest, Hy2Settings{
+		Listen:      ":443",
+		TLSEnabled:  true,
+		TLSMode:     "acme",
+		ACME:        &Hy2ServerACME{Domains: []string{"hy2.example.com"}, Email: "admin@example.com"},
+		Auth:        Hy2ServerAuth{Type: "password", Password: "new-secret"},
+		SpeedTest:   false,
+		QUICEnabled: false,
+	})
+	if !validation.Valid {
+		t.Fatalf("apply validation failed: %#v", validation.Errors)
+	}
+	if strings.Contains(withoutSpeedTest, "speedTest: true") {
+		t.Fatalf("expected speedTest to be removed when disabled: %s", withoutSpeedTest)
+	}
+}

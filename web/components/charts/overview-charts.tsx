@@ -319,7 +319,7 @@ export function OverviewCharts({ loading, samples, range, onRangeChange }: Overv
   return (
     <Stack spacing={2}>
       <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} justifyContent="space-between" alignItems={{ xs: "flex-start", sm: "center" }}>
-        <Typography variant="h5">Performance Charts</Typography>
+        <Typography variant="h5">statistics</Typography>
         <ToggleButtonGroup
           exclusive
           value={range}

@@ -23,6 +23,7 @@ export function toSettingsDraft(settings: Hy2Settings): Hy2Settings {
     masquerade: settings.masquerade || undefined,
     bandwidth: settings.bandwidth || undefined,
     ignoreClientBandwidth: Boolean(settings.ignoreClientBandwidth),
+    speedTest: Boolean(settings.speedTest),
     disableUDP: Boolean(settings.disableUDP),
     udpIdleTimeout: settings.udpIdleTimeout || "",
     quicEnabled: settings.quicEnabled,
