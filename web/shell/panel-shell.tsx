@@ -17,7 +17,7 @@ import {
   Typography,
   useMediaQuery,
 } from "@mui/material";
-import { alpha, useTheme } from "@mui/material/styles";
+import { alpha, type Theme, useTheme } from "@mui/material/styles";
 import DashboardRoundedIcon from "@mui/icons-material/DashboardRounded";
 import GroupRoundedIcon from "@mui/icons-material/GroupRounded";
 import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
@@ -68,6 +68,15 @@ export function PanelShell({ children }: { children: ReactNode }) {
   const [desktopNavCollapsed, setDesktopNavCollapsed] = useState(false);
   const activeTitle = useMemo(() => resolveTitle(pathname), [pathname]);
   const topBarHeight = { xs: 54, sm: 58 };
+  const topBarActionSx = (muiTheme: Theme) => ({
+    width: 36,
+    height: 36,
+    color: muiTheme.palette.text.secondary,
+    "&:hover": {
+      color: muiTheme.palette.text.primary,
+      backgroundColor: alpha(muiTheme.palette.primary.main, 0.08),
+    },
+  });
   const layoutDrawerWidth = desktop ? (desktopNavCollapsed ? collapsedDrawerWidth : drawerWidth) : 0;
 
   useEffect(() => {
@@ -244,12 +253,8 @@ export function PanelShell({ children }: { children: ReactNode }) {
             <Tooltip title={desktopNavCollapsed ? "Expand menu" : "Collapse menu"}>
               <IconButton
                 color="inherit"
-                edge="start"
                 onClick={() => setDesktopNavCollapsed((value) => !value)}
-                sx={(theme) => ({
-                  color: theme.palette.text.secondary,
-                  "&:hover": { color: theme.palette.text.primary, backgroundColor: alpha(theme.palette.primary.main, 0.08) },
-                })}
+                sx={topBarActionSx}
               >
                 {desktopNavCollapsed ? <MenuRoundedIcon /> : <MenuOpenRoundedIcon />}
               </IconButton>
@@ -257,12 +262,8 @@ export function PanelShell({ children }: { children: ReactNode }) {
           ) : (
             <IconButton
               color="inherit"
-              edge="start"
               onClick={() => setMobileOpen(true)}
-              sx={(theme) => ({
-                color: theme.palette.text.secondary,
-                "&:hover": { color: theme.palette.text.primary, backgroundColor: alpha(theme.palette.primary.main, 0.08) },
-              })}
+              sx={topBarActionSx}
             >
               <MenuRoundedIcon />
             </IconButton>
@@ -274,10 +275,7 @@ export function PanelShell({ children }: { children: ReactNode }) {
             <IconButton
               color="inherit"
               onClick={toggleMode}
-              sx={(theme) => ({
-                color: theme.palette.text.secondary,
-                "&:hover": { color: theme.palette.text.primary, backgroundColor: alpha(theme.palette.primary.main, 0.08) },
-              })}
+              sx={topBarActionSx}
             >
               {mode === "dark" ? <LightModeRoundedIcon /> : <DarkModeRoundedIcon />}
             </IconButton>
@@ -286,10 +284,7 @@ export function PanelShell({ children }: { children: ReactNode }) {
             <IconButton
               color="inherit"
               onClick={logout}
-              sx={(theme) => ({
-                color: theme.palette.text.secondary,
-                "&:hover": { color: theme.palette.text.primary, backgroundColor: alpha(theme.palette.primary.main, 0.08) },
-              })}
+              sx={topBarActionSx}
             >
               <LogoutRoundedIcon />
             </IconButton>

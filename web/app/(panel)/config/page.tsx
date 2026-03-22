@@ -14,6 +14,7 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
+import { alpha, type Theme } from "@mui/material/styles";
 import { useCallback, useEffect, useState } from "react";
 
 import { ConfirmDialog } from "@/components/dialogs/confirm-dialog";
@@ -55,6 +56,29 @@ export default function ConfigPage() {
   const [rawYaml, setRawYaml] = useState("");
   const [draft, setDraft] = useState<Hy2Settings>(toSettingsDraft({ listen: ":443", tlsEnabled: true, tlsMode: "acme", quicEnabled: false } as Hy2Settings));
   const [validation, setValidation] = useState<Hy2ConfigValidation | null>(null);
+  const outlinedActionButtonSx = (theme: Theme) => ({
+    height: 42,
+    px: 2.1,
+    borderRadius: 999,
+    borderColor: alpha(theme.palette.primary.main, 0.34),
+    backgroundColor: alpha(theme.palette.primary.main, 0.07),
+    color: theme.palette.text.primary,
+    fontWeight: 700,
+    "&:hover": {
+      borderColor: alpha(theme.palette.primary.main, 0.48),
+      backgroundColor: alpha(theme.palette.primary.main, 0.14),
+    },
+  });
+  const containedActionButtonSx = {
+    height: 42,
+    px: 2.1,
+    borderRadius: 999,
+    fontWeight: 700,
+    boxShadow: "none",
+    "&:hover": {
+      boxShadow: "none",
+    },
+  } as const;
 
   const load = useCallback(async () => {
     setError("");
@@ -135,12 +159,56 @@ export default function ConfigPage() {
       <PageHeader
         title="Server"
         actions={
-          <>
-            <Button variant="outlined" startIcon={<RefreshRoundedIcon />} onClick={() => void load()} disabled={busy || applying}>Reload</Button>
-            <Button variant="outlined" startIcon={<FactCheckRoundedIcon />} onClick={() => void validateDraft()} disabled={busy || applying}>Validate</Button>
-            <Button variant="contained" startIcon={<SaveRoundedIcon />} onClick={() => void saveDraft()} disabled={busy || applying}>Save</Button>
-            <Button color="secondary" variant="contained" startIcon={<PlayArrowRoundedIcon />} onClick={() => setApplyDialog(true)} disabled={busy || applying}>Apply</Button>
-          </>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Button
+              variant="outlined"
+              startIcon={<RefreshRoundedIcon />}
+              onClick={() => void load()}
+              disabled={busy || applying}
+              sx={outlinedActionButtonSx}
+            >
+              Reload
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<FactCheckRoundedIcon />}
+              onClick={() => void validateDraft()}
+              disabled={busy || applying}
+              sx={outlinedActionButtonSx}
+            >
+              Validate
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<SaveRoundedIcon />}
+              onClick={() => void saveDraft()}
+              disabled={busy || applying}
+              sx={(theme) => ({
+                ...containedActionButtonSx,
+                backgroundColor: theme.palette.primary.main,
+                color: theme.palette.primary.contrastText,
+                "&:hover": {
+                  ...containedActionButtonSx["&:hover"],
+                  backgroundColor: theme.palette.primary.dark,
+                },
+              })}
+            >
+              Save
+            </Button>
+            <Button
+              color="secondary"
+              variant="contained"
+              startIcon={<PlayArrowRoundedIcon />}
+              onClick={() => setApplyDialog(true)}
+              disabled={busy || applying}
+              sx={(theme) => ({
+                ...containedActionButtonSx,
+                color: theme.palette.secondary.contrastText,
+              })}
+            >
+              Apply
+            </Button>
+          </Stack>
         }
       />
 
