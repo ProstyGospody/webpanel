@@ -1,5 +1,3 @@
-"use client";
-
 import {
   AppBar,
   Avatar,
@@ -28,9 +26,8 @@ import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
 import DarkModeRoundedIcon from "@mui/icons-material/DarkModeRounded";
 import LightModeRoundedIcon from "@mui/icons-material/LightModeRounded";
-import { ReactNode, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { ReactNode, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { apiFetch } from "@/services/api";
 import { useAppThemeMode } from "@/theme/app-theme-provider";
@@ -59,8 +56,8 @@ function isNavItemSelected(pathname: string, href: string): boolean {
 }
 
 export function PanelShell({ children }: { children: ReactNode }) {
-  const router = useRouter();
-  const pathname = usePathname();
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
   const theme = useTheme();
   const { mode, toggleMode } = useAppThemeMode();
   const desktop = useMediaQuery(theme.breakpoints.up("lg"), { noSsr: true });
@@ -79,19 +76,13 @@ export function PanelShell({ children }: { children: ReactNode }) {
   });
   const layoutDrawerWidth = desktop ? (desktopNavCollapsed ? collapsedDrawerWidth : drawerWidth) : 0;
 
-  useEffect(() => {
-    for (const item of navItems) {
-      router.prefetch(item.href);
-    }
-  }, [router]);
-
   async function logout() {
     try {
       await apiFetch<{ ok: boolean }>("/api/auth/logout", { method: "POST", body: JSON.stringify({}) });
     } catch {
       // no-op
     }
-    router.replace("/login");
+    navigate("/login", { replace: true });
   }
 
   const drawerContent = (collapsed: boolean) => (
@@ -128,10 +119,9 @@ export function PanelShell({ children }: { children: ReactNode }) {
           const itemButton = (
             <ListItemButton
               key={item.href}
-              component={Link}
-              href={item.href}
               selected={selected}
               onClick={() => {
+                navigate(item.href);
                 setMobileOpen(false);
               }}
               sx={(theme) => ({

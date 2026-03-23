@@ -1,49 +1,35 @@
-"use client";
-
 import { Box, CircularProgress, Stack, Typography } from "@mui/material";
-import { usePathname, useRouter } from "next/navigation";
-import { ReactNode, useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { ReactNode, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { APIError, apiFetch } from "@/services/api";
 
-type SessionState = "loading" | "ready";
-
 export function AuthGuard({ children }: { children: ReactNode }) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const [state, setState] = useState<SessionState>("loading");
-
-  const isLoginPath = useMemo(() => pathname === "/login", [pathname]);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const sessionQuery = useQuery({
+    queryKey: ["auth", "session"],
+    queryFn: () => apiFetch<{ id: string }>("/api/auth/me", { method: "GET" }),
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
 
   useEffect(() => {
-    let disposed = false;
-
-    async function verify() {
-      if (isLoginPath) {
-        setState("ready");
-        return;
-      }
-      try {
-        await apiFetch<{ id: string }>("/api/auth/me", { method: "GET" });
-        if (!disposed) {
-          setState("ready");
-        }
-      } catch (err) {
-        if (err instanceof APIError && err.status === 401) {
-          router.replace("/login");
-          return;
-        }
-        router.replace("/login");
-      }
+    if (!sessionQuery.isError) {
+      return;
     }
 
-    void verify();
-    return () => {
-      disposed = true;
-    };
-  }, [isLoginPath, router]);
+    const target = location.pathname + location.search + location.hash;
+    const error = sessionQuery.error;
+    if (error instanceof APIError && error.status === 401) {
+      navigate("/login", { replace: true, state: { from: target } });
+      return;
+    }
+    navigate("/login", { replace: true, state: { from: target } });
+  }, [location.hash, location.pathname, location.search, navigate, sessionQuery.error, sessionQuery.isError]);
 
-  if (state !== "ready") {
+  if (sessionQuery.isPending || sessionQuery.isError) {
     return (
       <Stack sx={{ minHeight: "100vh" }} alignItems="center" justifyContent="center" spacing={2}>
         <CircularProgress color="primary" />

@@ -23,13 +23,13 @@ function readCookie(name: string): string {
 }
 
 export function getCSRFToken(): string {
-  const cookieName = process.env.NEXT_PUBLIC_CSRF_COOKIE_NAME || "pp_csrf";
+  const cookieName = import.meta.env.VITE_CSRF_COOKIE_NAME || "pp_csrf";
   return readCookie(cookieName);
 }
 
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers || {});
-  const csrfHeaderName = process.env.NEXT_PUBLIC_CSRF_HEADER_NAME || "X-CSRF-Token";
+  const csrfHeaderName = import.meta.env.VITE_CSRF_HEADER_NAME || "X-CSRF-Token";
   const csrfToken = getCSRFToken();
 
   if (csrfToken && !headers.has(csrfHeaderName)) {

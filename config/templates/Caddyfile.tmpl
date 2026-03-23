@@ -19,11 +19,5 @@
     reverse_proxy 127.0.0.1:{$PANEL_API_PORT}
   }
 
-  @legacy_next path /next/*
-  handle @legacy_next {
-    uri replace /next/ /_next/
-    reverse_proxy 127.0.0.1:{$PANEL_WEB_PORT}
-  }
-
   reverse_proxy 127.0.0.1:{$PANEL_WEB_PORT}
 }

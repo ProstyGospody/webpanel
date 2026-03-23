@@ -1,5 +1,3 @@
-"use client";
-
 import { CssBaseline, ThemeProvider } from "@mui/material";
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 

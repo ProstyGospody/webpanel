@@ -183,7 +183,7 @@ install_go() {
 }
 
 install_node() {
-  local required_node="20.9.0"
+  local required_node="20.19.0"
   local target_major="20"
   local current_node=""
 
@@ -611,9 +611,12 @@ build_backend() {
 }
 
 build_frontend() {
-  action "Building Next.js frontend"
+  action "Building Vite frontend"
   pushd "${SRC_DIR}/web" >/dev/null
   npm install --no-audit --no-fund
+  VITE_API_PROXY_TARGET="${PANEL_API_INTERNAL_URL}" \
+  VITE_CSRF_COOKIE_NAME="${CSRF_COOKIE_NAME}" \
+  VITE_CSRF_HEADER_NAME="${CSRF_HEADER_NAME}" \
   npm run build
   popd >/dev/null
   chown -R proxy-panel:proxy-panel "${SRC_DIR}/web"
