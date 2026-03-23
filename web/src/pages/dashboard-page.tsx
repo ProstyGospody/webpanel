@@ -11,7 +11,6 @@ import SyncRoundedIcon from "@mui/icons-material/SyncRounded";
 import type { SvgIconComponent } from "@mui/icons-material";
 import {
   Alert,
-  Box,
   Card,
   CardContent,
   CircularProgress,
@@ -32,6 +31,7 @@ import {
   Typography,
   Button,
 } from "@mui/material";
+import { BarChart } from "@mui/x-charts/BarChart";
 import { LineChart } from "@mui/x-charts/LineChart";
 import { alpha, useTheme } from "@mui/material/styles";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -45,7 +45,7 @@ import { formatBytes, formatDateTime, formatRate, formatUptime } from "@/utils/f
 const LIVE_POLL_MS = 5000;
 const HISTORY_POLL_MS = 15000;
 const HISTORY_WINDOW = "1h";
-const HISTORY_STEP_SECONDS = 15;
+const HISTORY_STEP_SECONDS = 5;
 const HISTORY_LIMIT = 20000;
 
 function clampPercent(value: number): number {
@@ -72,19 +72,23 @@ type HistoryTrendPoint = {
 } & Record<TrendMetricKey, number>;
 
 type TrendChartSeries = {
-  label: string;
   color: string;
   dataKey: TrendMetricKey;
 };
 
 type TrendChartCardProps = {
-  title: string;
-  subtitle: string;
+  ariaLabel: string;
   points: HistoryTrendPoint[];
   series: TrendChartSeries[];
   valueFormatter: (value: number) => string;
   minValue?: number;
   maxValue?: number;
+};
+
+type TrafficUsageBarPoint = {
+  timestamp: Date;
+  download_bytes: number;
+  upload_bytes: number;
 };
 
 function formatShortTime(value: Date): string {
@@ -94,7 +98,7 @@ function formatShortTime(value: Date): string {
   return value.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-function TrendChartCard({ title, subtitle, points, series, valueFormatter, minValue, maxValue }: TrendChartCardProps) {
+function TrendChartCard({ ariaLabel, points, series, valueFormatter, minValue, maxValue }: TrendChartCardProps) {
   const normalizedPoints = useMemo(
     () =>
       points
@@ -103,21 +107,83 @@ function TrendChartCard({ title, subtitle, points, series, valueFormatter, minVa
     [points],
   );
 
-  const latestPoint = normalizedPoints.length ? normalizedPoints[normalizedPoints.length - 1] : null;
+  if (!normalizedPoints.length) {
+    return (
+      <Card variant="outlined" sx={{ height: "100%" }}>
+        <CardContent sx={{ py: 1.2 }}>
+          <Stack alignItems="center" justifyContent="center" sx={{ minHeight: 220 }}>
+            <Typography variant="body2" color="text.secondary">
+              Collecting chart data...
+            </Typography>
+          </Stack>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card variant="outlined" sx={{ height: "100%" }} aria-label={ariaLabel}>
+      <CardContent sx={{ py: 1.2 }}>
+        <LineChart
+          dataset={normalizedPoints}
+          height={240}
+          margin={{ top: 10, right: 16, bottom: 26, left: 66 }}
+          grid={{ horizontal: true }}
+          xAxis={[
+            {
+              dataKey: "timestamp",
+              scaleType: "time",
+              valueFormatter: (value) => formatShortTime(value instanceof Date ? value : new Date(Number(value))),
+            },
+          ]}
+          yAxis={[
+            {
+              min: minValue,
+              max: maxValue,
+              valueFormatter: (value) => {
+                const numeric = Number(value);
+                return valueFormatter(Number.isFinite(numeric) ? numeric : 0);
+              },
+            },
+          ]}
+          series={series.map((line) => ({
+            id: line.dataKey,
+            dataKey: line.dataKey,
+            color: line.color,
+            area: true,
+            showMark: false,
+          }))}
+          sx={{
+            "& .MuiLineElement-root": {
+              strokeWidth: 2.2,
+            },
+            "& .MuiAreaElement-root": {
+              fillOpacity: 0.2,
+            },
+          }}
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
+function TrafficUsageBarsCard({ points }: { points: TrafficUsageBarPoint[] }) {
+  const theme = useTheme();
+  const normalizedPoints = useMemo(
+    () =>
+      points
+        .filter((point) => point.timestamp instanceof Date && !Number.isNaN(point.timestamp.getTime()))
+        .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime()),
+    [points],
+  );
 
   if (!normalizedPoints.length) {
     return (
       <Card variant="outlined" sx={{ height: "100%" }}>
-        <CardContent>
-          <Stack spacing={1.25}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
-              {title}
-            </Typography>
+        <CardContent sx={{ py: 1.2 }}>
+          <Stack alignItems="center" justifyContent="center" sx={{ minHeight: 220 }}>
             <Typography variant="body2" color="text.secondary">
-              {subtitle}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Not enough data for chart yet.
+              Collecting chart data...
             </Typography>
           </Stack>
         </CardContent>
@@ -127,59 +193,56 @@ function TrendChartCard({ title, subtitle, points, series, valueFormatter, minVa
 
   return (
     <Card variant="outlined" sx={{ height: "100%" }}>
-      <CardContent>
-        <Stack spacing={1.25}>
-          <Stack direction="row" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={1}>
-            <Box>
-              <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
-                {title}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                {subtitle}
-              </Typography>
-            </Box>
-            <Stack direction="row" spacing={1.25} flexWrap="wrap" useFlexGap>
-              {series.map((line) => (
-                <Stack key={line.label} direction="row" spacing={0.6} alignItems="center">
-                  <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: line.color, flexShrink: 0 }} />
-                  <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: "nowrap" }}>
-                    {line.label}: {latestPoint ? valueFormatter(latestPoint[line.dataKey]) : "-"}
-                  </Typography>
-                </Stack>
-              ))}
-            </Stack>
-          </Stack>
-
-          <LineChart
-            dataset={normalizedPoints}
-            height={210}
-            margin={{ top: 16, right: 20, bottom: 28, left: 64 }}
-            grid={{ horizontal: true }}
-            xAxis={[
-              {
-                dataKey: "timestamp",
-                scaleType: "time",
-                valueFormatter: (value) => formatShortTime(value instanceof Date ? value : new Date(Number(value))),
+      <CardContent sx={{ py: 1.2 }}>
+        <BarChart
+          dataset={normalizedPoints}
+          height={250}
+          margin={{ top: 10, right: 16, bottom: 30, left: 66 }}
+          xAxis={[
+            {
+              dataKey: "timestamp",
+              scaleType: "band",
+              valueFormatter: (value) => {
+                if (value instanceof Date) {
+                  return formatShortTime(value);
+                }
+                const numeric = Number(value);
+                if (Number.isFinite(numeric)) {
+                  return formatShortTime(new Date(numeric));
+                }
+                return formatShortTime(new Date(String(value)));
               },
-            ]}
-            yAxis={[
-              {
-                min: minValue,
-                max: maxValue,
-                valueFormatter: (value) => {
-                  const numeric = Number(value);
-                  return valueFormatter(Number.isFinite(numeric) ? numeric : 0);
-                },
+            },
+          ]}
+          yAxis={[
+            {
+              valueFormatter: (value) => {
+                const numeric = Number(value);
+                return formatBytes(Number.isFinite(numeric) ? numeric : 0);
               },
-            ]}
-            series={series.map((line) => ({
-              dataKey: line.dataKey,
-              label: line.label,
-              color: line.color,
-              showMark: false,
-            }))}
-          />
-        </Stack>
+            },
+          ]}
+          grid={{ horizontal: true }}
+          series={[
+            {
+              id: "download_bytes",
+              dataKey: "download_bytes",
+              color: alpha(theme.palette.info.main, 0.9),
+              stack: "total",
+            },
+            {
+              id: "upload_bytes",
+              dataKey: "upload_bytes",
+              color: alpha(theme.palette.success.main, 0.9),
+              stack: "total",
+            },
+          ]}
+          sx={{
+            "& .MuiBarElement-root": {
+              opacity: 0.82,
+            },
+          }}
+        />
       </CardContent>
     </Card>
   );
@@ -383,15 +446,49 @@ export default function DashboardPage() {
   }, [historyItems]);
 
   const cpuSeries: TrendChartSeries[] = [
-    { label: "CPU", color: theme.palette.primary.main, dataKey: "cpu" },
+    { color: theme.palette.primary.main, dataKey: "cpu" },
   ];
   const ramSeries: TrendChartSeries[] = [
-    { label: "RAM", color: theme.palette.secondary.main, dataKey: "ram" },
+    { color: theme.palette.secondary.main, dataKey: "ram" },
   ];
   const networkSeries: TrendChartSeries[] = [
-    { label: "Download", color: theme.palette.info.main, dataKey: "download" },
-    { label: "Upload", color: theme.palette.success.main, dataKey: "upload" },
+    { color: theme.palette.info.main, dataKey: "download" },
+    { color: theme.palette.success.main, dataKey: "upload" },
   ];
+
+  const trafficUsageBars = useMemo<TrafficUsageBarPoint[]>(() => {
+    if (!historyPoints.length) {
+      return [];
+    }
+
+    const bucketMs = 60_000;
+    const bucketed = new Map<number, TrafficUsageBarPoint>();
+
+    for (let i = 0; i < historyPoints.length; i += 1) {
+      const point = historyPoints[i];
+      const currentMs = point.timestamp.getTime();
+      const prevMs = i > 0 ? historyPoints[i - 1].timestamp.getTime() : currentMs - HISTORY_STEP_SECONDS * 1000;
+      const deltaSeconds = Math.max(1, (currentMs - prevMs) / 1000);
+      const bucketMsValue = Math.floor(currentMs / bucketMs) * bucketMs;
+
+      const downloadBytes = Math.max(0, point.download) * deltaSeconds;
+      const uploadBytes = Math.max(0, point.upload) * deltaSeconds;
+
+      const current = bucketed.get(bucketMsValue);
+      if (current) {
+        current.download_bytes += downloadBytes;
+        current.upload_bytes += uploadBytes;
+      } else {
+        bucketed.set(bucketMsValue, {
+          timestamp: new Date(bucketMsValue),
+          download_bytes: downloadBytes,
+          upload_bytes: uploadBytes,
+        });
+      }
+    }
+
+    return [...bucketed.values()].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+  }, [historyPoints]);
 
   return (
     <Stack spacing={3}>
@@ -500,8 +597,7 @@ export default function DashboardPage() {
         <Grid container spacing={1.5}>
           <Grid size={{ xs: 12, md: 6, lg: 4 }}>
             <TrendChartCard
-              title="CPU"
-              subtitle="Server usage for the last hour"
+              ariaLabel="CPU usage trend"
               points={historyPoints}
               series={cpuSeries}
               minValue={0}
@@ -511,8 +607,7 @@ export default function DashboardPage() {
           </Grid>
           <Grid size={{ xs: 12, md: 6, lg: 4 }}>
             <TrendChartCard
-              title="RAM"
-              subtitle="Memory usage for the last hour"
+              ariaLabel="RAM usage trend"
               points={historyPoints}
               series={ramSeries}
               minValue={0}
@@ -522,12 +617,14 @@ export default function DashboardPage() {
           </Grid>
           <Grid size={{ xs: 12, md: 12, lg: 4 }}>
             <TrendChartCard
-              title="Upload / Download"
-              subtitle="Network speed for the last hour"
+              ariaLabel="Upload and download speed trend"
               points={historyPoints}
               series={networkSeries}
               valueFormatter={(value) => formatRate(value)}
             />
+          </Grid>
+          <Grid size={{ xs: 12 }}>
+            <TrafficUsageBarsCard points={trafficUsageBars} />
           </Grid>
         </Grid>
       </Stack>
