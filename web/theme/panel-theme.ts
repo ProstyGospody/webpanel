@@ -364,7 +364,9 @@ export const panelLightTheme = createTheme(panelTheme, {
     MuiIconButton: {
       styleOverrides: {
         root: ({ theme }: { theme: Theme }) => ({
-          color: theme.palette.text.secondary,
+          "&.MuiIconButton-colorDefault, &.MuiIconButton-colorInherit": {
+            color: theme.palette.text.secondary,
+          },
         }),
       },
     },

@@ -372,7 +372,6 @@ export default function UsersPage() {
             <Tooltip title={`Delete selected (${selectedClientIDs.length})`}>
               <span>
                 <IconButton
-                  color="error"
                   disabled={!selectedClientIDs.length}
                   onClick={() => setBulkDeleteOpen(true)}
                   aria-label="Delete selected users"
@@ -380,17 +379,19 @@ export default function UsersPage() {
                     width: 42,
                     height: 42,
                     borderRadius: 999,
-                    border: `1px solid ${alpha(theme.palette.error.main, 0.32)}`,
-                    backgroundColor: alpha(theme.palette.error.main, theme.palette.mode === "light" ? 0.08 : 0.12),
-                    color: theme.palette.mode === "light" ? alpha(theme.palette.error.dark, 0.92) : alpha(theme.palette.error.light, 0.92),
+                    border: `1px solid ${alpha(theme.palette.error.main, 0.34)}`,
+                    backgroundColor: theme.palette.background.paper,
+                    color: theme.palette.mode === "light" ? theme.palette.error.dark : theme.palette.error.light,
                     flexShrink: 0,
+                    "&:hover": {
+                      backgroundColor: theme.palette.error.main,
+                      color: theme.palette.error.contrastText,
+                      borderColor: alpha(theme.palette.error.main, 0.44),
+                    },
                     "&.Mui-disabled": {
-                      color:
-                        theme.palette.mode === "light"
-                          ? alpha(theme.palette.error.dark, 0.6)
-                          : alpha(theme.palette.error.light, 0.6),
-                      borderColor: alpha(theme.palette.error.main, 0.32),
-                      backgroundColor: alpha(theme.palette.error.main, theme.palette.mode === "light" ? 0.08 : 0.12),
+                      color: alpha(theme.palette.error.main, 0.46),
+                      borderColor: alpha(theme.palette.error.main, 0.22),
+                      backgroundColor: theme.palette.background.paper,
                     },
                   })}
                 >
@@ -405,10 +406,12 @@ export default function UsersPage() {
               placeholder="Search"
               size="small"
               sx={(theme) => ({
-                minWidth: { xs: 120, sm: 220, lg: 300 },
-                maxWidth: { lg: 520 },
-                flex: { xs: "1 1 140px", sm: "1 1 260px", lg: "1 1 360px" },
+                minWidth: { xs: 140, sm: 180 },
+                width: { xs: "100%", sm: 220, lg: 250 },
+                maxWidth: { xs: "100%", sm: 250 },
+                flex: { xs: "1 1 160px", sm: "0 0 220px", lg: "0 0 250px" },
                 "& .MuiOutlinedInput-root": {
+                  height: 42,
                   borderRadius: 999,
                   backgroundColor: alpha(theme.palette.primary.main, 0.07),
                   "& .MuiOutlinedInput-notchedOutline": {
