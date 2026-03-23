@@ -380,18 +380,16 @@ export default function UsersPage() {
                     height: 42,
                     borderRadius: 999,
                     border: `1px solid ${alpha(theme.palette.error.main, 0.34)}`,
-                    backgroundColor: theme.palette.background.paper,
-                    color: theme.palette.mode === "light" ? theme.palette.error.dark : theme.palette.error.light,
+                    backgroundColor: theme.palette.error.main,
+                    color: theme.palette.error.contrastText,
                     flexShrink: 0,
                     "&:hover": {
-                      backgroundColor: theme.palette.error.main,
-                      color: theme.palette.error.contrastText,
-                      borderColor: alpha(theme.palette.error.main, 0.44),
+                      backgroundColor: theme.palette.error.dark,
                     },
                     "&.Mui-disabled": {
-                      color: alpha(theme.palette.error.main, 0.46),
-                      borderColor: alpha(theme.palette.error.main, 0.22),
-                      backgroundColor: theme.palette.background.paper,
+                      color: alpha(theme.palette.error.contrastText, 0.66),
+                      borderColor: alpha(theme.palette.error.main, 0.32),
+                      backgroundColor: alpha(theme.palette.error.main, 0.6),
                     },
                   })}
                 >
