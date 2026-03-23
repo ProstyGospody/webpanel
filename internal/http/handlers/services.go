@@ -14,17 +14,6 @@ import (
 )
 
 func (h *Handler) ListServices(w http.ResponseWriter, r *http.Request) {
-	if h.serviceManager == nil {
-		render.JSON(w, http.StatusOK, map[string]any{"items": []map[string]any{}})
-		return
-	}
-
-	forceLive := false
-	switch strings.ToLower(strings.TrimSpace(r.URL.Query().Get("live"))) {
-	case "1", "true", "yes":
-		forceLive = true
-	}
-
 	services := make([]string, 0, len(h.serviceManager.ManagedServices))
 	for service := range h.serviceManager.ManagedServices {
 		services = append(services, service)
@@ -33,7 +22,9 @@ func (h *Handler) ListServices(w http.ResponseWriter, r *http.Request) {
 
 	states := make([]map[string]any, 0, len(services))
 	for _, service := range services {
-		if !forceLive && h.repo != nil {
+		details, statusErr := h.serviceManager.Status(r.Context(), service)
+		if statusErr != nil {
+			h.logger.Warn("service status failed on list", "service", service, "error", statusErr)
 			cached, cacheErr := h.repo.GetServiceState(r.Context(), service)
 			if cacheErr == nil {
 				states = append(states, map[string]any{
@@ -43,31 +34,9 @@ func (h *Handler) ListServices(w http.ResponseWriter, r *http.Request) {
 					"version":       cached.Version,
 					"last_check_at": cached.LastCheckAt,
 					"raw_json":      cached.RawJSON,
+					"error":         statusErr.Error(),
 				})
 				continue
-			}
-		}
-
-		statusCtx, cancel := context.WithTimeout(r.Context(), systemLiveOptionalTimeout)
-		details, statusErr := h.serviceManager.Status(statusCtx, service)
-		cancel()
-
-		if statusErr != nil {
-			h.logger.Warn("service status failed on list", "service", service, "error", statusErr)
-			if h.repo != nil {
-				cached, cacheErr := h.repo.GetServiceState(r.Context(), service)
-				if cacheErr == nil {
-					states = append(states, map[string]any{
-						"id":            cached.ID,
-						"service_name":  cached.ServiceName,
-						"status":        cached.Status,
-						"version":       cached.Version,
-						"last_check_at": cached.LastCheckAt,
-						"raw_json":      cached.RawJSON,
-						"error":         statusErr.Error(),
-					})
-					continue
-				}
 			}
 			states = append(states, map[string]any{
 				"service_name":  service,
@@ -79,9 +48,7 @@ func (h *Handler) ListServices(w http.ResponseWriter, r *http.Request) {
 		}
 
 		raw := h.serviceManager.ToJSON(details)
-		if h.repo != nil {
-			_ = h.repo.UpsertServiceState(r.Context(), service, details.StatusText, nil, raw)
-		}
+		_ = h.repo.UpsertServiceState(r.Context(), service, details.StatusText, nil, raw)
 		states = append(states, map[string]any{
 			"service_name":  service,
 			"status":        details.StatusText,
