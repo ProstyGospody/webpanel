@@ -32,7 +32,7 @@ function SectionTitle({
 }: {
   icon: ReactNode;
   title: string;
-  subtitle: string;
+  subtitle?: string;
   chips?: ReactNode;
 }) {
   return (
@@ -41,7 +41,7 @@ function SectionTitle({
         {icon}
         <Stack spacing={0.2}>
           <Typography variant="subtitle1" sx={{ fontWeight: 750 }}>{title}</Typography>
-          <Typography variant="caption" color="text.secondary">{subtitle}</Typography>
+          {subtitle ? <Typography variant="caption" color="text.secondary">{subtitle}</Typography> : null}
         </Stack>
       </Stack>
       {chips ? (
@@ -126,7 +126,6 @@ export function ServerSettingsForm({
             <SectionTitle
               icon={<LanRoundedIcon color="primary" />}
               title="Connection Profile"
-              subtitle="Core endpoint and handshake settings"
               chips={
                 <>
                   <Chip size="small" label={`TLS ${tlsMode === "acme" ? "ACME" : "Manual"}`} />
@@ -285,7 +284,6 @@ export function ServerSettingsForm({
             <SectionTitle
               icon={<SettingsSuggestRoundedIcon color="primary" />}
               title="Runtime Defaults"
-              subtitle="Client behavior, transport flags and limits"
             />
 
             <Grid container spacing={1.5}>
@@ -580,7 +578,6 @@ export function ServerSettingsForm({
             <SectionTitle
               icon={<TuneRoundedIcon color="primary" />}
               title="QUIC Tuning"
-              subtitle="Optional transport profile overrides"
             />
 
             <FormControlLabel
@@ -648,7 +645,6 @@ export function ServerSettingsForm({
             <SectionTitle
               icon={<CodeRoundedIcon color="primary" />}
               title="Generated YAML"
-              subtitle="Read-only preview of the resolved server configuration"
             />
 
             <TextField
