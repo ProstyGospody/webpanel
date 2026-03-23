@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"proxy-panel/internal/http/render"
@@ -21,6 +22,8 @@ const (
 	systemTrendCollectorInterval = 3 * time.Second
 	systemTrendDefaultStepSec    = 3
 	systemTrendMaxStepSec        = 3600
+	systemLiveOptionalTimeout    = 2 * time.Second
+	systemServiceStaleAfter      = 2 * time.Minute
 )
 
 type liveSystemMetrics struct {
@@ -72,7 +75,7 @@ func (h *Handler) GetSystemLive(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	generatedAt := time.Now().UTC()
-	errors := make([]string, 0, 3)
+	errors := make([]string, 0, 6)
 
 	snapshot, networkRx, networkTx, source, err := h.collectSystemMetrics(ctx)
 	if err != nil {
@@ -94,12 +97,32 @@ func (h *Handler) GetSystemLive(w http.ResponseWriter, r *http.Request) {
 		errors = append(errors, "protocol socket metrics unavailable")
 	}
 
-	hy2, hy2Err := h.collectHy2Live(ctx)
-	if hy2Err != "" {
-		errors = append(errors, hy2Err)
+	type hy2LiveResult struct {
+		overview liveHy2Overview
+		err      string
 	}
 
-	serviceStatuses := h.collectProxyServiceStatuses(ctx)
+	hy2ResultCh := make(chan hy2LiveResult, 1)
+	serviceStatusesCh := make(chan []liveServiceStatus, 1)
+
+	go func() {
+		optionalCtx, optionalCancel := context.WithTimeout(ctx, systemLiveOptionalTimeout)
+		defer optionalCancel()
+
+		hy2, hy2Err := h.collectHy2Live(optionalCtx)
+		hy2ResultCh <- hy2LiveResult{overview: hy2, err: hy2Err}
+	}()
+
+	go func() {
+		serviceStatusesCh <- h.collectProxyServiceStatuses(ctx)
+	}()
+
+	hy2Result := <-hy2ResultCh
+	if hy2Result.err != "" {
+		errors = append(errors, hy2Result.err)
+	}
+
+	serviceStatuses := <-serviceStatusesCh
 	for _, service := range serviceStatuses {
 		if service.Error != "" {
 			errors = append(errors, service.ServiceName+" status unavailable")
@@ -129,7 +152,7 @@ func (h *Handler) GetSystemLive(w http.ResponseWriter, r *http.Request) {
 			Source:            source,
 			IsStale:           time.Since(snapshot.CollectedAt) > 15*time.Second,
 		},
-		"hysteria": hy2,
+		"hysteria": hy2Result.overview,
 		"services": serviceStatuses,
 		"errors":   errors,
 	})
@@ -274,6 +297,10 @@ func (h *Handler) calculateProtocolPacketRates(tcpPackets int64, udpPackets int6
 }
 
 func (h *Handler) collectHy2Live(ctx context.Context) (liveHy2Overview, string) {
+	if h.repo == nil {
+		return liveHy2Overview{Source: "unavailable", IsStale: true, CollectedAt: time.Now().UTC()}, "hysteria overview unavailable"
+	}
+
 	base, err := h.repo.GetHysteriaStatsOverview(ctx)
 	if err != nil {
 		return liveHy2Overview{Source: "unavailable", IsStale: true, CollectedAt: time.Now().UTC()}, "hysteria overview unavailable"
@@ -296,8 +323,26 @@ func (h *Handler) collectHy2Live(ctx context.Context) (liveHy2Overview, string) 
 		return resp, "hysteria live stats client is not configured"
 	}
 
-	traffic, trafficErr := h.hy2Client.FetchTraffic(ctx)
-	online, onlineSummary, onlineErr := h.hy2Client.FetchOnlineStats(ctx)
+	var (
+		traffic       map[string]services.Hy2Traffic
+		trafficErr    error
+		online        map[string]int
+		onlineSummary services.Hy2OnlineSummary
+		onlineErr     error
+	)
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		traffic, trafficErr = h.hy2Client.FetchTraffic(ctx)
+	}()
+	go func() {
+		defer wg.Done()
+		online, onlineSummary, onlineErr = h.hy2Client.FetchOnlineStats(ctx)
+	}()
+	wg.Wait()
+
 	if trafficErr != nil || onlineErr != nil {
 		return resp, "hysteria live stats fallback to snapshots"
 	}
@@ -328,6 +373,10 @@ func (h *Handler) collectHy2Live(ctx context.Context) (liveHy2Overview, string) 
 }
 
 func (h *Handler) collectProxyServiceStatuses(ctx context.Context) []liveServiceStatus {
+	if h.serviceManager == nil {
+		return []liveServiceStatus{}
+	}
+
 	targets := make([]string, 0, 1)
 	for _, candidate := range []string{"hysteria-server"} {
 		if _, ok := h.serviceManager.ManagedServices[candidate]; ok {
@@ -337,41 +386,57 @@ func (h *Handler) collectProxyServiceStatuses(ctx context.Context) []liveService
 	sort.Strings(targets)
 
 	states := make([]liveServiceStatus, 0, len(targets))
-	for _, name := range targets {
-		details, err := h.serviceManager.Status(ctx, name)
-		if err == nil {
-			raw := h.serviceManager.ToJSON(details)
-			_ = h.repo.UpsertServiceState(ctx, name, details.StatusText, nil, raw)
+	if h.repo == nil {
+		now := time.Now().UTC()
+		for _, name := range targets {
 			states = append(states, liveServiceStatus{
 				ServiceName: name,
-				Status:      details.StatusText,
-				LastCheckAt: details.CheckedAt,
-				Source:      "live",
-				IsStale:     false,
-			})
-			continue
-		}
-
-		cached, cacheErr := h.repo.GetServiceState(ctx, name)
-		if cacheErr == nil {
-			states = append(states, liveServiceStatus{
-				ServiceName: name,
-				Status:      cached.Status,
-				LastCheckAt: cached.LastCheckAt,
-				Source:      "cache",
+				Status:      "unknown",
+				LastCheckAt: now,
+				Source:      "unavailable",
 				IsStale:     true,
-				Error:       err.Error(),
+				Error:       "service state cache is not configured",
+			})
+		}
+		return states
+	}
+
+	for _, name := range targets {
+		cached, err := h.repo.GetServiceState(ctx, name)
+		if err != nil {
+			statusCtx, cancel := context.WithTimeout(ctx, systemLiveOptionalTimeout)
+			details, statusErr := h.serviceManager.Status(statusCtx, name)
+			cancel()
+			if statusErr == nil {
+				raw := h.serviceManager.ToJSON(details)
+				_ = h.repo.UpsertServiceState(ctx, name, details.StatusText, nil, raw)
+				states = append(states, liveServiceStatus{
+					ServiceName: name,
+					Status:      details.StatusText,
+					LastCheckAt: details.CheckedAt,
+					Source:      "live",
+					IsStale:     false,
+				})
+				continue
+			}
+
+			states = append(states, liveServiceStatus{
+				ServiceName: name,
+				Status:      "unknown",
+				LastCheckAt: time.Now().UTC(),
+				Source:      "cache-miss",
+				IsStale:     true,
+				Error:       statusErr.Error(),
 			})
 			continue
 		}
 
 		states = append(states, liveServiceStatus{
 			ServiceName: name,
-			Status:      "failed",
-			LastCheckAt: time.Now().UTC(),
-			Source:      "error",
-			IsStale:     true,
-			Error:       err.Error(),
+			Status:      cached.Status,
+			LastCheckAt: cached.LastCheckAt,
+			Source:      "cache",
+			IsStale:     time.Since(cached.LastCheckAt) > systemServiceStaleAfter,
 		})
 	}
 

@@ -34,16 +34,17 @@ import {
   Button,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { DashboardChartRange, OverviewCharts, SystemTrendSample } from "@/components/charts/overview-charts";
+import type { DashboardChartRange, SystemTrendSample } from "@/components/charts/overview-charts";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusChip } from "@/components/ui/status-chip";
 import { APIError, apiFetch } from "@/services/api";
 import { ServiceDetails, ServiceSummary, SystemHistoryResponse, SystemLiveResponse } from "@/types/common";
 import { formatBytes, formatDateTime, formatRate, formatUptime } from "@/utils/format";
 
-const LIVE_POLL_MS = 3000;
+const LIVE_POLL_MS = 5000;
 const TREND_RETENTION_MS = 24 * 60 * 60 * 1000;
 const TREND_HIGH_RES_WINDOW_MS = 2 * 60 * 60 * 1000;
 const TREND_COARSE_BUCKET_MS = 30 * 1000;
@@ -60,6 +61,23 @@ const RANGE_LIMIT = {
   "1h": 2200,
   "24h": 20000,
 } as const;
+
+const OverviewCharts = dynamic(
+  () => import("@/components/charts/overview-charts").then((module) => module.OverviewCharts),
+  {
+    ssr: false,
+    loading: () => (
+      <Card variant="outlined">
+        <CardContent>
+          <Stack alignItems="center" justifyContent="center" sx={{ minHeight: 220 }} spacing={1.5}>
+            <CircularProgress size={24} />
+            <Typography color="text.secondary">Preparing charts...</Typography>
+          </Stack>
+        </CardContent>
+      </Card>
+    ),
+  },
+);
 
 function clampPercent(value: number): number {
   if (!Number.isFinite(value)) {
@@ -283,7 +301,7 @@ export default function DashboardPage() {
   async function openServiceDetails(name: string) {
     setServicesBusy(true);
     try {
-      const payload = await apiFetch<ServiceDetails>(`/api/services/${name}?lines=120`, { method: "GET" });
+      const payload = await apiFetch<ServiceDetails>(`/api/services/${name}?lines=60`, { method: "GET" });
       setServiceDetails(payload);
       setServiceDetailsOpen(true);
     } catch (err) {
@@ -310,15 +328,7 @@ export default function DashboardPage() {
     }
   }
 
-  if (loading && !live) {
-    return (
-      <Stack alignItems="center" justifyContent="center" sx={{ minHeight: 360 }} spacing={2}>
-        <CircularProgress />
-        <Typography color="text.secondary">Loading dashboard...</Typography>
-      </Stack>
-    );
-  }
-
+  const showInitialLoading = loading && !live;
   const cpuPercent = clampPercent(live?.system.cpu_usage_percent ?? 0);
   const ramPercent = clampPercent(live?.system.memory_used_percent ?? 0);
   const onlineUsers = Math.max(0, live?.hysteria.online_count ?? 0);
@@ -379,6 +389,7 @@ export default function DashboardPage() {
     <Stack spacing={3}>
       <PageHeader title="Overview" />
 
+      {showInitialLoading ? <Alert severity="info">Loading latest dashboard metrics...</Alert> : null}
       {error ? <Alert severity="error">{error}</Alert> : null}
       {warningMessages.length ? <Alert severity="warning">{warningMessages.join(" | ")}</Alert> : null}
 
