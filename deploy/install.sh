@@ -127,9 +127,22 @@ check_os() {
   fi
   # shellcheck disable=SC1091
   source /etc/os-release
-  if [[ "${ID}" != "ubuntu" || "${VERSION_ID}" != "24.04" ]]; then
-    fatal "This installer supports Ubuntu 24.04 only"
-  fi
+  case "${ID}" in
+    ubuntu)
+      if [[ "${VERSION_ID}" != "24.04" ]]; then
+        fatal "Ubuntu 24.04 is required; found Ubuntu ${VERSION_ID:-unknown}"
+      fi
+      ;;
+    debian)
+      local debian_major="${VERSION_ID%%.*}"
+      if [[ ! "${debian_major}" =~ ^[0-9]+$ ]] || (( debian_major < 12 )); then
+        fatal "Debian 12+ is required; found Debian ${VERSION_ID:-unknown}"
+      fi
+      ;;
+    *)
+      fatal "This installer supports Ubuntu 24.04 and Debian 12+ only"
+      ;;
+  esac
 }
 
 version_gte() {

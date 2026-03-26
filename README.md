@@ -1,6 +1,6 @@
 # Hysteria 2 Panel
 
-Production-oriented control plane for managing a native Hysteria 2 service on Ubuntu 24.04 LTS.
+Production-oriented control plane for managing a native Hysteria 2 service on Ubuntu 24.04 LTS or Debian 12+.
 
 Control plane stack:
 
@@ -11,7 +11,7 @@ Control plane stack:
 - Native procfs-based host metrics (live CPU/RAM/network)
 - systemd
 
-## One-command deploy (Ubuntu 24.04 host)
+## One-command deploy (Ubuntu 24.04 / Debian 12+ host)
 
 Remote bootstrap (same style as other panels):
 
@@ -25,7 +25,7 @@ From cloned repository:
 sudo bash ./deploy/install.sh
 ```
 
-Compatibility wrapper:
+Legacy compatibility wrapper:
 
 ```bash
 sudo bash ./deploy/ubuntu24-host-install.sh
@@ -35,7 +35,7 @@ sudo bash ./deploy/ubuntu24-host-install.sh
 
 Installer phases:
 
-1. Validates Ubuntu 24.04 + root access
+1. Validates host OS support (Ubuntu 24.04 or Debian 12+) + root access
 2. Installs host dependencies (Go, Node.js/npm, Caddy)
 3. Installs Hysteria binary
 4. Creates system users (`proxy-panel`, `hysteria`)

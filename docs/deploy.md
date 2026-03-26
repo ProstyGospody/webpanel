@@ -2,7 +2,7 @@
 
 ## Host requirements
 
-- Ubuntu 24.04 LTS
+- Ubuntu 24.04 LTS or Debian 12+
 - Root access (`sudo`)
 - Public DNS records:
   - panel host (`PANEL_PUBLIC_HOST`)
@@ -28,7 +28,7 @@ From repository root:
 sudo bash ./deploy/install.sh
 ```
 
-Wrapper (same behavior):
+Legacy wrapper (same behavior):
 
 ```bash
 sudo bash ./deploy/ubuntu24-host-install.sh
